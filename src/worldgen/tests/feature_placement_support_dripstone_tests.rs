@@ -37,6 +37,7 @@ fn assert_disk_support() {
     let disk = super::super::disk_placement_plan(
         BlockPos { x: 0, y: 64, z: 0 },
         &disk_config,
+        0,
         &disk_contexts,
         &[],
     );
@@ -50,6 +51,7 @@ fn assert_disk_support() {
     let disk_with_gap = super::super::disk_placement_plan(
         BlockPos { x: 0, y: 64, z: 0 },
         &disk_config,
+        0,
         &disk_contexts,
         &[],
     );
@@ -292,10 +294,11 @@ fn assert_dripstone_cluster_column_support() {
             water_roll: 0.75,
             stalactite_roll: 0.0,
             stalactite_density_roll: 0.0,
-            stalactite_biased_height: 4.0,
+            // mean 3.0 (max height 6 / 2 at the centre) + 0.5 * deviation 2 = 4.
+            stalactite_height_gaussian: 0.5,
             stalagmite_roll: 0.0,
             stalagmite_density_roll: 0.0,
-            stalagmite_biased_height: 3.0,
+            stalagmite_height_gaussian: 0.0,
             stalagmite_height_diff_roll: 1,
             overlap_split_roll: 0,
             merge_tips_roll: true,
@@ -331,7 +334,9 @@ fn assert_dripstone_cluster_column_support() {
             },
         ]
     );
-    assert!(!dripstone_plan.merge_tips);
+    // Column height is `ceiling - floor - 1` = 5 and the resolved tips are 4 + 1 tall, so the
+    // merge roll takes effect (`Column.Range.height()` in Java excludes the ceiling block).
+    assert!(dripstone_plan.merge_tips);
     assert_eq!(dripstone_plan.stalactite.len(), 4);
     assert_eq!(dripstone_plan.stalagmite.len(), 1);
 }

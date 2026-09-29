@@ -673,10 +673,12 @@ pub struct DripstoneClusterColumnRolls {
     pub water_roll: f32,
     pub stalactite_roll: f64,
     pub stalactite_density_roll: f32,
-    pub stalactite_biased_height: f32,
+    /// `random.nextGaussian()` draw feeding the stalactite `ClampedNormalFloat` height.
+    pub stalactite_height_gaussian: f64,
     pub stalagmite_roll: f64,
     pub stalagmite_density_roll: f32,
-    pub stalagmite_biased_height: f32,
+    /// `random.nextGaussian()` draw feeding the stalagmite `ClampedNormalFloat` height.
+    pub stalagmite_height_gaussian: f64,
     pub stalagmite_height_diff_roll: i32,
     pub overlap_split_roll: i32,
     pub merge_tips_roll: bool,

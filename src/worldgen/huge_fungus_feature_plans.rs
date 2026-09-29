@@ -37,15 +37,16 @@ pub fn huge_fungus_stem_blocks(
     for dx in -stem_radius..=stem_radius {
         for dz in -stem_radius..=stem_radius {
             let corner = is_huge && dx.abs() == stem_radius && dz.abs() == stem_radius;
-            let place_corner =
-                !corner || corner_rolls.get(corner_index).copied().unwrap_or(1.0) < 0.1;
-            if corner {
-                corner_index += 1;
-            }
-            if !place_corner {
-                continue;
-            }
             for dy in 0..total_height {
+                // Java rolls `random.nextFloat() < 0.1F` for every block of a corner column, not
+                // once per column, so each corner block consumes its own roll.
+                if corner {
+                    let roll = corner_rolls.get(corner_index).copied().unwrap_or(1.0);
+                    corner_index += 1;
+                    if roll >= 0.1 {
+                        continue;
+                    }
+                }
                 blocks.push(HugeFungusStemBlock {
                     pos: BlockPos {
                         x: origin.x + dx,

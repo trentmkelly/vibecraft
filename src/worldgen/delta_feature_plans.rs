@@ -45,10 +45,13 @@ pub struct DeltaClearInput<'a> {
     pub east_air: bool,
 }
 
+/// Java `DeltaFeature.isClear`: for every direction, `isAir && d != UP || !isAir && d == UP`
+/// rejects the position, i.e. the block above must be air while the down/horizontal neighbours
+/// must all be non-air.
 pub fn delta_is_clear(input: DeltaClearInput<'_>) -> bool {
     input.state != input.contents
         && !delta_cannot_replace(input.state)
-        && !input.up_air
+        && input.up_air
         && !input.down_air
         && !input.north_air
         && !input.south_air
@@ -60,13 +63,23 @@ pub fn delta_has_rim(spawn_roll: f64, rim_x: i32, rim_z: i32) -> bool {
     spawn_roll < 0.9 && rim_x != 0 && rim_z != 0
 }
 
+/// Candidate `(dx, dz)` offsets in Java iteration order: `BlockPos.withinManhattan(origin, radiusX,
+/// 0, radiusZ)` visits positions by increasing Manhattan depth (not raster order), emitting each
+/// `+z` position followed by its `-z` mirror, and `DeltaFeature.place` `break`s at the first
+/// position farther than `max(radiusX, radiusZ)`. Order matters because earlier placements change
+/// what later `isClear` checks observe.
 pub fn delta_candidate_offsets(radius_x: i32, radius_z: i32) -> Vec<(i32, i32)> {
     let radius_limit = radius_x.max(radius_z);
     let mut offsets = Vec::new();
-    for dz in -radius_z..=radius_z {
-        for dx in -radius_x..=radius_x {
-            if dx.abs() + dz.abs() <= radius_limit {
+    for depth in 0..=radius_limit.min(radius_x + radius_z) {
+        let max_x = radius_x.min(depth);
+        for dx in -max_x..=max_x {
+            let dz = depth - dx.abs();
+            if dz <= radius_z {
                 offsets.push((dx, dz));
+                if dz != 0 {
+                    offsets.push((dx, -dz));
+                }
             }
         }
     }

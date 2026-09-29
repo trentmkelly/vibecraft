@@ -335,7 +335,7 @@ pub(super) fn live_fallen_tree_placement_plan(
         kind: TreePlacementBlockKind::Log,
     }];
 
-    let Some(start) = live_fallen_tree_start_pos(
+    let start = live_fallen_tree_start_pos(
         source_pos,
         block_context,
         previous_source_blocks,
@@ -343,9 +343,7 @@ pub(super) fn live_fallen_tree_placement_plan(
         origin,
         direction,
         distance_roll,
-    ) else {
-        return Some(TreePlacementPlan { blocks });
-    };
+    );
 
     if !live_fallen_tree_can_place_log(
         source_pos,
@@ -377,9 +375,11 @@ fn live_fallen_tree_start_pos(
     origin: BlockPos,
     direction: HorizontalDirection,
     distance_roll: i32,
-) -> Option<BlockPos> {
+) -> BlockPos {
     let mut pos = offset_horizontal(origin, direction, 2 + distance_roll.rem_euclid(2));
     pos.y += 1;
+    // Java `setGroundHeightForFallenLogStartPos`: the cursor keeps stepping down for all six
+    // probes even when none is suitable, and the log is then attempted from the lowered position.
     for _ in 0..6 {
         if live_fallen_tree_may_place_on(
             source_pos,
@@ -388,11 +388,11 @@ fn live_fallen_tree_start_pos(
             planned_blocks,
             pos,
         ) {
-            return Some(pos);
+            return pos;
         }
         pos.y -= 1;
     }
-    None
+    pos
 }
 
 fn live_fallen_tree_can_place_log(

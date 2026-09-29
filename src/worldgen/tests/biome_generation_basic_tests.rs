@@ -142,3 +142,110 @@ fn the_void_biome_generation_settings_match_json_contract() {
         &[]
     );
 }
+
+/// Every built-in biome generation-settings row (carvers, per-step placed features, creature
+/// spawn probability, spawn costs and per-category spawners) must equal the vanilla biome JSON
+/// bundled in `vanilla-data` (mirrors `Biome.java`'s `BiomeGenerationSettings` + `MobSpawnSettings`).
+#[test]
+fn builtin_biome_generation_settings_match_vanilla_biome_json() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("vanilla-data/data/minecraft/worldgen/biome");
+    let qualify = |id: &str| {
+        if id.contains(':') {
+            id.to_owned()
+        } else {
+            format!("minecraft:{id}")
+        }
+    };
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_stem().unwrap().to_str().unwrap().to_owned();
+        let json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let model = super::super::biome_generation_settings(&name)
+            .unwrap_or_else(|| panic!("missing generation settings for {name}"));
+
+        // Carvers may be serialized as a single string or a list.
+        let carvers: Vec<String> = match &json["carvers"] {
+            serde_json::Value::String(s) => vec![qualify(s)],
+            serde_json::Value::Array(a) => a.iter().map(|v| qualify(v.as_str().unwrap())).collect(),
+            _ => Vec::new(),
+        };
+        assert_eq!(model.carvers, carvers, "{name} carvers");
+
+        let mut steps: Vec<Vec<String>> = json["features"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|step| {
+                step.as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|f| qualify(f.as_str().unwrap()))
+                    .collect()
+            })
+            .collect();
+        let mut model_steps: Vec<Vec<String>> = model
+            .feature_steps
+            .iter()
+            .map(|step| step.iter().map(|f| (*f).to_owned()).collect())
+            .collect();
+        // Trailing empty decoration steps are irrelevant to feature ordering.
+        while steps.last().is_some_and(Vec::is_empty) {
+            steps.pop();
+        }
+        while model_steps.last().is_some_and(Vec::is_empty) {
+            model_steps.pop();
+        }
+        assert_eq!(model_steps, steps, "{name} features");
+
+        let probability = json["creature_spawn_probability"].as_f64().unwrap_or(0.1);
+        assert!(
+            (f64::from(model.creature_spawn_probability) - probability).abs() < 1e-6,
+            "{name} creature_spawn_probability"
+        );
+
+        let costs = json["spawn_costs"].as_object().cloned().unwrap_or_default();
+        assert_eq!(model.spawn_costs.len(), costs.len(), "{name} spawn_costs");
+        for cost in model.spawn_costs {
+            let expected = &costs[cost.entity_type];
+            assert_eq!(
+                cost.energy_budget,
+                expected["energy_budget"].as_f64().unwrap()
+            );
+            assert_eq!(cost.charge, expected["charge"].as_f64().unwrap());
+        }
+
+        let spawners = json["spawners"].as_object().unwrap();
+        for group in model.spawners {
+            let expected = spawners[group.category].as_array().unwrap();
+            let actual: Vec<(String, i64, i64, i64)> = group
+                .entries
+                .iter()
+                .map(|e| {
+                    (
+                        e.entity_type.to_owned(),
+                        i64::from(e.weight),
+                        i64::from(e.min_count),
+                        i64::from(e.max_count),
+                    )
+                })
+                .collect();
+            let expected: Vec<(String, i64, i64, i64)> = expected
+                .iter()
+                .map(|e| {
+                    (
+                        e["type"].as_str().unwrap().to_owned(),
+                        e["weight"].as_i64().unwrap(),
+                        e["minCount"].as_i64().unwrap(),
+                        e["maxCount"].as_i64().unwrap(),
+                    )
+                })
+                .collect();
+            assert_eq!(actual, expected, "{name} spawner group {}", group.category);
+        }
+        checked += 1;
+    }
+    assert_eq!(checked, 65);
+}

@@ -219,8 +219,26 @@ fn assert_iceberg_support() {
         super::super::IcebergBlockAction::Keep
     );
     assert!(super::super::iceberg_should_skip_surface_noise(
-        -0.25, true, 0.95
+        -0.25, true, 0, 0.95
     ));
+    // Round icebergs compare against `-6 - nextInt(3)`: -7.5 is above -8 but not above -6.
+    assert!(super::super::iceberg_should_skip_surface_noise(
+        -7.5, false, 2, 0.95
+    ));
+    assert!(!super::super::iceberg_should_skip_surface_noise(
+        -7.5, false, 0, 0.95
+    ));
+    // A zero-width ellipse axis is infinity/NaN in Java and is never inside.
+    assert!(
+        super::super::iceberg_signed_distance_ellipse(
+            1,
+            1,
+            BlockPos { x: 0, y: 0, z: 0 },
+            5,
+            0,
+            0.0
+        ) >= 0.0
+    );
     assert_eq!(
         super::super::iceberg_carve_action("minecraft:packed_ice", true),
         super::super::IcebergBlockAction::Water
@@ -499,15 +517,17 @@ fn assert_basalt_pillar_support() {
     assert!(!super::super::basalt_pillar_base_places(3, 3, 1));
     let base_drop = vec![&[][..]; 49];
     let base_supported = vec![true; 49];
-    let basalt_pillar = super::super::basalt_pillar_placement_plan(
-        BlockPos { x: 0, y: 64, z: 0 },
-        &[true, true, false],
-        &[false, false],
-        &[(1, 1, 10, 1), (1, 10, 1, 1)],
-        &[0; 49],
-        &base_drop,
-        &base_supported,
-    );
+    let basalt_pillar =
+        super::super::basalt_pillar_placement_plan(super::super::BasaltPillarInput {
+            origin: BlockPos { x: 0, y: 64, z: 0 },
+            empty_down: &[true, true, false],
+            outside_build_height: &[false, false],
+            hangoff_rolls: &[(1, 1, 10, 1), (1, 10, 1, 1)],
+            base_hangoff_rolls: [false, false, false, true],
+            base_rolls: &[0; 49],
+            base_drop_empty_below: &base_drop,
+            base_supported_below: &base_supported,
+        });
     assert!(
         basalt_pillar.contains(&super::super::BasaltPillarPlacementBlock {
             pos: BlockPos { x: 0, y: 64, z: 0 },
@@ -523,6 +543,13 @@ fn assert_basalt_pillar_support() {
     assert!(
         !basalt_pillar.contains(&super::super::BasaltPillarPlacementBlock {
             pos: BlockPos { x: -1, y: 64, z: 0 },
+            kind: super::super::BasaltPillarBlockKind::HangOff,
+        })
+    );
+    // Base hang-off (`placeBaseHangOff`): only the east neighbour of the lowest core (y=63) rolled true.
+    assert!(
+        basalt_pillar.contains(&super::super::BasaltPillarPlacementBlock {
+            pos: BlockPos { x: 1, y: 63, z: 0 },
             kind: super::super::BasaltPillarBlockKind::HangOff,
         })
     );
@@ -640,7 +667,8 @@ fn assert_delta_and_glowstone_support() {
     );
     assert!(super::super::delta_cannot_replace("minecraft:bedrock"));
     assert!(!super::super::delta_cannot_replace("minecraft:netherrack"));
-    assert!(super::super::delta_is_clear(
+    // Java `isClear`: air above is required, air on any other side rejects.
+    assert!(!super::super::delta_is_clear(
         super::super::DeltaClearInput {
             state: "minecraft:netherrack",
             contents: "minecraft:lava",
@@ -652,11 +680,23 @@ fn assert_delta_and_glowstone_support() {
             east_air: false,
         }
     ));
+    assert!(super::super::delta_is_clear(
+        super::super::DeltaClearInput {
+            state: "minecraft:netherrack",
+            contents: "minecraft:lava",
+            up_air: true,
+            down_air: false,
+            north_air: false,
+            south_air: false,
+            west_air: false,
+            east_air: false,
+        }
+    ));
     assert!(!super::super::delta_is_clear(
         super::super::DeltaClearInput {
             state: "minecraft:netherrack",
             contents: "minecraft:lava",
-            up_air: false,
+            up_air: true,
             down_air: false,
             north_air: true,
             south_air: false,
@@ -670,6 +710,11 @@ fn assert_delta_and_glowstone_support() {
     assert!(delta_offsets.contains(&(0, 0)));
     assert!(delta_offsets.contains(&(2, 0)));
     assert!(!delta_offsets.contains(&(2, 1)));
+    // Java `withinManhattan` order: depth 0, then depth 1 (x=-1: z=0; x=0: z=+1 then mirrored -1; x=1).
+    assert_eq!(
+        &delta_offsets[..5],
+        &[(0, 0), (-1, 0), (0, 1), (0, -1), (1, 0)]
+    );
     assert!(super::super::glowstone_can_start(
         true,
         "minecraft:netherrack"
@@ -825,6 +870,16 @@ fn assert_huge_fungus_stem_support() {
         pos: BlockPos { x: -1, y: 64, z: 1 },
         kind: super::super::HugeFungusStemKind::CornerStem,
     }));
+    // Corner blocks roll individually: only the first block (roll 0.0) of the first corner column
+    // is placed; its next block rolled 1.0 and is skipped.
+    assert!(!stem_blocks.contains(&super::super::HugeFungusStemBlock {
+        pos: BlockPos {
+            x: -1,
+            y: 65,
+            z: -1
+        },
+        kind: super::super::HugeFungusStemKind::CornerStem,
+    }));
     assert!(stem_blocks.contains(&super::super::HugeFungusStemBlock {
         pos: BlockPos { x: 0, y: 66, z: 0 },
         kind: super::super::HugeFungusStemKind::Stem,
@@ -885,6 +940,32 @@ fn assert_block_pile_support() {
     assert!(pile_positions.contains(&BlockPos { x: 0, y: 64, z: 0 }));
     assert!(pile_positions.contains(&BlockPos { x: 0, y: 65, z: 0 }));
     assert!(pile_positions.len() > 20);
+    // `BlockPos.betweenClosed` order: X fastest, then Y, then Z slowest.
+    // With rolls (1.0, 0.0): blob if dx^2 + dz^2 <= 10, so row z=-3 keeps x in -1..=1.
+    assert_eq!(
+        pile_positions[0],
+        BlockPos {
+            x: -1,
+            y: 64,
+            z: -3
+        }
+    );
+    assert_eq!(
+        pile_positions[3],
+        BlockPos {
+            x: -1,
+            y: 65,
+            z: -3
+        }
+    );
+    assert_eq!(
+        pile_positions[6],
+        BlockPos {
+            x: -2,
+            y: 64,
+            z: -2
+        }
+    );
     assert!(super::super::block_pile_placement_candidates(
         BlockPos { x: 0, y: -60, z: 0 },
         -64,

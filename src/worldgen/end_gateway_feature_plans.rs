@@ -16,8 +16,9 @@ pub fn end_gateway_delayed_exit_search() -> EndGatewayConfigurationModel {
 
 pub fn end_gateway_blocks(origin: BlockPos) -> Vec<FeaturePlacementBlock> {
     let mut blocks = Vec::new();
-    for dy in -2i32..=2 {
-        for dz in -1i32..=1 {
+    // Java `BlockPos.betweenClosed` order: X fastest, then Y, then Z slowest.
+    for dz in -1i32..=1 {
+        for dy in -2i32..=2 {
             for dx in -1i32..=1 {
                 let same_x = dx == 0;
                 let same_y = dy == 0;

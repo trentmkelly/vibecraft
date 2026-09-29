@@ -174,14 +174,14 @@ pub(super) fn biome_manager_fiddled_distance(
     dz * dz + dy * dy + dx * dx
 }
 
-pub(super) fn biome_manager_get_biome(
-    source: &BiomeSourceModel,
+/// Java `BiomeManager.getBiome` corner search: returns the quart coordinates of the noise-biome
+/// cell whose fiddled distance to the block position is smallest (first minimum wins).
+fn biome_manager_nearest_quart(
     biome_zoom_seed: i64,
     block_x: i32,
     block_y: i32,
     block_z: i32,
-    sampler: &ClimateSampler,
-) -> Option<&'static str> {
+) -> (i32, i32, i32) {
     let absolute_x = block_x - 2;
     let absolute_y = block_y - 2;
     let absolute_z = block_z - 2;
@@ -219,21 +219,35 @@ pub(super) fn biome_manager_get_biome(
         }
     }
 
-    let biome_x = if (nearest_corner & 4) == 0 {
-        parent_x
-    } else {
-        parent_x + 1
-    };
-    let biome_y = if (nearest_corner & 2) == 0 {
-        parent_y
-    } else {
-        parent_y + 1
-    };
-    let biome_z = if (nearest_corner & 1) == 0 {
-        parent_z
-    } else {
-        parent_z + 1
-    };
+    (
+        if (nearest_corner & 4) == 0 {
+            parent_x
+        } else {
+            parent_x + 1
+        },
+        if (nearest_corner & 2) == 0 {
+            parent_y
+        } else {
+            parent_y + 1
+        },
+        if (nearest_corner & 1) == 0 {
+            parent_z
+        } else {
+            parent_z + 1
+        },
+    )
+}
+
+pub(super) fn biome_manager_get_biome(
+    source: &BiomeSourceModel,
+    biome_zoom_seed: i64,
+    block_x: i32,
+    block_y: i32,
+    block_z: i32,
+    sampler: &ClimateSampler,
+) -> Option<&'static str> {
+    let (biome_x, biome_y, biome_z) =
+        biome_manager_nearest_quart(biome_zoom_seed, block_x, block_y, block_z);
     get_biome(source, biome_x, biome_y, biome_z, sampler)
 }
 
@@ -245,58 +259,8 @@ pub(super) fn biome_manager_get_biome_cached(
     chunk_biomes: Option<&ChunkNoiseBiomeCache>,
     noise_biome_cache: &mut HashMap<(i32, i32, i32), &'static str>,
 ) -> Option<&'static str> {
-    let absolute_x = block_pos.x - 2;
-    let absolute_y = block_pos.y - 2;
-    let absolute_z = block_pos.z - 2;
-    let parent_x = absolute_x >> 2;
-    let parent_y = absolute_y >> 2;
-    let parent_z = absolute_z >> 2;
-    let fract_x = f64::from(absolute_x & 3) / 4.0;
-    let fract_y = f64::from(absolute_y & 3) / 4.0;
-    let fract_z = f64::from(absolute_z & 3) / 4.0;
-
-    let mut nearest_corner = 0;
-    let mut nearest_distance = f64::INFINITY;
-    for corner in 0..8 {
-        let x_even = (corner & 4) == 0;
-        let y_even = (corner & 2) == 0;
-        let z_even = (corner & 1) == 0;
-        let corner_x = if x_even { parent_x } else { parent_x + 1 };
-        let corner_y = if y_even { parent_y } else { parent_y + 1 };
-        let corner_z = if z_even { parent_z } else { parent_z + 1 };
-        let distance_x = if x_even { fract_x } else { fract_x - 1.0 };
-        let distance_y = if y_even { fract_y } else { fract_y - 1.0 };
-        let distance_z = if z_even { fract_z } else { fract_z - 1.0 };
-        let distance = biome_manager_fiddled_distance(
-            biome_zoom_seed,
-            corner_x,
-            corner_y,
-            corner_z,
-            distance_x,
-            distance_y,
-            distance_z,
-        );
-        if nearest_distance > distance {
-            nearest_corner = corner;
-            nearest_distance = distance;
-        }
-    }
-
-    let biome_x = if (nearest_corner & 4) == 0 {
-        parent_x
-    } else {
-        parent_x + 1
-    };
-    let biome_y = if (nearest_corner & 2) == 0 {
-        parent_y
-    } else {
-        parent_y + 1
-    };
-    let biome_z = if (nearest_corner & 1) == 0 {
-        parent_z
-    } else {
-        parent_z + 1
-    };
+    let (biome_x, biome_y, biome_z) =
+        biome_manager_nearest_quart(biome_zoom_seed, block_pos.x, block_pos.y, block_pos.z);
     if let Some(chunk_biomes) = chunk_biomes {
         if let Some(biome) = chunk_biomes.get(biome_x, biome_y, biome_z) {
             return Some(biome);

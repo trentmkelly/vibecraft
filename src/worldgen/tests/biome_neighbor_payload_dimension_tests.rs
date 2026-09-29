@@ -596,7 +596,7 @@ fn assert_snowy_biome_payloads() {
     ));
     assert_eq!(
         super::super::biome_spawns_for_category(ice_spikes, "monster"),
-        super::super::SNOWY_PLAINS_MONSTER_SPAWNS
+        super::super::ICE_SPIKES_MONSTER_SPAWNS
     );
 }
 
@@ -714,7 +714,7 @@ fn assert_bamboo_jungle_payload() {
     );
     assert_eq!(
         super::super::biome_spawns_for_category(bamboo_jungle, "monster"),
-        super::super::JUNGLE_MONSTER_SPAWNS
+        super::super::BAMBOO_JUNGLE_MONSTER_SPAWNS
     );
 }
 

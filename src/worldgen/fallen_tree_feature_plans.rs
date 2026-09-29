@@ -10,16 +10,18 @@ pub fn fallen_tree_start_pos(
     direction: HorizontalDirection,
     distance_roll: i32,
     ground_probe: &[bool],
-) -> Option<BlockPos> {
+) -> BlockPos {
     let mut pos = offset_horizontal(origin, direction, 2 + distance_roll.rem_euclid(2));
     pos.y += 1;
-    for can_place in ground_probe.iter().copied().take(6) {
-        if can_place {
-            return Some(pos);
+    // Java steps the cursor down for all six probes even when none succeeds; the log is then
+    // attempted from the lowered position.
+    for index in 0..6 {
+        if ground_probe.get(index).copied().unwrap_or(false) {
+            return pos;
         }
         pos.y -= 1;
     }
-    None
+    pos
 }
 
 pub fn fallen_tree_can_place_log(
@@ -68,22 +70,27 @@ pub fn fallen_tree_placement_plan(
         input.direction,
         input.distance_roll,
         input.ground_probe,
-    )?;
-    let valid_len = log_length.max(0) as usize;
-    if input.valid_tree_positions.len() < valid_len || input.over_solid_ground.len() < valid_len {
-        return None;
-    }
-    if !fallen_tree_can_place_log(
-        &input.valid_tree_positions[..valid_len],
-        &input.over_solid_ground[..valid_len],
-    ) {
-        return None;
-    }
+    );
+    // Java `placeFallenTree` always places the stump first; only the log is conditional.
     let mut blocks = vec![FallenTreeBlock {
         pos: input.origin,
         state: trunk_state,
         mark_above_for_post_processing: true,
     }];
+    let valid_len = log_length.max(0) as usize;
+    if input.valid_tree_positions.len() < valid_len
+        || input.over_solid_ground.len() < valid_len
+        || !fallen_tree_can_place_log(
+            &input.valid_tree_positions[..valid_len],
+            &input.over_solid_ground[..valid_len],
+        )
+    {
+        return Some(FallenTreePlacementPlan {
+            blocks,
+            stump_decorators: input.config.stump_decorators.len(),
+            log_decorators: 0,
+        });
+    }
     for i in 0..log_length.max(0) {
         blocks.push(FallenTreeBlock {
             pos: offset_horizontal(start, input.direction, i),

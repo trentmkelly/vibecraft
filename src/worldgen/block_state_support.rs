@@ -37,12 +37,11 @@ pub(super) fn bits_for_palette(palette_len: u64) -> usize {
     needed.max(4)
 }
 
+/// Java `Heightmap.Types.isOpaque` predicate for a block-state name, resolved through the
+/// authoritative per-state physics table (`isAir`, `blocksMotion`, `getFluidState`).
 pub(super) fn heightmap_opaque(heightmap: HeightmapKind, block: &str) -> bool {
     match heightmap {
-        HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => !matches!(
-            block,
-            "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
-        ),
+        HeightmapKind::WorldSurface | HeightmapKind::WorldSurfaceWg => !block_is_air(block),
         HeightmapKind::OceanFloor | HeightmapKind::OceanFloorWg => block_blocks_motion(block),
         HeightmapKind::MotionBlocking => block_blocks_motion(block) || block_has_fluid(block),
         HeightmapKind::MotionBlockingNoLeaves => {
@@ -51,21 +50,40 @@ pub(super) fn heightmap_opaque(heightmap: HeightmapKind, block: &str) -> bool {
     }
 }
 
-pub(super) fn block_blocks_motion(block: &str) -> bool {
-    !matches!(
-        block_state_id(block),
-        "minecraft:air"
-            | "minecraft:cave_air"
-            | "minecraft:void_air"
-            | "minecraft:water"
-            | "minecraft:lava"
-            | "minecraft:snow"
-    )
+/// Java `BlockStateBase.isAir()`; unknown names fall back to the three air block ids.
+pub(super) fn block_is_air(block: &str) -> bool {
+    match crate::block_properties::state_physics_by_name(block) {
+        Some(physics) => physics.is_air,
+        None => matches!(
+            block_state_id(block),
+            "minecraft:air" | "minecraft:cave_air" | "minecraft:void_air"
+        ),
+    }
 }
 
+/// Java `BlockStateBase.blocksMotion()`; unknown names are treated as motion-blocking unless air
+/// or a plain fluid.
+pub(super) fn block_blocks_motion(block: &str) -> bool {
+    match crate::block_properties::state_physics_by_name(block) {
+        Some(physics) => physics.blocks_motion,
+        None => !matches!(
+            block_state_id(block),
+            "minecraft:air"
+                | "minecraft:cave_air"
+                | "minecraft:void_air"
+                | "minecraft:water"
+                | "minecraft:lava"
+        ),
+    }
+}
+
+/// Java `!BlockStateBase.getFluidState().isEmpty()`, which also covers waterlogged blocks and
+/// water plants such as kelp and seagrass.
 pub(super) fn block_has_fluid(block: &str) -> bool {
-    matches!(block_state_id(block), "minecraft:water" | "minecraft:lava")
-        || block.contains("waterlogged=true")
+    match crate::block_properties::state_physics_by_name(block) {
+        Some(physics) => physics.fluid != crate::block_properties::StateFluid::Empty,
+        None => matches!(block_state_id(block), "minecraft:water" | "minecraft:lava"),
+    }
 }
 
 pub(super) fn block_is_leaves(block: &str) -> bool {
