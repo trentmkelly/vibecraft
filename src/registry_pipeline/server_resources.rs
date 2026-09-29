@@ -14,9 +14,11 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use crate::log::log_warn;
+use crate::recipe_system::RecipeManagerModel;
 use crate::network::configuration::KnownPack;
 use crate::registry::{FeatureFlagRegistry, FeatureFlagSet};
 use crate::registry_pipeline::builtin::BuiltinRegistries;
+use crate::registry_pipeline::datapack_content::DatapackContent;
 use crate::registry_pipeline::resources::{PackResources, ResourceManager};
 use crate::registry_pipeline::store::Registries;
 use crate::registry_pipeline::{load_registries, loader};
@@ -30,6 +32,9 @@ use crate::storage::world::WorldLayout;
 pub struct LoadedResources {
     /// The frozen registries (elements from startup, tags from the latest load).
     pub registries: Registries,
+    /// Recipes, loot tables, advancements and functions of the selected packs
+    /// (`ReloadableServerResources`).
+    pub content: DatapackContent,
     manager: ResourceManager,
 }
 
@@ -130,8 +135,10 @@ impl ServerResources {
         let manager = ResourceManager::new(open_packs(repository, &repository.selected_ids())?);
         let builtin = BuiltinRegistries::vanilla()?;
         let registries = load_registries(&manager, builtin)?;
+        let content = DatapackContent::load(&manager, &registries)?;
         Ok(LoadedResources {
             registries,
+            content,
             manager,
         })
     }
@@ -184,6 +191,9 @@ impl ServerResources {
             crate::log::log_error(&line);
         }
 
+        // Everything that can fail is built before any server state changes: Java keeps
+        // the old resources when the reload future fails.
+        let content = DatapackContent::load(&manager, &registries)?;
         state
             .repository
             .set_selected(packs_to_enable.iter().map(String::as_str));
@@ -199,6 +209,7 @@ impl ServerResources {
         }
         let loaded = Arc::new(LoadedResources {
             registries,
+            content,
             manager,
         });
         *self.current.write().unwrap_or_else(|e| e.into_inner()) = Arc::clone(&loaded);
@@ -262,6 +273,17 @@ pub fn active_resources() -> Result<Arc<LoadedResources>, String> {
             ServerResources::load(&repository).map(Arc::new)
         })
         .clone()
+}
+
+/// The recipe manager in force (`server.getRecipeManager()`).
+pub fn active_recipe_manager() -> Result<Arc<RecipeManagerModel>, String> {
+    Ok(Arc::clone(&active_resources()?.content.recipes))
+}
+
+/// [`active_recipe_manager`] for long-lived holders that may run without a server
+/// (unit tests): `None` until the server state is installed.
+pub fn installed_recipe_manager() -> Option<Arc<RecipeManagerModel>> {
+    ServerResources::installed().map(|resources| Arc::clone(&resources.current().content.recipes))
 }
 
 /// `FeatureFlags.REGISTRY.toNames(worldData.enabledFeatures())`, the payload of the

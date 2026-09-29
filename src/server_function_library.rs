@@ -7,6 +7,8 @@ use crate::command::{
     CommandFunctionDefinition, CommandFunctionTag,
 };
 use crate::registry::Identifier;
+use crate::registry_pipeline::resources::{FileToIdConverter, ResourceManager};
+use crate::registry_pipeline::tags::load_tags_for_registry;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ServerFunctionLibrary {
@@ -62,6 +64,60 @@ impl ServerFunctionLibrary {
             }
         }
 
+        Self {
+            functions,
+            tags,
+            errors,
+        }
+    }
+
+    /// `ServerFunctionLibrary.reload` over every enabled pack: the highest-priority
+    /// `function/**/*.mcfunction` of each id is compiled (a function that fails to
+    /// load is logged and skipped, the rest still load), then `tags/function` is
+    /// merged across packs by the shared `TagLoader` (`replace`, nested `#tags`,
+    /// optional entries) with lookups against the freshly loaded functions.
+    pub fn from_resource_manager(manager: &ResourceManager) -> Self {
+        let mut errors = Vec::new();
+        let mut functions = BTreeMap::new();
+        let converter = FileToIdConverter::new(Self::FUNCTION_DIRECTORY, Self::FUNCTION_EXTENSION);
+        for (location, resource) in manager.list_matching_resources(&converter) {
+            let Ok(id) = converter.file_to_id(&location) else {
+                continue;
+            };
+            let path = format!(
+                "data/{}/{}/{}{}",
+                id.namespace(),
+                Self::FUNCTION_DIRECTORY,
+                id.path(),
+                Self::FUNCTION_EXTENSION
+            );
+            let loaded = resource
+                .read_to_string()
+                .map_err(|err| err.to_string())
+                .and_then(|text| load_command_functions_from_resources([(path.as_str(), text.as_str())]));
+            match loaded.map(|mut loaded| loaded.pop()) {
+                Ok(Some(function)) => {
+                    functions.insert(id, function);
+                }
+                Ok(None) => {}
+                Err(err) => errors.push(format!("Failed to load function {id}: {err}")),
+            }
+        }
+
+        let mut tag_errors = Vec::new();
+        let mut known = |id: &Identifier, _required: bool| functions.contains_key(id);
+        let resolved = load_tags_for_registry(manager, "function", &mut known, &mut tag_errors);
+        errors.extend(tag_errors);
+        let tags = resolved
+            .into_iter()
+            .map(|(tag, ids)| {
+                let members = ids
+                    .iter()
+                    .filter_map(|id| functions.get(id).cloned())
+                    .collect();
+                (tag, members)
+            })
+            .collect();
         Self {
             functions,
             tags,

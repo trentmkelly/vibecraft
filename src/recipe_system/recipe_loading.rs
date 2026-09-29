@@ -313,6 +313,10 @@ fn parse_crafting_special_recipe(
     Ok(recipe)
 }
 
+/// Loads the recipes of a bare `recipe/` directory (fixtures and parity tests). The
+/// server loads through the pack `ResourceManager`
+/// ([`load_recipe_manager_from_resources`]).
+#[cfg(test)]
 pub fn load_recipe_directory(recipe_dir: &std::path::Path) -> Result<RecipeManagerModel, String> {
     // Item tags live at `<namespace>/tags/item/` relative to the recipe directory's
     // parent namespace directory.  Given `data/minecraft/recipe/` the tags are at
@@ -364,11 +368,12 @@ pub fn load_recipe_directory(recipe_dir: &std::path::Path) -> Result<RecipeManag
 }
 
 #[derive(Debug, Default)]
-struct LoadedRecipeUnlocks {
-    acquisition: Vec<RecipeAcquisitionUnlock>,
-    initial: Vec<&'static str>,
+pub(super) struct LoadedRecipeUnlocks {
+    pub(super) acquisition: Vec<RecipeAcquisitionUnlock>,
+    pub(super) initial: Vec<&'static str>,
 }
 
+#[cfg(test)]
 fn load_recipe_unlocks(
     recipe_dir: &std::path::Path,
     tags: &ItemTagMap,
@@ -403,7 +408,7 @@ fn load_recipe_unlocks(
     Ok(unlocks)
 }
 
-fn optional_decompiled_recipe_advancement_dir() -> Option<std::path::PathBuf> {
+pub(super) fn optional_decompiled_recipe_advancement_dir() -> Option<std::path::PathBuf> {
     option_env!("VIBECRAFT_DECOMPILED_SOURCE_ROOT").map(|root| {
         std::path::Path::new(root)
             .join("data")
@@ -413,7 +418,7 @@ fn optional_decompiled_recipe_advancement_dir() -> Option<std::path::PathBuf> {
     })
 }
 
-fn advancement_paths(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>, String> {
+pub(super) fn advancement_paths(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>, String> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -443,7 +448,7 @@ fn advancement_paths(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>, S
     Ok(paths)
 }
 
-fn collect_recipe_unlocks(
+pub(super) fn collect_recipe_unlocks(
     value: &serde_json::Value,
     tags: &ItemTagMap,
     unlocks: &mut LoadedRecipeUnlocks,

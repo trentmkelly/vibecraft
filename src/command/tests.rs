@@ -57,3 +57,4 @@ mod tests_15;
 mod tests_16;
 mod tests_17;
 mod execute_tests;
+mod function_run_tests;

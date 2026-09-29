@@ -794,6 +794,14 @@ impl InventoryMenu {
         }
     }
 
+    /// Swaps in the recipes of a reloaded `RecipeManager`. Like Java, nothing else is
+    /// recomputed: known recipe ids stay in the book (their displays resolve against
+    /// the new map when the book is resent) and the crafting result slot only changes
+    /// on the next grid change.
+    pub fn replace_recipes(&mut self, recipes: RecipeMap) {
+        self.recipes = recipes;
+    }
+
     pub fn mark_recipe_seen(&mut self, recipe_id: &str) {
         self.highlighted_recipes.remove(recipe_id);
     }

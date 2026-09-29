@@ -734,3 +734,65 @@ pub fn queue_function_tag_for_game_loop(
     }
     queued
 }
+
+/// The `maxCommandSequenceLength` game-rule default: how many commands one chain of
+/// function calls may execute (`ExecutionContext.commandQuota`).
+pub(crate) const MAX_FUNCTION_CHAIN_COMMANDS: usize = 65_536;
+
+/// One running function (`Frame`): the commands still to run and the permissions they
+/// run with.
+struct FunctionFrame {
+    commands: VecDeque<String>,
+    permissions: LevelBasedPermissionSet,
+}
+
+/// [`execute_builtin_command`] followed by running the functions it queued, the way
+/// Java's `ExecutionContext` drains the command queue within the same tick: `/function`
+/// only *queues* the function's commands; they run afterwards with the source's output
+/// suppressed and at least the call's permission level
+/// (`FunctionCommand.modifySenderForExecution` = `withSuppressedOutput()
+/// .withMaximumPermission(GAMEMASTER)`).
+///
+/// Every queued call becomes a frame on a stack. A command that queues another function
+/// pushes that function's frame above the running one (depth first), a successful
+/// `return` discards the rest of its own frame, and the whole chain is bounded by
+/// [`MAX_FUNCTION_CHAIN_COMMANDS`]. The outcome of the original command is returned.
+pub fn execute_command_with_functions(
+    state: &mut ServerCommandState,
+    permissions: LevelBasedPermissionSet,
+    input: &str,
+) -> Result<CommandResult, CommandError> {
+    let result = execute_builtin_command(state, permissions, input);
+    let mut frames: Vec<FunctionFrame> = Vec::new();
+    let mut remaining = MAX_FUNCTION_CHAIN_COMMANDS;
+    loop {
+        // Later calls are pushed first so the earliest queued call runs first.
+        for call in std::mem::take(&mut state.queued_functions).into_iter().rev() {
+            frames.push(FunctionFrame {
+                commands: call.commands.into(),
+                permissions: LevelBasedPermissionSet::new(
+                    permissions.level().max(call.permission_level),
+                ),
+            });
+        }
+        let Some(frame) = frames.last_mut() else {
+            break;
+        };
+        let Some(command) = frame.commands.pop_front() else {
+            frames.pop();
+            continue;
+        };
+        if remaining == 0 {
+            state.queued_functions.clear();
+            break;
+        }
+        remaining -= 1;
+        // Function output is suppressed (`withSuppressedOutput`) and a failing command
+        // only ends its own line; a successful `return` ends the whole function.
+        let outcome = execute_builtin_command(state, frame.permissions, &command);
+        if outcome.is_ok() && command.trim_start().starts_with("return") {
+            frames.pop();
+        }
+    }
+    result
+}

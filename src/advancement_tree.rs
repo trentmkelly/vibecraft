@@ -58,21 +58,22 @@ impl AdvancementNodeModel {
         self.children.insert(child);
     }
 
+    /// `AdvancementNode.root()`: walks parents up to the tree root. Parents are always
+    /// inserted before their children, so a missing parent only ends the walk.
     pub fn root<'a>(&'a self, tree: &'a AdvancementTreeModel) -> &'a AdvancementNodeModel {
-        Self::get_root(tree, self.id())
+        let mut root = self;
+        while let Some(parent) = root.parent().and_then(|parent| tree.get(parent)) {
+            root = parent;
+        }
+        root
     }
 
+    /// `AdvancementNode.getRoot(tree, advancement)`; `None` when `id` is not in the tree.
     pub fn get_root<'a>(
         tree: &'a AdvancementTreeModel,
         id: &Identifier,
-    ) -> &'a AdvancementNodeModel {
-        let mut root = tree.get(id).expect("advancement node must exist");
-        while let Some(parent) = root.parent() {
-            root = tree
-                .get(parent)
-                .expect("parent advancement node must exist");
-        }
-        root
+    ) -> Option<&'a AdvancementNodeModel> {
+        tree.get(id).map(|node| node.root(tree))
     }
 
     pub fn java_equals(&self, other: &Self) -> bool {
@@ -135,11 +136,11 @@ impl AdvancementTreeModel {
 
         let id = holder.id().clone();
         let node = AdvancementNodeModel::new(holder, parent.clone());
-        if let Some(parent) = &parent {
-            self.nodes
-                .get_mut(parent)
-                .expect("parent presence checked above")
-                .add_child(id.clone());
+        if let Some(parent_node) = parent
+            .as_ref()
+            .and_then(|parent| self.nodes.get_mut(parent))
+        {
+            parent_node.add_child(id.clone());
         }
 
         self.nodes.insert(id.clone(), node);

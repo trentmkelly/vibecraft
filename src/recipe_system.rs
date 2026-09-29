@@ -946,6 +946,8 @@ pub fn load_item_tag_directory(tag_dir: &std::path::Path) -> ItemTagMap {
 
 mod recipe_loading;
 pub use recipe_loading::*;
+mod resource_loading;
+pub use resource_loading::load_recipe_manager_from_resources;
 mod holder;
 pub use holder::RecipeHolder;
 

@@ -1,6 +1,7 @@
 use super::*;
 use crate::network::play::{
-    write_clientbound_update_recipes_packet, CLIENTBOUND_UPDATE_RECIPES_PACKET_ID,
+    write_clientbound_update_recipes_packet, ClientboundRecipeBookAddPacket,
+    CLIENTBOUND_UPDATE_RECIPES_PACKET_ID,
 };
 
 pub fn default_recipe_book_settings() -> ClientboundRecipeBookSettingsPacket {
@@ -600,6 +601,45 @@ fn write_join_login_and_profile_packets(
     Ok(())
 }
 
+/// Java `ServerRecipeBook.sendInitialRecipeBook`: the book settings, then every known
+/// recipe's displays (highlighting the unseen ones) as a replacing add packet. Sent at
+/// join and again after a reload (`PlayerList.reloadResources`).
+pub(super) fn write_initial_recipe_book(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    play_state: &PlaySessionState,
+    recipes: &RecipeMap,
+) -> io::Result<()> {
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_RECIPE_BOOK_SETTINGS_PACKET_ID,
+        |payload| play_state.recipe_book_settings.write(payload),
+    )?;
+    let known_recipes = play_state.inventory_menu.recipe_book_known_recipes();
+    let highlighted_recipes = play_state.inventory_menu.recipe_book_highlighted_recipes();
+    // Java always sends the replacing add packet, even with no displays: after a
+    // reload that removed every known recipe it is what clears the client's book.
+    let packet = build_recipe_book_add_with_flags(
+        &known_recipes,
+        recipes,
+        false,
+        false,
+        true,
+        Some(&highlighted_recipes),
+    )
+    .unwrap_or(ClientboundRecipeBookAddPacket {
+        entries: Vec::new(),
+        replace: true,
+    });
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
+        |payload| packet.write(payload),
+    )
+}
+
 fn write_join_player_state_packets(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -666,35 +706,12 @@ fn write_join_player_state_packets(
             payload.write_all(&context.play_state.food_saturation.to_be_bytes())
         },
     )?;
-    write_framed_packet_with_compression(
+    write_initial_recipe_book(
         stream,
         compression,
-        CLIENTBOUND_RECIPE_BOOK_SETTINGS_PACKET_ID,
-        |payload| context.play_state.recipe_book_settings.write(payload),
-    )?;
-    let known_recipes = context
-        .play_state
-        .inventory_menu
-        .recipe_book_known_recipes();
-    let highlighted_recipes = context
-        .play_state
-        .inventory_menu
-        .recipe_book_highlighted_recipes();
-    if let Some(packet) = build_recipe_book_add_with_flags(
-        &known_recipes,
+        context.play_state,
         context.recipe_manager.recipe_map(),
-        false,
-        false,
-        true,
-        Some(&highlighted_recipes),
-    ) {
-        write_framed_packet_with_compression(
-            stream,
-            compression,
-            CLIENTBOUND_RECIPE_BOOK_ADD_PACKET_ID,
-            |payload| packet.write(payload),
-        )?;
-    }
+    )?;
     Ok(())
 }
 

@@ -33,9 +33,14 @@ pub struct FileToIdConverter {
 impl FileToIdConverter {
     /// `FileToIdConverter.json(prefix)`.
     pub fn json(prefix: &str) -> Self {
+        Self::new(prefix, ".json")
+    }
+
+    /// `new FileToIdConverter(prefix, extension)` (`extension` includes the dot).
+    pub fn new(prefix: &str, extension: &str) -> Self {
         Self {
             prefix: prefix.to_string(),
-            extension: ".json".to_string(),
+            extension: extension.to_string(),
         }
     }
 

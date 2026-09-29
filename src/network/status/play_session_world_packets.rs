@@ -320,7 +320,7 @@ pub fn handle_chat_command_packet<R: Read>(
     };
     let access_seed =
         seed_access_state(&mut command_state, context.player_access, access_context.sessions);
-    let result = execute_builtin_command(&mut command_state, permissions, &command);
+    let result = execute_command_with_functions(&mut command_state, permissions, &command);
     apply_command_game_rule_changes(&command_state, context.game_rules);
     apply_access_changes(&access_context, &access_seed, &command_state);
     apply_command_effects(context.active_login, &command_state, &result, context.game_rules)?;

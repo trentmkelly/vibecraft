@@ -1,4 +1,5 @@
-#[cfg(test)]
+// Player progress on top of these models is pending: TODO(player-advancements-live).
+#[allow(dead_code)]
 mod advancement_criteria;
 #[cfg(test)]
 mod advancement_display;
@@ -8,9 +9,11 @@ mod advancement_model;
 mod advancement_progress;
 #[cfg(test)]
 mod advancement_rewards;
-#[cfg(test)]
+// Player progress on top of these models is pending: TODO(player-advancements-live).
+#[allow(dead_code)]
 mod advancement_system;
-#[cfg(test)]
+// Player progress on top of these models is pending: TODO(player-advancements-live).
+#[allow(dead_code)]
 mod advancement_tree;
 #[cfg(test)]
 mod advancement_tree_position;
@@ -713,7 +716,8 @@ mod running_on_different_thread_exception;
 mod runtime;
 mod scheduled_tick;
 mod seed_validation;
-#[cfg(test)]
+// Player progress on top of these models is pending: TODO(player-advancements-live).
+#[allow(dead_code)]
 mod server_advancement_manager;
 mod server_function_library;
 mod server_function_manager;
