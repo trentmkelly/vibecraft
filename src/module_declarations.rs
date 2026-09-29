@@ -694,6 +694,7 @@ mod random_source;
 mod time_util;
 mod random_sequences;
 mod random_sequences_live;
+mod server_scoreboard;
 mod random_tick;
 mod random_tick_behaviors;
 mod recipe_system;

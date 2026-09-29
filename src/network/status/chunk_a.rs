@@ -26,6 +26,17 @@ pub fn load_server_clock_state(world_root: &Path) -> Option<ServerClockManager> 
 }
 
 /// Saves clock state to `{world_root}/server_clocks.json`.
+/// `ServerClockManager.tick`, returning the new server game time.
+fn tick_clock(
+    clock: &Arc<Mutex<ServerClockManager>>,
+    advance_time: bool,
+    scheduled: &mut ScheduledTimeChanges,
+) -> i64 {
+    let mut clock = lock_status_mutex(clock);
+    clock.tick(advance_time, scheduled);
+    clock.game_time
+}
+
 pub fn save_server_clock_state(world_root: &Path, manager: &ServerClockManager) {
     let clock_json = |c: &crate::world_time::ClockInstance| {
         serde_json::json!({
@@ -504,11 +515,7 @@ impl StatusServerRuntime {
                     spread_vines,
                     explosion_rules,
                 } = TickGameRules::read(&lock_status_mutex(&game_rules_t));
-                let game_time = {
-                    let mut clock = lock_status_mutex(&clock_t);
-                    clock.tick(advance_time, &mut scheduled);
-                    clock.game_time
-                };
+                let game_time = tick_clock(&clock_t, advance_time, &mut scheduled);
 
                 // Advance weather. can_have_weather=true for overworld.
                 let raining = {
@@ -550,13 +557,13 @@ impl StatusServerRuntime {
                     resource_usage.log_current_usage(tick_count);
                 }
 
-                // Persist every ~5 minutes.
-                // Java: MinecraftServer.saveEverything() — entities flushed via EntityStorage.
+                // Persist every ~5 minutes (Java `MinecraftServer.saveEverything`).
                 if tick_count.is_multiple_of(PERSISTENCE_INTERVAL_TICKS) {
                     save_server_clock_state(&world_root_t, &lock_status_mutex(&clock_t));
                     save_server_weather_state(&world_root_t, &lock_status_mutex(&weather_t));
                     save_world_item_entities(&world_root_t, &lock_status_mutex(&world_items_t));
                     save_live_game_rules(&world_root_t, &game_rules_t);
+                    save_scoreboard();
                 }
 
                 if let WatchdogDecision::Crash { .. } = watchdog.check_tick(tick_start.elapsed())
@@ -577,6 +584,7 @@ impl StatusServerRuntime {
         save_server_weather_state(&self.world_root, &lock_status_mutex(&self.weather));
         save_world_item_entities(&self.world_root, &lock_status_mutex(&self.world_items));
         save_live_game_rules(&self.world_root, &self.game_rules);
+        save_scoreboard();
     }
 }
 
@@ -4189,6 +4197,8 @@ fn run_joined_play_session(
         .active_logins
         .world_bus
         .subscribe(active_login.token);
+    // Java `PlayerList.placeNewPlayer` -> `updateEntireScoreboard`.
+    send_join_scoreboard(&shared.active_logins.world_bus, active_login.token);
     active_login.broadcast_player_joined(&finished.profile)?;
     loop {
         if !tick_joined_play_session_loop(

@@ -14,6 +14,7 @@
 //!   `StringBuffer` with no separator and returned to the client.
 
 use super::*;
+use crate::server_scoreboard::live::CommandScoreboardSeed;
 use crate::command::{CommandError, CommandResult, LevelBasedPermissionSet, PermissionLevel};
 use crate::log::log_info;
 use super::datapack_live::{apply_data_pack_requests, seed_data_pack_state, DataPackOutcome};
@@ -123,6 +124,8 @@ impl ServerCommandRunner {
     fn execute(&self, origin: CommandOrigin, line: &str) -> Vec<String> {
         let _serial = lock_status_mutex(&self.execution);
         let mut state = self.command_state();
+        let scoreboard = crate::server_scoreboard::live::global();
+        let scoreboard_seed = CommandScoreboardSeed::seed(&scoreboard, &mut state);
         seed_data_pack_state(&mut state, line);
         let access_context = AccessContext {
             access: &self.player_access,
@@ -134,6 +137,7 @@ impl ServerCommandRunner {
         let permissions = LevelBasedPermissionSet::new(PermissionLevel::Owners);
         let result = execute_command_with_functions(&mut state, permissions, line);
         apply_command_game_rule_changes(&state, &self.game_rules);
+        scoreboard_seed.apply(&scoreboard, &state, &self.active_logins.world_bus);
         apply_access_changes(&access_context, &access_seed, &state);
         apply_console_disconnects(access_context.sessions, &state);
         if state.halt_requested {

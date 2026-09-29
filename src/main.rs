@@ -135,6 +135,11 @@ fn run(options: CliOptions) -> Result<(), String> {
         world_options.seed,
     )
     .map_err(|err| format!("Failed to load random_sequences.dat: {err}"))?;
+    // Java `MinecraftServer` loads the `ServerScoreboard` from `scoreboard.dat` at startup.
+    server_scoreboard::live::initialize(WorldLayout::new(
+        runtime.universe.join(&runtime.world_name),
+    ))
+    .map_err(|err| format!("Failed to load scoreboard.dat: {err}"))?;
     let result = start_network_listeners(
         &logger,
         &startup.properties,
@@ -144,6 +149,8 @@ fn run(options: CliOptions) -> Result<(), String> {
     );
     random_sequences_live::save_if_dirty()
         .map_err(|err| format!("Failed to save random_sequences.dat: {err}"))?;
+    server_scoreboard::live::save_if_dirty()
+        .map_err(|err| format!("Failed to save scoreboard.dat: {err}"))?;
     result
 }
 
