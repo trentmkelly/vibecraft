@@ -57,6 +57,8 @@ pub(crate) struct PlayerCombatState {
     pub hurt: super::player_damage::HurtState,
     /// Fire / freeze bookkeeping, see [`super::player_environment`].
     pub environment: super::player_environment::EnvironmentState,
+    /// `ServerPlayer.lastRecorded*`: the vitals last published to scoreboard criteria.
+    pub recorded_vitals: crate::server_scoreboard::criteria::RecordedVitals,
 }
 
 /// `DamageSources.<id>()` for a source without entities.
@@ -195,6 +197,7 @@ pub(super) fn tick_player_lifecycle(
         context.profile,
     )?;
     super::player_damage::flush_hurt_packets(stream, compression, state)?;
+    super::scoreboard_live::update_player_criteria(state, context.profile, context.bus);
     if state.health > 0.0 || state.combat.dead {
         return Ok(());
     }
@@ -210,6 +213,7 @@ pub(super) fn die<W: Write>(
     random_seed: u64,
 ) -> io::Result<()> {
     state.combat.dead = true;
+    super::scoreboard_live::record_player_death(context.profile, context.bus);
     let (show_death_message, keep_inventory) = {
         let rules = lock_status_mutex(context.game_rules);
         (rules.bool("show_death_messages"), rules.bool("keep_inventory"))

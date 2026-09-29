@@ -255,7 +255,7 @@ pub(super) fn worn_armor(state: &PlaySessionState) -> Vec<(usize, ArmorSlot, i8,
 }
 
 /// `(getArmorValue(), Attributes.ARMOR_TOUGHNESS)` from the worn armor.
-fn armor_totals(state: &PlaySessionState) -> (f32, f32) {
+pub(super) fn armor_totals(state: &PlaySessionState) -> (f32, f32) {
     let worn = worn_armor(state);
     total_armor(worn.iter().map(|(_, slot, _, stack)| (*slot, stack.item_id())))
 }

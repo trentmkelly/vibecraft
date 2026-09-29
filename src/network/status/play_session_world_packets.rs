@@ -1,5 +1,6 @@
 use crate::storage::world::WorldLayout;
 use super::*;
+use crate::server_scoreboard::live::CommandScoreboardSeed;
 use super::live_chat_state::CHAT_VALIDATION_FAILED;
 use super::datapack_live::seed_data_pack_state;
 
@@ -313,6 +314,8 @@ pub fn handle_chat_command_packet<R: Read>(
         context.active_login,
     );
     seed_command_game_rules(&mut command_state, context.game_rules);
+    let scoreboard = crate::server_scoreboard::live::global();
+    let scoreboard_seed = CommandScoreboardSeed::seed(&scoreboard, &mut command_state);
     seed_data_pack_state(&mut command_state, &command);
     let access_context = AccessContext {
         access: context.player_access,
@@ -324,6 +327,7 @@ pub fn handle_chat_command_packet<R: Read>(
         seed_access_state(&mut command_state, context.player_access, access_context.sessions);
     let result = execute_command_with_functions(&mut command_state, permissions, &command);
     apply_command_game_rule_changes(&command_state, context.game_rules);
+    scoreboard_seed.apply(&scoreboard, &command_state, &context.active_login.world_bus);
     apply_access_changes(&access_context, &access_seed, &command_state);
     apply_command_effects(context.active_login, &command_state, &result, context.game_rules)?;
     apply_command_side_effects(

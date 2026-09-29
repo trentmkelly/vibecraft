@@ -174,7 +174,7 @@ pub struct TeamState {
 }
 
 impl TeamState {
-    pub(super) fn new(name: String, display_name: String) -> Self {
+    pub fn new(name: String, display_name: String) -> Self {
         Self {
             name,
             display_name,
@@ -322,95 +322,6 @@ pub struct ScoreboardScore {
 pub struct ScoreboardDisplaySlot {
     pub slot: String,
     pub objective: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScoreboardPersistence {
-    pub objectives: Vec<ScoreboardObjective>,
-    pub scores: Vec<ScoreboardScore>,
-    pub display_slots: Vec<ScoreboardDisplaySlot>,
-}
-
-impl ScoreboardPersistence {
-    pub fn from_state(state: &ServerCommandState) -> Self {
-        Self {
-            objectives: state.scoreboard_objectives.clone(),
-            scores: state.scoreboard_scores.clone(),
-            display_slots: state.scoreboard_display_slots.clone(),
-        }
-    }
-
-    pub fn apply_to_state(self, state: &mut ServerCommandState) {
-        state.scoreboard_objectives = self.objectives;
-        state.scoreboard_scores = self.scores;
-        state.scoreboard_display_slots = self.display_slots;
-    }
-
-    pub fn to_nbt(&self) -> Tag {
-        Tag::Compound(vec![
-            (
-                "Objectives".to_string(),
-                Tag::List(
-                    self.objectives
-                        .iter()
-                        .map(scoreboard_objective_to_nbt)
-                        .collect(),
-                ),
-            ),
-            (
-                "PlayerScores".to_string(),
-                Tag::List(self.scores.iter().map(scoreboard_score_to_nbt).collect()),
-            ),
-            (
-                "DisplaySlots".to_string(),
-                Tag::Compound(
-                    self.display_slots
-                        .iter()
-                        .map(|slot| (slot.slot.clone(), Tag::String(slot.objective.clone())))
-                        .collect(),
-                ),
-            ),
-        ])
-    }
-
-    pub fn from_nbt(tag: &Tag) -> Result<Self, String> {
-        let root = nbt_compound(tag)?;
-        let objectives = match nbt_field(root, "Objectives") {
-            Some(Tag::List(entries)) => entries
-                .iter()
-                .map(scoreboard_objective_from_nbt)
-                .collect::<Result<Vec<_>, _>>()?,
-            Some(_) => return Err("Objectives must be a list".to_string()),
-            None => Vec::new(),
-        };
-        let scores = match nbt_field(root, "PlayerScores") {
-            Some(Tag::List(entries)) => entries
-                .iter()
-                .map(scoreboard_score_from_nbt)
-                .collect::<Result<Vec<_>, _>>()?,
-            Some(_) => return Err("PlayerScores must be a list".to_string()),
-            None => Vec::new(),
-        };
-        let display_slots = match nbt_field(root, "DisplaySlots") {
-            Some(Tag::Compound(entries)) => entries
-                .iter()
-                .map(|(slot, value)| match value {
-                    Tag::String(objective) => Ok(ScoreboardDisplaySlot {
-                        slot: slot.clone(),
-                        objective: objective.clone(),
-                    }),
-                    _ => Err("DisplaySlots values must be strings".to_string()),
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-            Some(_) => return Err("DisplaySlots must be a compound".to_string()),
-            None => Vec::new(),
-        };
-        Ok(Self {
-            objectives,
-            scores,
-            display_slots,
-        })
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

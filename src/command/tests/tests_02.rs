@@ -1,63 +1,6 @@
 use super::*;
 
 #[test]
-fn scoreboard_objectives_scores_and_display_slots_round_trip_persistence() {
-    let mut state = ServerCommandState {
-        scoreboard_objectives: vec![ScoreboardObjective {
-            name: "kills".to_string(),
-            criteria: "dummy".to_string(),
-            display_name: "Kills".to_string(),
-            render_type: "hearts".to_string(),
-            display_auto_update: false,
-            number_format: Some("fixed:!".to_string()),
-        }],
-        scoreboard_scores: vec![ScoreboardScore {
-            owner: "Steve".to_string(),
-            objective: "kills".to_string(),
-            value: 7,
-            locked: false,
-            display_name: Some("Slayer".to_string()),
-            number_format: Some("blank".to_string()),
-        }],
-        scoreboard_display_slots: vec![ScoreboardDisplaySlot {
-            slot: "sidebar".to_string(),
-            objective: "kills".to_string(),
-        }],
-        ..ServerCommandState::default()
-    };
-
-    let persisted = ScoreboardPersistence::from_state(&state);
-    let tag = persisted.to_nbt();
-    assert!(matches!(
-        &tag,
-        Tag::Compound(fields)
-            if fields.iter().any(|(name, _)| name == "Objectives")
-                && fields.iter().any(|(name, _)| name == "PlayerScores")
-                && fields.iter().any(|(name, _)| name == "DisplaySlots")
-    ));
-
-    let loaded = ScoreboardPersistence::from_nbt(&tag).unwrap();
-    assert_eq!(loaded.objectives, state.scoreboard_objectives);
-    assert_eq!(loaded.scores, state.scoreboard_scores);
-    assert_eq!(loaded.display_slots, state.scoreboard_display_slots);
-
-    state.scoreboard_objectives.clear();
-    state.scoreboard_scores.clear();
-    state.scoreboard_display_slots.clear();
-    loaded.apply_to_state(&mut state);
-    assert_eq!(state.scoreboard_objectives[0].criteria, "dummy");
-    assert_eq!(state.scoreboard_objectives[0].render_type, "hearts");
-    assert!(!state.scoreboard_objectives[0].display_auto_update);
-    assert_eq!(
-        state.scoreboard_objectives[0].number_format,
-        Some("fixed:!".to_string())
-    );
-    assert_eq!(state.scoreboard_scores[0].value, 7);
-    assert!(!state.scoreboard_scores[0].locked);
-    assert_eq!(state.scoreboard_display_slots[0].slot, "sidebar");
-}
-
-#[test]
 fn trigger_command_consumes_enabled_trigger_scores() {
     let mut state = ServerCommandState {
         command_source_player: Some(NameAndId::create_offline("Steve")),
