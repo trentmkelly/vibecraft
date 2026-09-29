@@ -79,7 +79,11 @@ fn unloaded_worldgen_registries_are_exactly_the_ones_without_ported_codecs() {
             "{key} is synchronised but has no codec"
         );
     }
-    assert!(unloaded.contains(&"minecraft:worldgen/structure_set"));
+    // Every worldgen registry now has a typed codec (features, structures, pools,
+    // processors, noise and presets); the list must stay empty until a new one is added
+    // without a codec.
+    assert!(unloaded.is_empty(), "registries without a codec: {unloaded:?}");
+    assert!(!unloaded.contains(&"minecraft:worldgen/structure_set"));
     assert!(!unloaded.contains(&"minecraft:worldgen/configured_feature"));
     assert!(!unloaded.contains(&"minecraft:worldgen/placed_feature"));
     assert!(!unloaded.contains(&"minecraft:worldgen/biome"));

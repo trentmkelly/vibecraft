@@ -37,11 +37,7 @@ fn collect_json_dirs(root: &Path, relative: &str, found: &mut BTreeSet<String>) 
 /// Registries that VibeCraft does not load as element registries. Their tags name
 /// worldgen presets/features that are not decoded yet, so element existence cannot
 /// be checked and every reference is accepted (explicit deferral).
-const UNLOADED_REGISTRIES: &[&str] = &[
-    "worldgen/configured_feature",
-    "worldgen/flat_level_generator_preset",
-    "worldgen/world_preset",
-];
+const UNLOADED_REGISTRIES: &[&str] = &["worldgen/configured_feature"];
 
 /// Maps a tag-file directory to its registry path: the shortest prefix that is a
 /// registry. `worldgen` alone only groups registries, so it never matches.

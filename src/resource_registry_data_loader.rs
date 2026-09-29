@@ -94,7 +94,7 @@ pub const WORLDGEN_REGISTRIES: &[RegistryDataLoaderRegistryData] = &[
     RegistryDataLoaderRegistryData::new("minecraft:trim_pattern", "TrimPattern.DIRECT_CODEC"),
     RegistryDataLoaderRegistryData::new("minecraft:trim_material", "TrimMaterial.DIRECT_CODEC"),
     RegistryDataLoaderRegistryData::new(
-        "minecraft:trial_spawner_config",
+        "minecraft:trial_spawner",
         "TrialSpawnerConfig.DIRECT_CODEC",
     ),
     RegistryDataLoaderRegistryData::with_validator(

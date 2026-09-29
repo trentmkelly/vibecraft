@@ -28,19 +28,30 @@
 
 pub mod attributes;
 pub mod builtin;
+pub mod carver_codecs;
 pub mod codec;
 pub mod datapack_content;
+pub mod dimension_codecs;
 pub mod element_codecs;
+pub mod enchantment_provider_codecs;
 pub mod gametest_codecs;
 pub mod loader;
+pub mod noise_codecs;
+pub mod noise_settings_codecs;
 pub mod registry_data;
 pub mod resources;
 pub mod server_resources;
 pub mod shared;
 pub mod store;
+pub mod structure_codecs;
+pub mod structure_pool_codecs;
+pub mod structure_processor_codecs;
 pub mod sync;
 pub mod tags;
 pub mod worldgen_feature;
+pub mod trade_codecs;
+pub mod trial_spawner_codecs;
+pub mod worldgen_common;
 pub mod zip_pack;
 
 use std::sync::OnceLock;

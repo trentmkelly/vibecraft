@@ -39,6 +39,8 @@ pub(crate) enum Reg {
     DataComponentPredicateType,
     EntitySubPredicateType,
     LootConditionType,
+    /// `BuiltInRegistries.VILLAGER_TYPE` (the `villager/variant` component predicate).
+    VillagerType,
     /// Data-driven registries (checked through [`RegistryLookup`] only).
     Biome,
     Structure,
@@ -58,6 +60,7 @@ impl Reg {
             Reg::MobEffect => "minecraft:mob_effect",
             Reg::Potion => "minecraft:potion",
             Reg::StatType => "minecraft:stat_type",
+            Reg::VillagerType => "minecraft:villager_type",
             Reg::DataComponentType => "minecraft:data_component_type",
             Reg::DataComponentPredicateType => "minecraft:data_component_predicate_type",
             Reg::EntitySubPredicateType => "minecraft:entity_sub_predicate_type",
@@ -655,6 +658,12 @@ impl<'a> ConditionCodec<'a> {
         Ok(Value::Object(out))
     }
 
+    /// Decodes and re-encodes one schema node (for codecs of other data types that embed
+    /// shared Java codecs such as `DataComponentExactPredicate.CODEC`).
+    pub(crate) fn decode_node(&self, node: Node, value: &Value) -> Decoded {
+        self.node(node, value)
+    }
+
     fn reject_unknown(object: &Map<String, Value>, allowed: &[&str]) -> Result<(), String> {
         match object.keys().find(|key| !allowed.contains(&key.as_str())) {
             Some(key) => Err(format!("unknown field `{key}`")),
@@ -984,6 +993,8 @@ impl<'a> ConditionCodec<'a> {
                 }
                 "minecraft:damage" => self.node(Node::Rec(Rec::ComponentDamage), payload),
                 "minecraft:jukebox_playable" => self.node(Node::Rec(Rec::JukeboxPlayable), payload),
+                // `VillagerTypePredicate.CODEC = RegistryCodecs.homogeneousList(VILLAGER_TYPE)`.
+                "minecraft:villager/variant" => self.node(Node::Set(Reg::VillagerType), payload),
                 _ => Err(format!("component predicate {name} has no schema")),
             }
             .map_err(|err| format!("{name}: {err}"))?;

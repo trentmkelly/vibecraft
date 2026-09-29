@@ -22,12 +22,12 @@ use crate::resources::{
 const MCMETA: &str = r#"{"pack":{"description":"test","min_format":[101,1],"max_format":101}}"#;
 
 /// A scratch world directory removed on drop.
-struct TestWorld {
-    root: PathBuf,
+pub(super) struct TestWorld {
+    pub(super) root: PathBuf,
 }
 
 impl TestWorld {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         static COUNTER: AtomicUsize = AtomicUsize::new(0);
         let root = std::env::temp_dir().join(format!(
             "vibecraft-world-packs-{}-{}",
@@ -67,7 +67,7 @@ impl TestWorld {
 
     /// A repository over the bundled and world packs with the configuration a fresh
     /// server start computes (new world packs are selected automatically).
-    fn repository(&self) -> DataPackRepository {
+    pub(super) fn repository(&self) -> DataPackRepository {
         let mut repository = DataPackRepository::server_repository(&self.datapacks())
             .unwrap_or_else(|err| panic!("repository: {err}"));
         let configured = configure_pack_repository(
