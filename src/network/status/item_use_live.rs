@@ -75,9 +75,10 @@ pub(super) fn use_flint_and_steel<W: Write>(
     let id = crate::block_states::network_id_for_block_state(&new_state.state_name()).unwrap_or(0);
     write_block_update(stream, compression, pos, id)?;
 
-    // TODO(live-fire-tick): Java FireBlock.onPlace schedules the spread/age
-    // tick (30 + nextInt(10)); the live scheduled-tick catalog has no fire
-    // handler yet, so placed fire neither spreads nor burns out.
+    // Java FireBlock.onPlace: schedule the first spread/age tick.
+    if new_state.registry_id == "minecraft:fire" {
+        super::fire_live::schedule_placed_fire(context.live_block_ticks, context.game_time, pos);
+    }
     let mut cascade = LiveCascade {
         layout: context.world_layout,
         seed: context.world_seed,

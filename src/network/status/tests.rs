@@ -506,9 +506,10 @@ pub fn prevent_proxy_connections_rejects_mismatched_handshake_ip() {
             &profile,
             "198.51.100.20",
             Some("203.0.113.10"),
+            0,
         )
         .unwrap(),
-        Some("multiplayer.disconnect.unverified_username")
+        Some("{\"translate\":\"multiplayer.disconnect.unverified_username\"}".to_string())
     );
     assert_eq!(
         login_access_disconnect_reason(
@@ -517,6 +518,7 @@ pub fn prevent_proxy_connections_rejects_mismatched_handshake_ip() {
             &profile,
             "203.0.113.10",
             Some("203.0.113.10"),
+            0,
         )
         .unwrap(),
         None
@@ -526,7 +528,7 @@ pub fn prevent_proxy_connections_rejects_mismatched_handshake_ip() {
 #[test]
 pub fn login_access_gate_matches_java_ban_whitelist_and_op_order() {
     let mut properties = test_properties();
-    properties.set("enforce-whitelist", "true");
+    properties.set("white-list", "true");
     let steve = crate::player_access::NameAndId::create_offline("Steve");
     let alex = crate::player_access::NameAndId::create_offline("Alex");
     let griefer = crate::player_access::NameAndId::create_offline("Griefer");
@@ -552,23 +554,23 @@ pub fn login_access_gate_matches_java_ban_whitelist_and_op_order() {
         level: 4,
         bypasses_player_limit: true,
     });
+    access.set_using_whitelist(true);
     let access = Arc::new(Mutex::new(access));
 
+    assert!(matches!(
+        login_access_disconnect_reason(&properties, &access, &griefer, "203.0.113.7", None, 0).unwrap(),
+        Some(reason) if reason.contains("multiplayer.disconnect.banned.reason") && reason.contains("test")
+    ));
+    assert!(matches!(
+        login_access_disconnect_reason(&properties, &access, &steve, "203.0.113.7", None, 0).unwrap(),
+        Some(reason) if reason.contains("multiplayer.disconnect.not_whitelisted")
+    ));
+    assert!(matches!(
+        login_access_disconnect_reason(&properties, &access, &alex, "203.0.113.7", None, 0).unwrap(),
+        Some(reason) if reason.contains("multiplayer.disconnect.banned_ip.reason")
+    ));
     assert_eq!(
-        login_access_disconnect_reason(&properties, &access, &griefer, "203.0.113.7", None)
-            .unwrap(),
-        Some("multiplayer.disconnect.banned")
-    );
-    assert_eq!(
-        login_access_disconnect_reason(&properties, &access, &steve, "203.0.113.7", None).unwrap(),
-        Some("multiplayer.disconnect.not_whitelisted")
-    );
-    assert_eq!(
-        login_access_disconnect_reason(&properties, &access, &alex, "203.0.113.7", None).unwrap(),
-        Some("multiplayer.disconnect.ip_banned")
-    );
-    assert_eq!(
-        login_access_disconnect_reason(&properties, &access, &op, "198.51.100.4", None).unwrap(),
+        login_access_disconnect_reason(&properties, &access, &op, "198.51.100.4", None, 0).unwrap(),
         None
     );
 }

@@ -1079,12 +1079,23 @@ impl FeatureFlagRegistry {
         })
     }
 
+    /// `FeatureFlagRegistry.toNames`: the names of `set` in `java.util.HashSet`
+    /// iteration order (bucket order by `Identifier.hashCode`, insertion order within a
+    /// bucket), which is the order clients and `level.dat` see them in.
     pub fn to_names(&self, set: FeatureFlagSet) -> Vec<Identifier> {
-        self.names
+        let mut names: Vec<Identifier> = self
+            .names
             .iter()
             .filter(|(_id, flag)| set.contains(*flag))
             .map(|(id, _flag)| id.clone())
-            .collect()
+            .collect();
+        // `HashMap` starts with 16 buckets and doubles whenever it exceeds 3/4 load.
+        let mut buckets = 16usize;
+        while names.len() * 4 > buckets * 3 {
+            buckets *= 2;
+        }
+        names.sort_by_key(|id| java_hash_bucket(id, buckets));
+        names
     }
 
     pub fn resolve_names(&self, names: &[Identifier]) -> Result<FeatureFlagSet, Vec<Identifier>> {
@@ -1121,6 +1132,20 @@ pub mod feature_flags {
     pub fn default_flags_26_1_2() -> FeatureFlagSet {
         vanilla_set()
     }
+}
+
+/// The bucket `java.util.HashMap` places `id` in for a table of `buckets` slots:
+/// `(h ^ h >>> 16) & (buckets - 1)` with `h = Identifier.hashCode()`.
+fn java_hash_bucket(id: &Identifier, buckets: usize) -> usize {
+    fn string_hash(text: &str) -> i32 {
+        text.encode_utf16().fold(0i32, |hash, unit| {
+            hash.wrapping_mul(31).wrapping_add(i32::from(unit))
+        })
+    }
+    let hash = string_hash(id.namespace())
+        .wrapping_mul(31)
+        .wrapping_add(string_hash(id.path())) as u32;
+    ((hash ^ (hash >> 16)) as usize) & (buckets - 1)
 }
 
 #[cfg(test)]

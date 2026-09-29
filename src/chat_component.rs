@@ -588,50 +588,10 @@ fn render_translation(
     translations: &TranslationTable,
     context: &ResolutionContext,
 ) -> String {
-    let mut result = String::new();
-    let chars: Vec<char> = template.chars().collect();
-    let mut cursor = 0;
-    let mut next_arg = 0;
-    while cursor < chars.len() {
-        if chars[cursor] != '%' {
-            result.push(chars[cursor]);
-            cursor += 1;
-            continue;
-        }
-        if cursor + 1 < chars.len() && chars[cursor + 1] == '%' {
-            result.push('%');
-            cursor += 2;
-            continue;
-        }
-        let mut scan = cursor + 1;
-        let mut explicit = String::new();
-        while scan < chars.len() && chars[scan].is_ascii_digit() {
-            explicit.push(chars[scan]);
-            scan += 1;
-        }
-        let index = if !explicit.is_empty() && scan < chars.len() && chars[scan] == '$' {
-            scan += 1;
-            explicit
-                .parse::<usize>()
-                .ok()
-                .and_then(|value| value.checked_sub(1))
-        } else {
-            scan = cursor + 1;
-            let value = Some(next_arg);
-            next_arg += 1;
-            value
-        };
-        if scan < chars.len() && chars[scan] == 's' {
-            if let Some(arg) = index.and_then(|index| args.get(index)) {
-                result.push_str(&arg.render_plain(translations, context));
-            }
-            cursor = scan + 1;
-        } else {
-            result.push('%');
-            cursor += 1;
-        }
-    }
-    result
+    let rendered = crate::language::decompose_template(template, |index| {
+        args.get(index).map(|arg| arg.render_plain(translations, context))
+    });
+    rendered.map_or_else(|()| template.to_string(), |parts| parts.concat())
 }
 
 fn json_array(items: Vec<String>) -> String {

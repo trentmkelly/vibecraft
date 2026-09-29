@@ -25,7 +25,7 @@ const PLAYER_EYE_HEIGHT: f64 = 1.62;
 
 /// Writes the bundle-wrapped `ADD_ENTITY` + `SET_ENTITY_DATA(DATA_VALUE)` pair for `orb`
 /// (`ServerEntity.addPairing`, same shape as [`write_item_entity_spawn_packets`]).
-pub(super) fn write_xp_orb_spawn_packets<W: Write>(
+pub(crate) fn write_xp_orb_spawn_packets<W: Write>(
     writer: &mut W,
     compression: CompressionState,
     orb: &XpOrbEntity,

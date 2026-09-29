@@ -30,7 +30,7 @@ fn lock_slot() -> MutexGuard<'static, Option<LiveRandomSequences>> {
     slot().lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Loads `data/random_sequences.dat` (missing file means a fresh, empty
+/// Loads `data/minecraft/random_sequences.dat` (missing file means a fresh, empty
 /// `RandomSequences`, as with Java `SavedDataType` constructors) and installs it.
 pub fn initialize(layout: WorldLayout, world_seed: i64) -> io::Result<()> {
     let sequences = load(&layout)?;

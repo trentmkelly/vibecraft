@@ -5,6 +5,7 @@
 //! - `codec_engine`: the JSON-to-NBT codec combinators.
 //! - `loading`: `RegistryDataLoader`/`TagLoader` behaviour on synthetic packs.
 //! - `synchronization`: known-pack elision and the tags payload.
+//! - `world_packs`: world data packs, overlays/filters, overrides and `/reload`.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -21,6 +22,7 @@ use crate::registry_pipeline::vanilla_registries;
 use crate::storage::nbt::Tag;
 
 mod codec_engine;
+mod gametest_codecs;
 mod loading;
 mod model_tables;
 mod official_transcript;
@@ -28,6 +30,7 @@ mod order_fixtures;
 mod synchronization;
 mod vanilla_fields;
 mod vanilla_payloads;
+mod world_packs;
 
 /// The vanilla registries, loaded once for the whole test run.
 pub(super) fn registries() -> &'static Registries {

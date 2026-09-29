@@ -510,10 +510,9 @@ fn parse_kick_targets(input: &str) -> Result<Vec<NameAndId>, CommandError> {
     }
 }
 
-// TODO(op-deop-live-wiring): the command model mirrors Java's PlayerList mutation,
-// feedback, and kick request semantics, but live command side effects still need
-// PlayerAccess ops.json persistence plus PlayerList.op's target permission/command
-// packet resend once cross-player command effects are wired.
+/// Java `OpCommand.opPlayers`: the model records the newly-opped profiles; the live
+/// runners persist them to `ops.json` and notify online targets
+/// (`network::status::player_access_live`).
 fn op_command(
     state: &mut ServerCommandState,
     parts: &[&str],
@@ -523,13 +522,14 @@ fn op_command(
             let changed = targets
                 .iter()
                 .filter_map(|target| {
-                    let profile = NameAndId::create_offline(target);
+                    let profile = state.resolve_profile(target);
                     state.add_operator(profile.clone()).then_some(profile)
                 })
                 .collect::<Vec<_>>();
             if changed.is_empty() {
                 return Err(CommandError::OpFailed);
             }
+            state.feedback_args = vec![changed[0].name.clone()];
             push_extra_player_feedback(state, changed.len(), "commands.op.success");
             Ok(CommandResult {
                 success_count: changed.len() as i32,
@@ -547,14 +547,18 @@ fn deop_command(
 ) -> Result<CommandResult, CommandError> {
     match parts {
         ["deop", targets @ ..] if !targets.is_empty() => {
-            let changed = targets
+            let profiles = targets
                 .iter()
-                .map(|target| NameAndId::create_offline(target))
+                .map(|target| state.resolve_profile(target))
+                .collect::<Vec<_>>();
+            let changed = profiles
+                .into_iter()
                 .filter(|profile| state.remove_operator(profile))
                 .collect::<Vec<_>>();
             if changed.is_empty() {
                 return Err(CommandError::DeOpFailed);
             }
+            state.feedback_args = vec![changed[0].name.clone()];
             push_extra_player_feedback(state, changed.len(), "commands.deop.success");
             state.kick_unlisted_requests += 1;
             Ok(CommandResult {
@@ -656,13 +660,18 @@ fn whitelist_add_command(
     state: &mut ServerCommandState,
     targets: &[&str],
 ) -> Result<CommandResult, CommandError> {
-    let success = targets
+    let added = targets
         .iter()
-        .filter(|target| state.add_whitelisted(NameAndId::create_offline(target)))
-        .count() as i32;
-    if success == 0 {
+        .filter_map(|target| {
+            let profile = state.resolve_profile(target);
+            state.add_whitelisted(profile.clone()).then_some(profile)
+        })
+        .collect::<Vec<_>>();
+    let success = added.len() as i32;
+    let Some(first) = added.first() else {
         return Err(CommandError::AlreadyWhitelisted);
-    }
+    };
+    state.feedback_args = vec![first.name.clone()];
     Ok(CommandResult {
         success_count: success,
         feedback_key: "commands.whitelist.add.success",
@@ -674,14 +683,19 @@ fn whitelist_remove_command(
     state: &mut ServerCommandState,
     targets: &[&str],
 ) -> Result<CommandResult, CommandError> {
-    let success = targets
+    let profiles = targets
         .iter()
-        .map(|target| NameAndId::create_offline(target))
+        .map(|target| state.resolve_profile(target))
+        .collect::<Vec<_>>();
+    let removed = profiles
+        .iter()
         .filter(|profile| state.remove_whitelisted(profile))
-        .count() as i32;
-    if success == 0 {
+        .collect::<Vec<_>>();
+    let success = removed.len() as i32;
+    let Some(first) = removed.first() else {
         return Err(CommandError::NotWhitelisted);
-    }
+    };
+    state.feedback_args = vec![first.name.clone()];
     state.kick_unlisted_requests += 1;
     Ok(CommandResult {
         success_count: success,

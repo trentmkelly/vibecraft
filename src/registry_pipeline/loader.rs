@@ -8,7 +8,7 @@ use crate::registry::Identifier;
 use crate::registry_pipeline::builtin::{BuiltinRegistries, BuiltinRegistry};
 use crate::registry_pipeline::codec::{Codec, CodecContext, References};
 use crate::registry_pipeline::resources::{FileToIdConverter, ResourceManager};
-use crate::registry_pipeline::store::{MappedRegistry, RegistrationInfo};
+use crate::registry_pipeline::store::{MappedRegistry, RegistrationInfo, Registries};
 use crate::registry_pipeline::tags::load_tags_for_registry;
 use crate::resource_registry_data_loader::{
     RegistryDataLoaderRegistryData, RegistryDataLoaderValidatorKind,
@@ -460,4 +460,33 @@ fn static_registry(
     }
     registry.freeze();
     registry
+}
+
+/// `TagLoader.loadTagsForExistingRegistries` + `PendingTags.apply`: re-reads the tags
+/// of every registry in `registries` from `manager` and swaps them in.
+///
+/// Elements never change after startup, so tags resolve against the frozen
+/// registries (`ElementLookup.fromFrozenRegistry`: required and optional entries
+/// alike must exist). A registry whose reloaded tag set is empty keeps its previous
+/// tags (`loadPendingTags` returns no `PendingTags` for it).
+pub fn reload_tags(registries: &mut Registries, manager: &ResourceManager, logged: &mut Vec<String>) {
+    for registry in registries.layers_mut() {
+        let key = registry.key().clone();
+        let mut lookup = |id: &Identifier, _required: bool| registry.contains(id);
+        let tags = load_tags_for_registry(manager, registry_path(&key), &mut lookup, logged);
+        if tags.is_empty() {
+            continue;
+        }
+        let resolved = tags
+            .into_iter()
+            .map(|(tag, elements)| {
+                let ids = elements
+                    .iter()
+                    .filter_map(|element| registry.id_of(element))
+                    .collect();
+                (tag, ids)
+            })
+            .collect();
+        registry.replace_tags(resolved);
+    }
 }

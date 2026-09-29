@@ -23,17 +23,9 @@ impl DeprecatedTranslationsInfoModel {
         Ok(Self { removed, renamed })
     }
 
-    #[cfg(vibecraft_has_decompiled_sources)]
+    /// Loads the vendored `lang/deprecated.json`.
     pub fn load_default_resource() -> Result<Self, String> {
-        Self::load_from_json(vibecraft_java_source!("/assets/minecraft/lang/deprecated.json"))
-    }
-
-    #[cfg(not(vibecraft_has_decompiled_sources))]
-    pub fn load_default_resource() -> Result<Self, String> {
-        Err(
-            "optional Java decompilation root is unavailable; cannot load deprecated translations"
-                .to_string(),
-        )
+        Self::load_from_json(crate::language::DEPRECATED_JSON)
     }
 
     pub fn apply_to_map(&self, translations: &mut BTreeMap<String, String>) {
@@ -58,24 +50,15 @@ pub struct LanguageModel {
 }
 
 impl LanguageModel {
-    #[cfg(vibecraft_has_decompiled_sources)]
+    /// Loads the vendored `en_us.json` with `deprecated.json` applied.
     pub fn load_default() -> Result<Self, String> {
         let mut translations = BTreeMap::new();
-        load_translations_from_json(
-            vibecraft_java_source!("/assets/minecraft/lang/en_us.json"),
-            &mut translations,
-        )?;
+        load_translations_from_json(crate::language::EN_US_RAW, &mut translations)?;
         DeprecatedTranslationsInfoModel::load_default_resource()?.apply_to_map(&mut translations);
         Ok(Self {
             translations,
             default_right_to_left: false,
         })
-    }
-
-    #[cfg(not(vibecraft_has_decompiled_sources))]
-    pub fn load_default() -> Result<Self, String> {
-        Err("optional Java decompilation root is unavailable; cannot load en_us translations"
-            .to_string())
     }
 
     pub fn injected(translations: BTreeMap<String, String>, default_right_to_left: bool) -> Self {

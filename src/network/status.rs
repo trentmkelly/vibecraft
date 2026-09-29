@@ -126,9 +126,9 @@ use crate::network::rate_limit::{PacketRateDecision, PacketRateLimiter};
 use crate::network::varint::{read_var_i32, write_var_i32, write_var_i64};
 use crate::player_access::{NameAndId, PlayerAccess, ProxyConnectionDecision};
 use crate::player_entity::{
-    calculate_fall_damage, movement_exhaustion, starvation_damages, update_fall_distance,
-    Difficulty as FoodDifficulty, FallDamageInput, FoodState, FoodTickOutcome,
-    DEFAULT_FALL_DAMAGE_MULTIPLIER, DEFAULT_SAFE_FALL_DISTANCE, JUMP_EXHAUSTION,
+    movement_exhaustion, starvation_damages, update_fall_distance,
+    Difficulty as FoodDifficulty, FoodState, FoodTickOutcome,
+    JUMP_EXHAUSTION,
     SPRINT_EXHAUSTION_PER_METER, SPRINT_JUMP_EXHAUSTION, SWIM_EXHAUSTION_PER_METER,
 };
 use crate::player_inventory::{
@@ -275,6 +275,14 @@ mod chunk_0_2;
 mod chunk_a;
 pub use chunk_a::*;
 
+mod fire_live;
+pub use fire_live::FireEnvironment;
+mod world_tick;
+#[cfg(test)]
+mod world_tick_tests;
+pub use world_tick::*;
+
+mod datapack_live;
 mod online_login;
 mod registry_sync;
 
@@ -304,9 +312,15 @@ use game_rule_live::{
     GameRuleSessionSync,
 };
 
+mod player_access_live;
+use player_access_live::{
+    apply_access_changes, apply_console_disconnects, seed_access_state, write_permission_level_update,
+    load_live_player_access, AccessContext,
+};
 mod player_messaging_live;
 use player_messaging_live::{apply_command_effects, dedicated_publish_request, KICK_SUCCESS_KEY};
 
+mod player_chat_live;
 mod live_chat_state;
 use live_chat_state::LiveChatState;
 
@@ -322,9 +336,11 @@ pub use play_session_chunk_delta::*;
 mod chunk_b_2;
 pub use chunk_b_2::*;
 
+mod player_damage;
 mod player_death;
+mod player_environment;
 mod respawn_live;
-mod xp_orb_live;
+pub(crate) mod xp_orb_live;
 
 mod play_session_state_nbt;
 pub use play_session_state_nbt::*;

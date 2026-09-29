@@ -168,17 +168,24 @@ pub(super) fn set_gamemode_for_targets(
             changed += 1;
         }
     }
-    let feedback_key = if changed == 0 {
-        NO_COMMAND_FEEDBACK
-    } else if targets.len() == 1
+    let self_target = targets.len() == 1
         && state
             .command_source_player
             .as_ref()
-            .is_some_and(|source| source.uuid == targets[0].uuid)
-    {
+            .is_some_and(|source| source.uuid == targets[0].uuid);
+    let feedback_key = if changed == 0 {
+        NO_COMMAND_FEEDBACK
+    } else if self_target {
         "commands.gamemode.success.self"
     } else {
         "commands.gamemode.success.other"
+    };
+    // `GameModeCommand.logGamemodeChange`: the mode (and, for others, the target) are arguments.
+    state.feedback_args = match (changed, self_target, targets) {
+        (0, _, _) => Vec::new(),
+        (_, true, _) => vec![mode.long_display_name()],
+        (_, false, [target]) => vec![target.name.clone(), mode.long_display_name()],
+        _ => Vec::new(),
     };
     Ok(CommandResult {
         success_count: changed,

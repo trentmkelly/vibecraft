@@ -5,6 +5,7 @@
 //! module resolves the `elementCodec` each entry names.
 
 use crate::registry_pipeline::element_codecs as codecs;
+use crate::registry_pipeline::gametest_codecs as gametest;
 use crate::registry_pipeline::loader::{ElementCodecs, LoadTask};
 use crate::resource_registry_data_loader::{RegistryDataLoaderRegistryData, WORLDGEN_REGISTRIES};
 
@@ -15,10 +16,9 @@ use crate::resource_registry_data_loader::{RegistryDataLoaderRegistryData, WORLD
 /// are not ported yet. None of them is in `SYNCHRONIZED_REGISTRIES`, so clients
 /// never receive them, but the server still needs them for worldgen:
 ///
-/// - TODO(registry-pipeline-worldgen-features): `worldgen/configured_carver`,
-///   `worldgen/configured_feature`, `worldgen/placed_feature`
-/// - TODO(registry-pipeline-worldgen-structures): `worldgen/structure`,
-///   `worldgen/structure_set`, `worldgen/processor_list`, `worldgen/template_pool`
+/// - TODO(registry-pipeline-worldgen-features): `worldgen/configured_feature`
+/// - TODO(registry-pipeline-worldgen-structures): `worldgen/structure_set`,
+///   `worldgen/processor_list`, `worldgen/template_pool`
 /// - TODO(registry-pipeline-worldgen-noise): `worldgen/noise_settings`,
 ///   `worldgen/noise`, `worldgen/density_function`,
 ///   `worldgen/multi_noise_biome_source_parameter_list`
@@ -78,10 +78,12 @@ pub fn element_codecs(key: &str) -> Option<ElementCodecs> {
         ),
         "minecraft:damage_type" => same(codecs::damage_type()),
         "minecraft:banner_pattern" => same(codecs::banner_pattern()),
-        "minecraft:enchantment"
-        | "minecraft:dialog"
-        | "minecraft:test_environment"
-        | "minecraft:test_instance" => same(codecs::unported()),
+        "minecraft:test_environment" => same(gametest::test_environment()),
+        "minecraft:test_instance" => same(gametest::test_instance()),
+        "minecraft:enchantment" | "minecraft:dialog" => same(codecs::unported()),
+        "minecraft:worldgen/configured_carver"
+        | "minecraft:worldgen/placed_feature"
+        | "minecraft:worldgen/structure" => same(codecs::worldgen_reference_target()),
         "minecraft:jukebox_song" => same(codecs::jukebox_song()),
         "minecraft:instrument" => same(codecs::instrument()),
         "minecraft:world_clock" => same(codecs::world_clock()),

@@ -192,7 +192,7 @@ fn parse_item_identifier(input: &str) -> Result<String, CommandError> {
     }
 }
 
-pub(super) fn item_max_stack_size(item: &str) -> i32 {
+pub(crate) fn item_max_stack_size(item: &str) -> i32 {
     if JAVA_STACKS_TO_1.contains(&item)
         || item.ends_with("_armor")
         || item.ends_with("_sword")

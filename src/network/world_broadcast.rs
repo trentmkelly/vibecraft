@@ -25,6 +25,9 @@ struct Inbox {
     /// disconnect notice and the session must close once it is flushed
     /// (Java `ServerGamePacketListenerImpl.disconnect`).
     closing: bool,
+    /// Java `ServerGamePacketListenerImpl.nextChatIndex`: the per-connection
+    /// `globalIndex` stamped on each `ClientboundPlayerChatPacket`.
+    next_chat_index: i32,
 }
 
 /// Per-connection inboxes keyed by the connection's registry token.
@@ -68,6 +71,27 @@ impl WorldPacketBus {
         match self.lock().get_mut(&token) {
             Some(inbox) if !inbox.closing => {
                 inbox.push(payload);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Queues a `ClientboundPlayerChatPacket` for `token`, stamping the
+    /// connection's next `globalIndex` (Java `nextChatIndex++`) in front of
+    /// `body_after_index` (the packet body without its leading index VarInt).
+    /// Returns whether it was delivered.
+    pub fn publish_player_chat(&self, token: u64, packet_id: i32, body_after_index: &[u8]) -> bool {
+        match self.lock().get_mut(&token) {
+            Some(inbox) if !inbox.closing => {
+                let mut payload = Vec::with_capacity(body_after_index.len() + 10);
+                let index = inbox.next_chat_index;
+                inbox.next_chat_index = index.wrapping_add(1);
+                // Writing to a Vec cannot fail.
+                let _ = crate::network::varint::write_var_i32(&mut payload, packet_id);
+                let _ = crate::network::varint::write_var_i32(&mut payload, index);
+                payload.extend_from_slice(body_after_index);
+                inbox.push(&payload);
                 true
             }
             _ => false,

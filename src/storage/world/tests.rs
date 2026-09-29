@@ -57,7 +57,7 @@ fn exposes_vanilla_world_paths() {
     );
     assert_eq!(
         layout.saved_data_file("scoreboard"),
-        std::path::PathBuf::from("world/data/scoreboard.dat")
+        std::path::PathBuf::from("world/data/minecraft/scoreboard.dat")
     );
 }
 
@@ -619,7 +619,7 @@ fn saved_nbt_loaders_refuse_missing_or_unsupported_data_versions() {
     )]);
     let mut bytes = Vec::new();
     crate::storage::nbt::write_named_tag(&mut bytes, "", &unsupported).unwrap();
-    fs::create_dir_all(layout.data_dir()).unwrap();
+    fs::create_dir_all(layout.saved_data_file("scoreboard").parent().unwrap()).unwrap();
     fs::write(layout.saved_data_file("scoreboard"), bytes).unwrap();
     let err = layout.load_scoreboard().unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
@@ -643,7 +643,7 @@ fn saves_vanilla_named_data_files() {
     )]);
 
     layout.save_scoreboard(&tag).unwrap();
-    layout.save_raids("", &tag).unwrap();
+    layout.save_raids("overworld", &tag).unwrap();
     layout.save_map_data(0, &tag).unwrap();
     layout.save_forced_chunks(&tag).unwrap();
     layout.save_command_storage("minecraft", &tag).unwrap();
@@ -651,19 +651,22 @@ fn saves_vanilla_named_data_files() {
     layout.save_random_sequences(&tag).unwrap();
 
     assert_eq!(layout.load_scoreboard().unwrap(), tag);
-    assert_eq!(layout.load_raids("").unwrap(), tag);
+    assert_eq!(layout.load_raids("overworld").unwrap(), tag);
     assert_eq!(layout.load_map_data(0).unwrap(), tag);
     assert_eq!(layout.load_forced_chunks().unwrap(), tag);
     assert_eq!(layout.load_command_storage("minecraft").unwrap(), tag);
     assert_eq!(layout.load_custom_bossbars().unwrap(), tag);
     assert_eq!(layout.load_random_sequences().unwrap(), tag);
     assert!(layout.saved_data_file("scoreboard").is_file());
-    assert!(layout.saved_data_file("chunk_tickets").is_file());
-    assert!(layout.command_storage_file("minecraft").is_file());
-    assert!(!layout
-        .saved_data_file("command_storage_minecraft")
+    assert!(layout
+        .dimension_saved_data_file("overworld", "chunk_tickets")
         .is_file());
+    assert!(layout.command_storage_file("minecraft").is_file());
+    assert!(layout.map_data_file(0).ends_with("data/minecraft/maps/0.dat"));
     assert!(layout.map_data_file(0).is_file());
+    assert!(layout
+        .dimension_saved_data_file("overworld", "raids")
+        .is_file());
 
     let _ = fs::remove_dir_all(&path);
 }
@@ -1108,11 +1111,60 @@ fn legacy_layout_is_migrated_and_conflicts_are_rejected() {
     assert!(root.join("dimensions/minecraft/the_end/poi").is_dir());
     assert!(layout.playerdata_dir().join("a.dat").is_file());
     assert!(!root.join("DIM-1").exists() && !root.join("playerdata").exists());
-    // Idempotent, and a re-appearing legacy folder next to real data is a conflict.
+    // Idempotent, and a re-appearing legacy folder next to real data is skipped
+    // (FileFixUtil.moveFile: "Target already exists, skipping move").
     layout.ensure_base_dirs().unwrap();
     std::fs::create_dir_all(root.join("region")).unwrap();
     std::fs::write(root.join("region/r.1.1.mca"), b"y").unwrap();
-    let err = layout.migrate_legacy_layout().unwrap_err();
-    assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+    layout.migrate_legacy_layout().unwrap();
+    assert!(root.join("region/r.1.1.mca").is_file());
+    assert!(layout.region_dir().join("r.0.0.mca").is_file());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// `DimensionStorageFileFix` SavedData renames.
+#[test]
+fn legacy_data_files_follow_dimension_storage_file_fix() {
+    let root = std::env::temp_dir().join(format!("vc-legacy-data-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    for dir in ["data", "DIM-1/data", "DIM1/data"] {
+        std::fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    for file in [
+        "data/chunks.dat", "data/raids.dat", "data/raids_end.dat", "data/world_border.dat",
+        "data/scoreboard.dat", "data/stopwatches.dat", "data/idcounts.dat",
+        "data/map_12.dat", "data/map_x.dat", "data/random_sequences.dat",
+        "data/command_storage_mymod.dat", "data/command_storage_BAD.dat",
+        "DIM-1/data/chunks.dat", "DIM1/data/raids.dat", "data/unrelated.dat",
+    ] {
+        std::fs::write(root.join(file), file).unwrap();
+    }
+    let layout = WorldLayout::new(&root);
+    layout.migrate_legacy_layout().unwrap();
+    let moved = |path: &str, original: &str| {
+        assert_eq!(std::fs::read_to_string(root.join(path)).unwrap(), original, "{path}");
+        assert!(!root.join(original).exists(), "{original} still present");
+    };
+    let ow = "dimensions/minecraft/overworld/data/minecraft";
+    moved(&format!("{ow}/chunk_tickets.dat"), "data/chunks.dat");
+    moved(&format!("{ow}/raids.dat"), "data/raids.dat");
+    moved(&format!("{ow}/world_border.dat"), "data/world_border.dat");
+    moved("dimensions/minecraft/the_end/data/minecraft/raids.dat", "DIM1/data/raids.dat");
+    moved("dimensions/minecraft/the_nether/data/minecraft/chunk_tickets.dat", "DIM-1/data/chunks.dat");
+    moved("data/minecraft/scoreboard.dat", "data/scoreboard.dat");
+    moved("data/minecraft/stopwatches.dat", "data/stopwatches.dat");
+    moved("data/minecraft/maps/last_id.dat", "data/idcounts.dat");
+    moved("data/minecraft/maps/12.dat", "data/map_12.dat");
+    moved("data/minecraft/random_sequences.dat", "data/random_sequences.dat");
+    moved("data/mymod/command_storage.dat", "data/command_storage_mymod.dat");
+    // Non-matching names, and the conflicting raids_end.dat (target already
+    // taken by raids.dat), stay put; DIM-1/DIM1 go away once empty.
+    assert!(root.join("data/map_x.dat").exists());
+    assert!(root.join("data/command_storage_BAD.dat").exists());
+    assert!(root.join("data/unrelated.dat").exists());
+    assert!(root.join("data/raids_end.dat").exists());
+    assert!(!root.join("DIM-1").exists() && !root.join("DIM1").exists());
+    // Loading through the live accessors finds the migrated files.
+    assert_eq!(layout.saved_data_file("scoreboard"), root.join("data/minecraft/scoreboard.dat"));
     let _ = std::fs::remove_dir_all(&root);
 }

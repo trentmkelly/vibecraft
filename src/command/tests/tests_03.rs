@@ -287,7 +287,7 @@ fn version_command_reports_26_1_2_metadata() {
     assert!(lines.contains(&"commands.version.id 26.1.2".to_string()));
     assert!(lines.contains(&"commands.version.data 4790".to_string()));
     assert!(lines.contains(&"commands.version.protocol 775 0x307".to_string()));
-    assert!(lines.contains(&"commands.version.pack.resource 84".to_string()));
+    assert!(lines.contains(&"commands.version.pack.resource 84.0".to_string()));
     assert!(lines.contains(&"commands.version.pack.data 101.1".to_string()));
     assert!(lines.contains(&"commands.version.stable.yes".to_string()));
 

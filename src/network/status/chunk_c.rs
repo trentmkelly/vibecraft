@@ -177,13 +177,18 @@ pub fn compound_float(compound: &[(String, Tag)], key: &str, default_value: f32)
     }
 }
 
+/// Java `ServerLoginPacketListenerImpl` proxy check followed by `PlayerList.canPlayerLogin`:
+/// returns the JSON of the disconnect component, or `None` when the login may proceed.
+///
+/// `online_players` is `PlayerList.getPlayers().size()` for the `server_full` gate.
 pub fn login_access_disconnect_reason(
     properties: &ServerProperties,
     player_access: &Arc<Mutex<PlayerAccess>>,
     profile: &NameAndId,
     remote_ip: &str,
     login_host_ip: Option<&str>,
-) -> io::Result<Option<&'static str>> {
+    online_players: usize,
+) -> io::Result<Option<String>> {
     let access = player_access
         .lock()
         .map_err(|_| io::Error::other("player access lock poisoned"))?;
@@ -194,22 +199,20 @@ pub fn login_access_disconnect_reason(
             remote_ip,
         ) == ProxyConnectionDecision::RejectPreventProxyConnections
         {
-            return Ok(Some("multiplayer.disconnect.unverified_username"));
+            return Ok(Some(translatable_json("multiplayer.disconnect.unverified_username")));
         }
     }
-    if access.is_player_banned(&profile.uuid) {
-        return Ok(Some("multiplayer.disconnect.banned"));
-    }
-    if properties.enforce_whitelist
-        && !access.is_op(&profile.uuid)
-        && !access.is_whitelisted(&profile.uuid)
-    {
-        return Ok(Some("multiplayer.disconnect.not_whitelisted"));
-    }
-    if access.is_ip_banned(remote_ip) {
-        return Ok(Some("multiplayer.disconnect.ip_banned"));
-    }
-    Ok(None)
+    Ok(super::player_access_live::can_player_login(
+        &access,
+        properties,
+        profile,
+        remote_ip,
+        online_players,
+    ))
+}
+
+fn translatable_json(key: &str) -> String {
+    crate::chat_component::Component::translatable(key, Vec::new()).to_json()
 }
 
 pub fn login_host_ip(server_address: &str) -> Option<String> {
@@ -408,7 +411,7 @@ pub fn wait_for_configuration_packet_body_with_rate_limit<R: Read>(
             // `ServerConfigurationPacketListenerImpl.handleClientInformation`).
             if let Some(active_login) = active_login {
                 let packet = ServerboundClientInformationPacket::read(&mut input)?;
-                active_login.set_allows_listing(packet.information.allows_listing);
+                active_login.set_client_information(&packet.information);
                 active_login.set_language(&packet.information.language);
             }
             continue;
@@ -893,14 +896,14 @@ pub fn drain_chunk_sender(
     chunk_sender: &mut PlayerChunkSender,
     chunk_pipeline: &ChunkPipeline,
     player_chunk_pos: ChunkPos,
-    mut live_fluid_unpack: Option<(&mut LiveFluidTicks, i64)>,
+    live_fluid_unpack: Option<&SharedWorldTicks>,
 ) -> io::Result<usize> {
     let Some(batch) =
         chunk_sender.send_next_chunks(player_chunk_pos, |pos| chunk_pipeline.try_get_ready(pos))
     else {
         return Ok(0);
     };
-    write_chunk_batch_to_stream(stream, compression, &batch, live_fluid_unpack.as_mut())?;
+    write_chunk_batch_to_stream(stream, compression, &batch, live_fluid_unpack)?;
     Ok(batch.chunks.len())
 }
 
@@ -910,7 +913,7 @@ pub fn write_chunk_batch_to_stream(
     stream: &mut TcpStream,
     compression: CompressionState,
     batch: &ReadyChunkBatch,
-    mut live_fluid_unpack: Option<&mut (&mut LiveFluidTicks, i64)>,
+    live_fluid_unpack: Option<&SharedWorldTicks>,
 ) -> io::Result<()> {
     write_framed_packet_with_compression(
         stream,
@@ -926,8 +929,10 @@ pub fn write_chunk_batch_to_stream(
         // chunk's saved fluid_ticks (zero for freshly generated chunks).
         // No block scan and no neighbour reads — that's the Java
         // invariant, and it's what unblocked the play loop here.
-        if let Some((ticks, game_time)) = live_fluid_unpack.as_deref_mut() {
-            unpack_chunk_fluid_ticks(ticks, *game_time, chunk);
+        if let Some(world_ticks) = live_fluid_unpack {
+            let mut ticks = lock_status_mutex(world_ticks);
+            let game_time = ticks.game_time;
+            unpack_chunk_fluid_ticks(&mut ticks.fluid, game_time, chunk);
         }
         write_generated_spawn_chunk_packets_from_chunk(stream, compression, chunk)?;
     }

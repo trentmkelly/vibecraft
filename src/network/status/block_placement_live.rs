@@ -84,6 +84,13 @@ pub(super) fn place_block_item_live<W: Write>(
         write_block_update(stream, compression, *pos, id)?;
     }
 
+    // Java FireBlock.onPlace schedules the first spread tick.
+    for (pos, placed) in &placements {
+        if placed.registry_id == "minecraft:fire" {
+            super::fire_live::schedule_placed_fire(context.live_block_ticks, context.game_time, *pos);
+        }
+    }
+
     // Java FallingBlock.onPlace: a freshly placed gravity block schedules its
     // 2-tick fall check immediately.
     for (pos, placed) in &placements {
@@ -494,6 +501,8 @@ pub(super) fn process_live_block_ticks<W: Write>(
     writer: &mut W,
     compression: CompressionState,
     block_ticks: &mut LiveBlockTicks,
+    fluid_ticks: &mut LiveFluidTicks,
+    fire: super::fire_live::FireEnvironment,
     game_time: i64,
     layout: &WorldLayout,
     seed: i64,
@@ -516,6 +525,24 @@ pub(super) fn process_live_block_ticks<W: Write>(
         // Java: the tick fires against whatever block is there now; a
         // replaced block's stale tick is ignored by the type check.
         if state.registry_id != tick.ty {
+            continue;
+        }
+        // FireBlock.tick: spread / age / burn out.
+        if state.registry_id == "minecraft:fire" {
+            changed.extend(super::fire_live::run_live_fire_tick(
+                writer,
+                compression,
+                LiveBlockWorld {
+                    layout,
+                    seed,
+                    cache,
+                },
+                block_ticks,
+                game_time,
+                fire,
+                state,
+                tick.pos,
+            )?);
             continue;
         }
         // FallingBlock.tick: spawn a falling entity when the support is gone.
@@ -544,51 +571,85 @@ pub(super) fn process_live_block_ticks<W: Write>(
             // bubble columns, and creaking hearts stay on their TODO items.
             continue;
         };
-        match outcome {
-            crate::block_scheduled_ticks::BlockTickOutcome::None => {}
-            crate::block_scheduled_ticks::BlockTickOutcome::SetState { state, reschedule } => {
-                cache.set_block(layout.root(), seed, tick.pos, &state.state_name());
-                let id = crate::block_states::network_id_for_block_state(&state.state_name())
-                    .unwrap_or(0);
-                write_block_update(writer, compression, tick.pos, id)?;
-                if let Some(delay) = reschedule {
-                    block_ticks.schedule(game_time, tick.pos, &state.registry_id, delay);
-                }
-                changed.push(tick.pos);
-            }
-            crate::block_scheduled_ticks::BlockTickOutcome::Destroy { drop } => {
-                cache.set_block(layout.root(), seed, tick.pos, "minecraft:air");
-                write_block_update(writer, compression, tick.pos, 0)?;
-                if drop {
-                    spawn_scheduled_tick_drops(
-                        writer,
-                        compression,
-                        world_items,
-                        tick.pos,
-                        &state.registry_id,
-                    )?;
-                }
-                changed.push(tick.pos);
-            }
-        }
+        apply_block_tick_outcome(
+            writer,
+            compression,
+            &mut *block_ticks,
+            &TickTarget {
+                pos: tick.pos,
+                state: &state,
+                game_time,
+            },
+            outcome,
+            &world,
+            world_items,
+            &mut changed,
+        )?;
     }
     if !changed.is_empty() {
         let mut cascade = LiveCascade {
             layout,
             seed,
             cache,
-            fluid_ticks: &mut LiveFluidTicks::new(),
+            fluid_ticks,
             block_ticks,
             game_time,
             random_roll: (game_time as i32).rem_euclid(40),
             max_chained_neighbor_updates,
         };
-        // NOTE: fluid ticks raised by this cascade use a throwaway queue; the
-        // neighbouring fluid blocks are already rescheduled by
-        // schedule_neighbor_fluids on the next interaction. TODO(live-tick
-        // -fluid-requeue): thread the real fluid queue once the borrow of the
-        // session's LiveFluidTicks can be split from the block queue.
         run_live_shape_cascade(writer, compression, &mut cascade, changed)?;
+    }
+    Ok(())
+}
+
+/// The block a tick (scheduled or random) fired against.
+pub(super) struct TickTarget<'a> {
+    pub pos: BlockPos,
+    pub state: &'a BlockStateModel,
+    pub game_time: i64,
+}
+
+/// Applies the world mutation a `BlockState.tick` / `randomTick` produced:
+/// Java `level.setBlock` (optionally rescheduling) or `level.destroyBlock`.
+/// Positions that changed are appended to `changed` for the shape cascade.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn apply_block_tick_outcome<W: Write>(
+    writer: &mut W,
+    compression: CompressionState,
+    block_ticks: &mut LiveBlockTicks,
+    target: &TickTarget<'_>,
+    outcome: crate::block_scheduled_ticks::BlockTickOutcome,
+    world: &LiveBlockWorld<'_>,
+    world_items: &std::sync::Arc<std::sync::Mutex<WorldItemEntities>>,
+    changed: &mut Vec<BlockPos>,
+) -> io::Result<()> {
+    let (layout, seed, cache) = (world.layout, world.seed, world.cache);
+    match outcome {
+        crate::block_scheduled_ticks::BlockTickOutcome::None => {}
+        crate::block_scheduled_ticks::BlockTickOutcome::SetState { state, reschedule } => {
+            cache.set_block(layout.root(), seed, target.pos, &state.state_name());
+            let id =
+                crate::block_states::network_id_for_block_state(&state.state_name()).unwrap_or(0);
+            write_block_update(writer, compression, target.pos, id)?;
+            if let Some(delay) = reschedule {
+                block_ticks.schedule(target.game_time, target.pos, &state.registry_id, delay);
+            }
+            changed.push(target.pos);
+        }
+        crate::block_scheduled_ticks::BlockTickOutcome::Destroy { drop } => {
+            cache.set_block(layout.root(), seed, target.pos, "minecraft:air");
+            write_block_update(writer, compression, target.pos, 0)?;
+            if drop {
+                spawn_scheduled_tick_drops(
+                    writer,
+                    compression,
+                    world_items,
+                    target.pos,
+                    &target.state.registry_id,
+                )?;
+            }
+            changed.push(target.pos);
+        }
     }
     Ok(())
 }

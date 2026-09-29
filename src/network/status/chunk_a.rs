@@ -188,6 +188,13 @@ struct StatusServerRuntime {
     recipe_manager: Arc<RecipeManagerModel>,
     world_items: Arc<Mutex<WorldItemEntities>>,
     world_mobs: Arc<Mutex<LiveMobStore>>,
+    /// The level's shared scheduled block/fluid tick queues
+    /// (Java `ServerLevel.blockTicks`/`fluidTicks`), driven by the tick thread.
+    world_ticks: SharedWorldTicks,
+    /// Java `DedicatedServerProperties.maxChainedNeighborUpdates`.
+    max_chained_neighbor_updates: i32,
+    /// Java `Difficulty.getId()` (`FireBlock.tick` odds).
+    difficulty_id: i32,
     max_tick_time: Duration,
 }
 
@@ -207,6 +214,7 @@ struct ConnectionSharedContext<'a> {
     recipe_manager: &'a RecipeManagerModel,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
     world_mobs: &'a Arc<Mutex<LiveMobStore>>,
+    world_ticks: &'a SharedWorldTicks,
 }
 
 struct StatusConnectionContext<'a> {
@@ -255,8 +263,6 @@ struct JoinedPlaySessionStart {
     last_item_tick: Instant,
     last_player_tick: Instant,
     play_tick_count: u64,
-    live_fluid_ticks: LiveFluidTicks,
-    live_block_ticks: LiveBlockTicks,
 }
 
 const ITEM_TICK_INTERVAL: Duration = Duration::from_millis(50);
@@ -392,12 +398,7 @@ impl StatusServerRuntime {
             properties.sync_chunk_writes,
             RegionCompression::from_property_value(&properties.region_file_compression),
         );
-        let player_access = Arc::new(Mutex::new(
-            PlayerAccess::load_from_dir(Path::new(".")).unwrap_or_else(|err| {
-                eprintln!("status access file load error: {err}");
-                PlayerAccess::default()
-            }),
-        ));
+        let player_access = Arc::new(Mutex::new(load_live_player_access(properties)));
 
         // Load or initialise shared clock/weather/item-entity state.
         // Java: ServerClockManager.TYPE SavedData (key "world_clocks"), ServerLevel weather data,
@@ -414,6 +415,9 @@ impl StatusServerRuntime {
         let world_items: Arc<Mutex<WorldItemEntities>> =
             Arc::new(Mutex::new(load_world_item_entities(&world_root)));
         let world_mobs: Arc<Mutex<LiveMobStore>> = Arc::new(Mutex::new(LiveMobStore::default()));
+        let world_ticks: SharedWorldTicks = Arc::new(Mutex::new(WorldTicks::new(
+            lock_status_mutex(&clock).game_time,
+        )));
 
         // Load vanilla recipes once at startup and share via Arc.
         // Java: MinecraftServer.loadDataPacks() → RecipeManager.apply()
@@ -446,6 +450,14 @@ impl StatusServerRuntime {
             recipe_manager,
             world_items,
             world_mobs,
+            world_ticks,
+            max_chained_neighbor_updates: max_chained_neighbor_updates_limit(properties),
+            difficulty_id: match food_difficulty_from_properties(properties) {
+                FoodDifficulty::Peaceful => 0,
+                FoodDifficulty::Easy => 1,
+                FoodDifficulty::Normal => 2,
+                FoodDifficulty::Hard => 3,
+            },
             max_tick_time,
         })
     }
@@ -461,8 +473,13 @@ impl StatusServerRuntime {
             Arc::clone(&self.recipe_manager),
             Arc::clone(&self.world_root),
             world_seed,
-            self.active_logins.world_bus.clone(),
+            self.active_logins.world_bus.clone(), Arc::clone(&world_items_t),
         );
+        let world_ticks_t = Arc::clone(&self.world_ticks);
+        let chunk_cache_t = self.chunk_cache.clone();
+        let world_bus_t = self.active_logins.world_bus.clone();
+        let max_chained_neighbor_updates = self.max_chained_neighbor_updates;
+        let difficulty_id = self.difficulty_id;
         let max_tick_time = self.max_tick_time;
         thread::spawn(move || {
             let watchdog = Watchdog::new(max_tick_time);
@@ -470,6 +487,13 @@ impl StatusServerRuntime {
             let mut next_tick = Instant::now() + SERVER_TICK_DURATION;
             let mut tick_count: u64 = 0;
             let mut resource_usage = ResourceUsageSampler::new();
+            let world_layout = WorldLayout::new(world_root_t.as_path());
+            // Java `Level.randValue` seed: unseeded per level instance.
+            let mut level_random = crate::random_tick::LevelRandom::new(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |elapsed| elapsed.subsec_nanos() as i32),
+            );
             loop {
                 let now = Instant::now();
                 if now < next_tick {
@@ -481,15 +505,48 @@ impl StatusServerRuntime {
 
                 // Java: ServerClockManager.tick reads GameRules.ADVANCE_TIME and
                 // ServerLevel.tickWeather reads GameRules.ADVANCE_WEATHER.
-                // TODO(gamerule-random_tick_speed): consumed by the live random-tick loop once one exists.
-                let (advance_time, advance_weather) = {
-                    let rules = lock_status_mutex(&game_rules_t);
-                    (rules.bool("advance_time"), rules.bool("advance_weather"))
+                let TickGameRules {
+                    advance_time,
+                    advance_weather,
+                    random_tick_speed,
+                    fire_spread_radius,
+                } = TickGameRules::read(&lock_status_mutex(&game_rules_t));
+                let game_time = {
+                    let mut clock = lock_status_mutex(&clock_t);
+                    clock.tick(advance_time, &mut scheduled);
+                    clock.game_time
                 };
-                lock_status_mutex(&clock_t).tick(advance_time, &mut scheduled);
 
                 // Advance weather. can_have_weather=true for overworld.
-                lock_status_mutex(&weather_t).advance(true, advance_weather, sample_weather_durations());
+                let raining = {
+                    let mut weather = lock_status_mutex(&weather_t);
+                    weather.advance(true, advance_weather, sample_weather_durations());
+                    weather.is_raining(true)
+                };
+
+                // Java `ServerLevel.tick`: scheduled block/fluid ticks, random
+                // ticks and falling blocks, once per server tick for all players.
+                if let Err(err) = tick_server_world(
+                    &world_ticks_t,
+                    &mut level_random,
+                    &ServerWorldTick {
+                        game_time,
+                        layout: &world_layout,
+                        seed: world_seed,
+                        cache: &chunk_cache_t,
+                        world_items: &world_items_t,
+                        max_chained_neighbor_updates,
+                        random_tick_speed,
+                        fire: FireEnvironment {
+                            raining,
+                            difficulty_id,
+                            spread_radius: fire_spread_radius,
+                        },
+                        bus: &world_bus_t,
+                    },
+                ) {
+                    eprintln!("world tick failed: {err}");
+                }
 
                 // Java `Level.tickBlockEntities`.
                 block_entity_ticker.tick();
@@ -525,6 +582,33 @@ impl StatusServerRuntime {
         save_server_weather_state(&self.world_root, &lock_status_mutex(&self.weather));
         save_world_item_entities(&self.world_root, &lock_status_mutex(&self.world_items));
         save_live_game_rules(&self.world_root, &self.game_rules);
+    }
+}
+
+/// The game rules the server tick thread consumes each tick.
+struct TickGameRules {
+    /// `GameRules.ADVANCE_TIME`.
+    advance_time: bool,
+    /// `GameRules.ADVANCE_WEATHER`.
+    advance_weather: bool,
+    /// `GameRules.RANDOM_TICK_SPEED`.
+    random_tick_speed: i32,
+    /// `GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER`.
+    fire_spread_radius: i32,
+}
+
+impl TickGameRules {
+    fn read(rules: &crate::game_rules::LiveGameRules) -> Self {
+        let int = |name: &str, default: i32| match rules.get(name) {
+            Some(crate::game_rules::GameRuleValue::Int(value)) => value,
+            _ => default,
+        };
+        Self {
+            advance_time: rules.bool("advance_time"),
+            advance_weather: rules.bool("advance_weather"),
+            random_tick_speed: int("random_tick_speed", 0),
+            fire_spread_radius: int("fire_spread_radius_around_player", 128),
+        }
     }
 }
 
@@ -668,6 +752,7 @@ fn run_status_accept_loop(
                 let recipe_manager = Arc::clone(&runtime.recipe_manager);
                 let world_items = Arc::clone(&runtime.world_items);
                 let world_mobs = Arc::clone(&runtime.world_mobs);
+                let world_ticks = Arc::clone(&runtime.world_ticks);
                 let remote_ip = peer_addr.ip().to_string();
                 let remote_address = peer_addr.to_string();
                 let remote_for_log = loggable_remote_address(properties.log_ips, &remote_address);
@@ -688,6 +773,7 @@ fn run_status_accept_loop(
                             recipe_manager: &recipe_manager,
                             world_items: &world_items,
                             world_mobs: &world_mobs,
+                            world_ticks: &world_ticks,
                         },
                         remote_address: &remote_address,
                         remote_ip: &remote_ip,
@@ -957,15 +1043,14 @@ fn wait_for_configuration_packet_or_rate_disconnect(
     }
 }
 
-fn write_vanilla_feature_flags_packet<W: Write>(payload: &mut W) -> io::Result<()> {
-    let vanilla = Identifier::parse("minecraft:vanilla").map_err(|err| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("invalid built-in feature flag identifier: {err}"),
-        )
-    })?;
-    write_var_i32(payload, 1)?;
-    write_identifier(payload, &vanilla)
+/// `ClientboundUpdateEnabledFeaturesPacket`: the names of the world's enabled features.
+fn write_enabled_feature_flags_packet<W: Write>(payload: &mut W) -> io::Result<()> {
+    let names = crate::registry_pipeline::server_resources::enabled_feature_names()
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+    write_var_i32(payload, names.len() as i32)?;
+    names
+        .iter()
+        .try_for_each(|name| write_identifier(payload, name))
 }
 
 struct CompletedLogin {
@@ -1030,12 +1115,11 @@ fn complete_login_handshake(
         &finished.profile,
         context.remote_ip,
         context.login_host_ip.as_deref(),
+        context.shared.active_logins.online_count(),
     )? {
         write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
             ClientboundLoginDisconnectPacket {
-                reason: crate::network::codec::ComponentJson(format!(
-                    "{{\"translate\":\"{reason}\"}}"
-                )),
+                reason: crate::network::codec::ComponentJson(reason),
             }
             .write(payload)
         })?;
@@ -1130,7 +1214,7 @@ fn run_configuration_handshake(
         stream,
         compression,
         CLIENTBOUND_CONFIGURATION_UPDATE_ENABLED_FEATURES_PACKET_ID,
-        write_vanilla_feature_flags_packet,
+        write_enabled_feature_flags_packet,
     )?;
     // Java `startConfiguration` queues SynchronizeRegistriesTask, then the code of
     // conduct, then the server resource pack, before PrepareSpawn/JoinWorld.
@@ -1310,7 +1394,7 @@ pub fn read_expected_configuration_resource_pack_response(
         }
         if packet_id == SERVERBOUND_CONFIGURATION_CLIENT_INFORMATION_PACKET_ID {
             let packet = ServerboundClientInformationPacket::read(&mut input)?;
-            active_login.set_allows_listing(packet.information.allows_listing);
+            active_login.set_client_information(&packet.information);
             active_login.set_language(&packet.information.language);
             continue;
         }
@@ -1434,8 +1518,6 @@ fn initialize_joined_play_session(
     stream.set_read_timeout(Some(SERVER_TICK_DURATION))?;
     send_existing_item_entities(stream, compression, shared.world_items)?;
 
-    let mut live_fluid_ticks = LiveFluidTicks::new();
-    let live_block_ticks = LiveBlockTicks::new();
     let play_tick_count = 0_u64;
     let center = shared.chunk_cache.get_or_load(
         current_chunk_x,
@@ -1443,7 +1525,13 @@ fn initialize_joined_play_session(
         shared.world_root,
         shared.world_seed,
     );
-    unpack_chunk_fluid_ticks(&mut live_fluid_ticks, play_tick_count as i64, &center);
+    {
+        // Java `LevelChunk.registerTickContainerInLevel` for the join chunk,
+        // into the level's shared queue at the server game time.
+        let mut ticks = lock_status_mutex(shared.world_ticks);
+        let game_time = ticks.game_time;
+        unpack_chunk_fluid_ticks(&mut ticks.fluid, game_time, &center);
+    }
 
     Ok(JoinedPlaySessionStart {
         play_state,
@@ -1464,8 +1552,6 @@ fn initialize_joined_play_session(
         last_item_tick: Instant::now(),
         last_player_tick: Instant::now(),
         play_tick_count,
-        live_fluid_ticks,
-        live_block_ticks,
     })
 }
 
@@ -1632,8 +1718,7 @@ struct PlayerTickContext<'a, 'b> {
     current_chunk_z: i32,
     chunk_sender: &'b mut PlayerChunkSender,
     chunk_pipeline_stats: &'b mut ChunkPipelineSessionStats,
-    live_fluid_ticks: &'b mut LiveFluidTicks,
-    live_block_ticks: &'b mut LiveBlockTicks,
+    world_ticks: &'a SharedWorldTicks,
     /// This session's inbox on the server-wide packet bus.
     world_bus: &'a Subscription,
     world_bus_publisher: &'a WorldPacketBus,
@@ -1723,8 +1808,7 @@ fn tick_player_and_chunk_sender(
         current_chunk_z,
         chunk_sender,
         chunk_pipeline_stats,
-        live_fluid_ticks,
-        live_block_ticks,
+        world_ticks,
         world_bus,
         world_bus_publisher,
         world_items,
@@ -1751,9 +1835,7 @@ fn tick_player_and_chunk_sender(
         LiveWorldTickContext {
             tick_count,
             max_chained_neighbor_updates: max_chained_neighbor_updates_limit(properties),
-            live_fluid_ticks,
-            live_block_ticks,
-            world_bus_publisher,
+            world_ticks,
             world_layout,
             world_seed,
             chunk_cache,
@@ -1766,6 +1848,14 @@ fn tick_player_and_chunk_sender(
     if !deliver_world_bus(stream, compression, world_bus)? {
         return Ok(());
     }
+    let hazard_health_changed = player_environment::tick_player_hazards(
+        play_state,
+        game_rules,
+        food_difficulty_from_properties(properties),
+        world_root,
+        world_seed,
+        chunk_cache,
+    );
     let water_health_changed =
         tick_player_water(stream, compression, play_state, world_root, world_seed, chunk_cache)?;
     let health_changed = tick_play_session_food(
@@ -1773,7 +1863,8 @@ fn tick_player_and_chunk_sender(
         food_difficulty_from_properties(properties),
         true,
         tick_count,
-    ) || water_health_changed;
+    ) || water_health_changed
+        || hazard_health_changed;
     sync_player_vitals(
         stream,
         compression,
@@ -1788,20 +1879,60 @@ fn tick_player_and_chunk_sender(
         health_changed,
     )?;
 
-    // Per-tick chunk send drain (Java mirror:
-    // MinecraftServer.tickChildren -> chunkSender.sendNextChunks).
-    // Sits at the end of the player tick so fluid/entity ticking sees
-    // the same chunk snapshot as the chunks being flushed.
+    drain_chunks_for_tick(
+        stream,
+        compression,
+        ChunkDrainContext {
+            chunk_sender,
+            chunk_pipeline,
+            chunk_pipeline_stats,
+            join_commands,
+            center: ChunkPos {
+                x: current_chunk_x,
+                z: current_chunk_z,
+            },
+            world_ticks,
+            tick_count,
+        },
+    )
+}
+
+/// Per-session chunk streaming state consumed by the end-of-tick drain.
+struct ChunkDrainContext<'a, 'b> {
+    chunk_sender: &'b mut PlayerChunkSender,
+    chunk_pipeline: &'a ChunkPipeline,
+    chunk_pipeline_stats: &'b mut ChunkPipelineSessionStats,
+    join_commands: &'b mut CommandTreeSync,
+    center: ChunkPos,
+    world_ticks: &'a SharedWorldTicks,
+    tick_count: u64,
+}
+
+/// Per-tick chunk send drain (Java mirror:
+/// `MinecraftServer.tickChildren` -> `chunkSender.sendNextChunks`).
+/// Sits at the end of the player tick so fluid/entity ticking sees the same
+/// chunk snapshot as the chunks being flushed.
+fn drain_chunks_for_tick(
+    stream: &mut TcpStream,
+    compression: CompressionState,
+    context: ChunkDrainContext<'_, '_>,
+) -> io::Result<()> {
+    let ChunkDrainContext {
+        chunk_sender,
+        chunk_pipeline,
+        chunk_pipeline_stats,
+        join_commands,
+        center,
+        world_ticks,
+        tick_count,
+    } = context;
     let drained = drain_chunk_sender(
         stream,
         compression,
         chunk_sender,
         chunk_pipeline,
-        ChunkPos {
-            x: current_chunk_x,
-            z: current_chunk_z,
-        },
-        Some((live_fluid_ticks, tick_count as i64)),
+        center,
+        Some(world_ticks),
     )?;
     chunk_pipeline_stats.sent_total = chunk_pipeline_stats
         .sent_total
@@ -1826,10 +1957,7 @@ fn tick_player_and_chunk_sender(
 struct LiveWorldTickContext<'a, 'b> {
     tick_count: u64,
     max_chained_neighbor_updates: i32,
-    live_fluid_ticks: &'b mut LiveFluidTicks,
-    live_block_ticks: &'b mut LiveBlockTicks,
-    /// Bus the scheduled-tick block updates are broadcast on.
-    world_bus_publisher: &'a WorldPacketBus,
+    world_ticks: &'a SharedWorldTicks,
     world_layout: &'b WorldLayout,
     world_seed: i64,
     chunk_cache: &'a GeneratedChunkCache,
@@ -1846,43 +1974,6 @@ fn tick_live_world_systems(
     context: LiveWorldTickContext<'_, '_>,
 ) -> io::Result<()> {
     let tick_count = context.tick_count;
-    process_live_fluid_ticks(
-        stream,
-        compression,
-        context.live_fluid_ticks,
-        tick_count as i64,
-        context.world_layout,
-        context.world_seed,
-        context.chunk_cache,
-    )?;
-    // Scheduled-tick block changes are world events: capture them as plain
-    // frames and broadcast to every session (Java `ServerLevel.sendBlockUpdated`
-    // -> `ChunkMap` tracking players) instead of only this connection.
-    let mut block_tick_frames = Vec::new();
-    super::block_placement_live::process_live_block_ticks(
-        &mut block_tick_frames,
-        CompressionState::disabled(),
-        context.live_block_ticks,
-        tick_count as i64,
-        context.world_layout,
-        context.world_seed,
-        context.chunk_cache,
-        context.world_items,
-        context.max_chained_neighbor_updates,
-    )?;
-    context.world_bus_publisher.publish_frames(&block_tick_frames)?;
-    tick_live_falling_blocks(
-        stream,
-        compression,
-        context.live_fluid_ticks,
-        context.live_block_ticks,
-        tick_count as i64,
-        context.world_layout,
-        context.world_seed,
-        context.chunk_cache,
-        context.world_items,
-        context.max_chained_neighbor_updates,
-    )?;
     let live_mob_health_changed = super::live_mobs::tick_live_mobs_for_client(
         stream,
         compression,
@@ -1916,8 +2007,7 @@ fn tick_live_world_systems(
         LiveDestroyTickContext {
             tick_count,
             max_chained_neighbor_updates: context.max_chained_neighbor_updates,
-            live_fluid_ticks: context.live_fluid_ticks,
-            live_block_ticks: context.live_block_ticks,
+            world_ticks: context.world_ticks,
             world_layout: context.world_layout,
             world_seed: context.world_seed,
             chunk_cache: context.chunk_cache,
@@ -1933,8 +2023,7 @@ fn max_chained_neighbor_updates_limit(properties: &ServerProperties) -> i32 {
 struct LiveDestroyTickContext<'a, 'b> {
     tick_count: u64,
     max_chained_neighbor_updates: i32,
-    live_fluid_ticks: &'b mut LiveFluidTicks,
-    live_block_ticks: &'b mut LiveBlockTicks,
+    world_ticks: &'a SharedWorldTicks,
     world_layout: &'b WorldLayout,
     world_seed: i64,
     chunk_cache: &'a GeneratedChunkCache,
@@ -1988,14 +2077,20 @@ fn tick_live_block_destroy_progress(
         };
         if progress >= 10 {
             play_state.block_break_state.has_delayed_destroy = false;
+            let mut ticks = lock_status_mutex(context.world_ticks);
+            let WorldTicks {
+                game_time,
+                fluid,
+                block,
+            } = &mut *ticks;
             return destroy_live_block_at(
                 stream,
                 compression,
                 play_state,
                 LiveDestroyContext {
-                    game_time: context.tick_count as i64,
-                    live_fluid_ticks: context.live_fluid_ticks,
-                    live_block_ticks: context.live_block_ticks,
+                    game_time: *game_time,
+                    live_fluid_ticks: fluid,
+                    live_block_ticks: block,
                     world_layout: context.world_layout,
                     world_seed: context.world_seed,
                     chunk_cache: context.chunk_cache,
@@ -2130,8 +2225,7 @@ struct JoinedPlayLoopTickContext<'a, 'b> {
     last_item_tick: &'b mut Instant,
     last_player_tick: &'b mut Instant,
     play_tick_count: &'b mut u64,
-    live_fluid_ticks: &'b mut LiveFluidTicks,
-    live_block_ticks: &'b mut LiveBlockTicks,
+    world_ticks: &'a SharedWorldTicks,
     world_bus: &'a Subscription,
     world_bus_publisher: &'a WorldPacketBus,
     last_sent_rain_level: &'b mut f32,
@@ -2172,8 +2266,7 @@ fn tick_joined_play_session_loop(
         last_item_tick,
         last_player_tick,
         play_tick_count,
-        live_fluid_ticks,
-        live_block_ticks,
+        world_ticks,
         world_bus,
         world_bus_publisher,
         last_sent_rain_level,
@@ -2221,8 +2314,7 @@ fn tick_joined_play_session_loop(
             current_chunk_z,
             chunk_sender,
             chunk_pipeline_stats,
-            live_fluid_ticks,
-            live_block_ticks,
+            world_ticks,
             world_bus,
             world_bus_publisher,
             world_items,
@@ -2238,7 +2330,7 @@ fn tick_joined_play_session_loop(
     )?;
     // Java `PlayerList.sendPlayerPermissionLevel` -> `Commands.sendCommands`.
     if join_commands.needs_resend() {
-        write_join_commands_packet(stream, compression, join_commands)?;
+        write_permission_level_update(stream, compression, join_commands)?;
     }
     broadcast_weather_if_changed(
         stream,
@@ -2460,7 +2552,10 @@ struct PlayerActionContext<'a, 'b> {
     chunk_cache: &'a GeneratedChunkCache,
     live_fluid_ticks: &'b mut LiveFluidTicks,
     live_block_ticks: &'b mut LiveBlockTicks,
+    /// Session tick counter (Java `ServerPlayerGameMode.gameTicks`).
     play_tick_count: u64,
+    /// Server game time the scheduled ticks are keyed to.
+    game_time: i64,
     max_chained_neighbor_updates: i32,
     world_items: &'a Arc<Mutex<WorldItemEntities>>,
     // Spawn-protection inputs (Java ServerLevel.mayInteract ->
@@ -2946,7 +3041,7 @@ fn handle_player_block_break(
         compression,
         play_state,
         LiveDestroyContext {
-            game_time: context.play_tick_count as i64,
+            game_time: context.game_time,
             max_chained_neighbor_updates: context.max_chained_neighbor_updates,
             live_fluid_ticks: context.live_fluid_ticks,
             live_block_ticks: context.live_block_ticks,
@@ -3131,31 +3226,6 @@ fn write_block_break_ack_and_air(
 
 /// Per-tick falling-block simulation (Java `FallingBlockEntity.tick`).
 #[allow(clippy::too_many_arguments)]
-fn tick_live_falling_blocks(
-    stream: &mut TcpStream,
-    compression: CompressionState,
-    live_fluid_ticks: &mut LiveFluidTicks,
-    live_block_ticks: &mut LiveBlockTicks,
-    game_time: i64,
-    world_layout: &WorldLayout,
-    world_seed: i64,
-    chunk_cache: &GeneratedChunkCache,
-    world_items: &Arc<Mutex<WorldItemEntities>>,
-    max_chained_neighbor_updates: i32,
-) -> io::Result<()> {
-    let mut cascade = super::block_placement_live::LiveCascade {
-        layout: world_layout,
-        seed: world_seed,
-        cache: chunk_cache,
-        fluid_ticks: live_fluid_ticks,
-        block_ticks: live_block_ticks,
-        game_time,
-        random_roll: (game_time as i32).rem_euclid(40),
-        max_chained_neighbor_updates,
-    };
-    super::block_placement_live::tick_falling_blocks(stream, compression, &mut cascade, world_items)
-}
-
 fn spawn_block_break_drops(
     stream: &mut TcpStream,
     compression: CompressionState,
@@ -3600,6 +3670,8 @@ struct DecodedPlayPacketContext<'a, 'b> {
     chunk_sender: &'b mut PlayerChunkSender,
     live_fluid_ticks: &'b mut LiveFluidTicks,
     live_block_ticks: &'b mut LiveBlockTicks,
+    /// Server game time (shared queue clock) sampled with the queue lock.
+    game_time: i64,
     play_tick_count: u64,
     /// The player's registry guard, used to propagate play-phase
     /// `ClientInformation` listing-preference changes to the status sample.
@@ -3635,8 +3707,7 @@ struct JoinedPlayPacketStepContext<'a, 'b> {
     chunk_batch_radius: i32,
     loaded_chunks: &'b mut BTreeSet<(i32, i32)>,
     chunk_sender: &'b mut PlayerChunkSender,
-    live_fluid_ticks: &'b mut LiveFluidTicks,
-    live_block_ticks: &'b mut LiveBlockTicks,
+    world_ticks: &'a SharedWorldTicks,
     play_tick_count: u64,
     active_login: &'a ActiveLoginGuard,
     keep_alive: &'b mut KeepAliveState,
@@ -3666,7 +3737,18 @@ fn read_and_dispatch_joined_play_packet(
     )?;
     match read_outcome {
         PlayPacketReadOutcome::Packet(packet) => {
-            handle_decoded_play_packet(stream, compression, packet, play_state, context.decoded())
+            // The shared queues are locked only while a decoded packet is
+            // handled (never across the blocking socket read above), so the
+            // server tick thread is never stalled by an idle connection.
+            let world_ticks = context.world_ticks;
+            let mut ticks = lock_status_mutex(world_ticks);
+            handle_decoded_play_packet(
+                stream,
+                compression,
+                packet,
+                play_state,
+                context.decoded(&mut ticks),
+            )
         }
         PlayPacketReadOutcome::Continue => Ok(PlayPacketDispatchOutcome::Continue),
         PlayPacketReadOutcome::EndSession => Ok(PlayPacketDispatchOutcome::EndSession),
@@ -3685,7 +3767,7 @@ fn try_handle_chat_packet(
     context: &mut DecodedPlayPacketContext<'_, '_>,
 ) -> io::Result<bool> {
     if packet_id == SERVERBOUND_CHAT_PACKET_ID {
-        handle_chat_packet(stream, compression, input, context.profile, context.chat_state)?;
+        handle_chat_packet(stream, compression, input, context.profile, context.chat_state, context.active_login, context.properties)?;
     } else if packet_id == SERVERBOUND_CHAT_ACK_PACKET_ID {
         handle_chat_ack_packet(stream, compression, input, context.chat_state)?;
     } else if packet_id == SERVERBOUND_CHAT_COMMAND_PACKET_ID
@@ -3804,7 +3886,7 @@ fn handle_decoded_play_packet(
         let packet = ServerboundClientInformationPacket::read(&mut input)?;
         context
             .active_login
-            .set_allows_listing(packet.information.allows_listing);
+            .set_client_information(&packet.information);
     } else if packet_id == SERVERBOUND_CUSTOM_PAYLOAD_PACKET_ID {
         // Parse + validate (the codec enforces the 32767-byte serverbound limit and
         // the `minecraft:brand` channel) then discard. Java
@@ -3868,7 +3950,15 @@ fn handle_live_mob_interact_packet<R: Read>(input: &mut R) -> io::Result<()> {
 }
 
 impl<'a, 'b> JoinedPlayPacketStepContext<'a, 'b> {
-    fn decoded(self) -> DecodedPlayPacketContext<'a, 'b> {
+    fn decoded<'g>(self, ticks: &'g mut WorldTicks) -> DecodedPlayPacketContext<'a, 'g>
+    where
+        'b: 'g,
+    {
+        let WorldTicks {
+            game_time,
+            fluid,
+            block,
+        } = ticks;
         DecodedPlayPacketContext {
             properties: self.properties,
             player_access: self.player_access,
@@ -3883,13 +3973,14 @@ impl<'a, 'b> JoinedPlayPacketStepContext<'a, 'b> {
             world_mobs: self.world_mobs,
             weather: self.weather,
             game_rules: self.game_rules,
-            live_block_ticks: self.live_block_ticks,
+            live_block_ticks: block,
+            game_time: *game_time,
             current_chunk_x: self.current_chunk_x,
             current_chunk_z: self.current_chunk_z,
             chunk_batch_radius: self.chunk_batch_radius,
             loaded_chunks: self.loaded_chunks,
             chunk_sender: self.chunk_sender,
-            live_fluid_ticks: self.live_fluid_ticks,
+            live_fluid_ticks: fluid,
             play_tick_count: self.play_tick_count,
             active_login: self.active_login,
             keep_alive: self.keep_alive,
@@ -3948,7 +4039,7 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
             recipe_manager: self.recipe_manager,
             live_fluid_ticks: self.live_fluid_ticks,
             live_block_ticks: self.live_block_ticks,
-            game_time: self.play_tick_count as i64,
+            game_time: self.game_time,
             max_chained_neighbor_updates: max_chained_neighbor_updates_limit(self.properties),
             player_access: self.player_access,
             profile_uuid: &self.profile.uuid,
@@ -3965,6 +4056,7 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
             live_fluid_ticks: self.live_fluid_ticks,
             live_block_ticks: self.live_block_ticks,
             play_tick_count: self.play_tick_count,
+            game_time: self.game_time,
             max_chained_neighbor_updates: max_chained_neighbor_updates_limit(self.properties),
             world_items: self.world_items,
             player_access: self.player_access,
@@ -4100,12 +4192,10 @@ fn run_joined_play_session(
         mut last_sent_thunder_level,
         mut last_time_sync,
         mut game_rule_sync,
-        mut live_block_ticks,
         world_layout,
         mut last_item_tick,
         mut last_player_tick,
         mut play_tick_count,
-        mut live_fluid_ticks,
     } = initialize_joined_play_session(stream, compression, &finished, shared, remote_address)?;
     // The per-session `chunk_sender` (Java `PlayerChunkSender`), weather-level
     // latches, and item-entity tick timer were all seeded in
@@ -4147,8 +4237,7 @@ fn run_joined_play_session(
                 loaded_chunks: &loaded_chunks,
                 chunk_sender: &mut chunk_sender,
                 chunk_pipeline_stats: &mut chunk_pipeline_stats,
-                live_fluid_ticks: &mut live_fluid_ticks,
-                live_block_ticks: &mut live_block_ticks,
+                world_ticks: shared.world_ticks,
                 world_bus: &world_bus,
                 world_bus_publisher: &shared.active_logins.world_bus,
                 world_layout: &world_layout,
@@ -4191,8 +4280,7 @@ fn run_joined_play_session(
                 chunk_batch_radius,
                 loaded_chunks: &mut loaded_chunks,
                 chunk_sender: &mut chunk_sender,
-                live_fluid_ticks: &mut live_fluid_ticks,
-                live_block_ticks: &mut live_block_ticks,
+                world_ticks: shared.world_ticks,
                 play_tick_count,
                 active_login,
                 keep_alive: &mut keep_alive,

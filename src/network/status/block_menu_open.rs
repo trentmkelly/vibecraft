@@ -10,7 +10,11 @@ pub(in crate::network::status) struct BlockMenuOpen {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::network::status) enum LiveBlockMenuKind {
-    Generic9x3 { block_entity_id: &'static str },
+    /// A persistent block-entity container (`Container` with `slot_count` slots).
+    Container {
+        block_entity_id: &'static str,
+        slot_count: usize,
+    },
     Furnace { block_entity_id: &'static str },
     Crafting,
     Ephemeral {
@@ -37,45 +41,51 @@ fn block_menu_open_for_block_id(block_id: &str) -> Option<BlockMenuOpen> {
         "minecraft:chest" => (
             2,
             "container.chest",
-            LiveBlockMenuKind::Generic9x3 {
+            LiveBlockMenuKind::Container {
                 block_entity_id: "minecraft:chest",
+                slot_count: 27,
             },
         ),
         "minecraft:trapped_chest" => (
             2,
             "container.chest",
-            LiveBlockMenuKind::Generic9x3 {
+            LiveBlockMenuKind::Container {
                 block_entity_id: "minecraft:trapped_chest",
+                slot_count: 27,
             },
         ),
         "minecraft:barrel" => (
             2,
             "container.barrel",
-            LiveBlockMenuKind::Generic9x3 {
+            LiveBlockMenuKind::Container {
                 block_entity_id: "minecraft:barrel",
+                slot_count: 27,
             },
         ),
         id if id.starts_with("minecraft:") && id.ends_with("_shulker_box") => {
             (
                 20,
                 "container.shulkerBox",
-                LiveBlockMenuKind::Generic9x3 {
+                LiveBlockMenuKind::Container {
                     block_entity_id: "minecraft:shulker_box",
+                    slot_count: 27,
                 },
             )
         }
         "minecraft:dispenser" => (
             6,
             "container.dispenser",
-            LiveBlockMenuKind::Generic9x3 {
+            LiveBlockMenuKind::Container {
                 block_entity_id: "minecraft:dispenser",
+                slot_count: 9,
             },
         ),
         "minecraft:dropper" => (
             6,
             "container.dropper",
-            LiveBlockMenuKind::Generic9x3 {
+            LiveBlockMenuKind::Container {
                 block_entity_id: "minecraft:dropper",
+                slot_count: 9,
             },
         ),
         "minecraft:crafter" => (
@@ -150,9 +160,9 @@ fn block_menu_open_for_block_id(block_id: &str) -> Option<BlockMenuOpen> {
         "minecraft:hopper" => (
             16,
             "container.hopper",
-            LiveBlockMenuKind::Ephemeral {
+            LiveBlockMenuKind::Container {
+                block_entity_id: "minecraft:hopper",
                 slot_count: 5,
-                result_slot: None,
             },
         ),
         "minecraft:loom" => (

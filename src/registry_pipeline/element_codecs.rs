@@ -85,10 +85,10 @@ pub fn biome_network() -> Codec {
 
 /// `Biome.DIRECT_CODEC`.
 ///
-/// TODO(registry-pipeline-worldgen-refs): the generation settings (`carvers`,
-/// `features`) are checked for shape only; their references into the
-/// `configured_carver`/`placed_feature` registries are not resolved because those
-/// worldgen registries are not loaded by this pipeline yet.
+/// The generation settings' `carvers` and `features` resolve into the
+/// `configured_carver`/`placed_feature` registries, which are loaded by
+/// [`worldgen_reference_target`] so unknown references fail the load. Inline
+/// (non-registered) carvers/features are not supported.
 pub fn biome_direct() -> Codec {
     let mut fields = climate_settings();
     fields.push(opt_default(
@@ -98,8 +98,14 @@ pub fn biome_direct() -> Codec {
     ));
     fields.push(req("effects", biome_special_effects()));
     // BiomeGenerationSettings.CODEC
-    fields.push(req("carvers", generic()));
-    fields.push(req("features", list(list(generic()))));
+    fields.push(req(
+        "carvers",
+        holder_set("minecraft:worldgen/configured_carver", false),
+    ));
+    fields.push(req(
+        "features",
+        list(holder_set("minecraft:worldgen/placed_feature", false)),
+    ));
     // MobSpawnSettings.CODEC
     fields.push(opt_default(
         "creature_spawn_probability",
@@ -233,13 +239,22 @@ pub fn world_clock() -> Codec {
     })
 }
 
+/// Registries the server loads only so other registries' references into them can
+/// be resolved (`configured_carver`, `placed_feature`, `structure`). Elements are
+/// accepted as any JSON value; none of these registries is sent to clients.
+///
+/// TODO(registry-pipeline-worldgen-configured-carver): `ConfiguredWorldCarver.DIRECT_CODEC`.
+/// TODO(registry-pipeline-worldgen-placed-feature): `PlacedFeature.DIRECT_CODEC`.
+/// TODO(registry-pipeline-worldgen-structure): `Structure.DIRECT_CODEC`.
+pub fn worldgen_reference_target() -> Codec {
+    generic()
+}
+
 /// Registries whose Java codec is not ported yet are decoded with the generic
 /// converter (see [`codec::json_to_tag`]).
 ///
 /// TODO(registry-pipeline-enchantment): `Enchantment.DIRECT_CODEC`.
 /// TODO(registry-pipeline-dialog): `Dialog.DIRECT_CODEC`.
-/// TODO(registry-pipeline-test-environment): `TestEnvironmentDefinition.DIRECT_CODEC`.
-/// TODO(registry-pipeline-test-instance): `GameTestInstance.DIRECT_CODEC`.
 pub fn unported() -> Codec {
     generic()
 }
@@ -263,9 +278,8 @@ fn model_and_texture(models: &'static [&'static str]) -> Vec<Field> {
 
 /// `SpawnPrioritySelectors.CODEC`.
 ///
-/// TODO(registry-pipeline-worldgen-refs): biome/structure holder sets inside
-/// spawn conditions are shape-checked; tag/element references into the
-/// `worldgen/structure` registry cannot be resolved until it is loaded.
+/// Biome and structure holder sets inside spawn conditions resolve into the
+/// `worldgen/biome` and `worldgen/structure` registries.
 fn spawn_conditions() -> Codec {
     let condition = codec::dispatch("type", |id| {
         match id.to_string().as_str() {

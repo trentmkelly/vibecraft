@@ -178,8 +178,12 @@ fn loads_vanilla_builtin_datapack_from_bundled_resources() {
         ]
     );
 
-    let repository = DataPackRepository::server_repository(Path::new("missing-datapacks"))
+    let missing = std::env::temp_dir().join(format!("vibecraft-missing-datapacks-{}", std::process::id()));
+    let repository = DataPackRepository::server_repository(&missing)
         .expect("builtin repository should not require a world datapack dir");
+    // `FolderRepositorySource.loadPacks` creates the folder.
+    assert!(missing.is_dir());
+    let _ = fs::remove_dir(&missing);
     let vanilla = repository
         .available_packs()
         .into_iter()
@@ -374,7 +378,8 @@ fn world_data_configuration_codec_defaults_expands_and_round_trips() {
     let encoded = expanded.to_json(&registry).unwrap();
     assert_eq!(
         encoded,
-        r#"{"enabled_features":["minecraft:vanilla","minecraft:redstone_experiments"]}"#
+        // `toNames` is a `HashSet`: `redstone_experiments` hashes to an earlier bucket.
+        r#"{"enabled_features":["minecraft:redstone_experiments","minecraft:vanilla"]}"#
     );
     assert_eq!(
         WorldDataConfiguration::from_json(&encoded, &registry).unwrap(),
@@ -616,7 +621,14 @@ fn parses_pack_metadata_and_detects_compatibility() {
     .unwrap();
     assert_eq!(old.compatibility, PackCompatibility::TooOld);
 
-    assert!(parse_pack_metadata(r#"{"pack":{"description":"bad","pack_format":101}}"#).is_err());
+    // A pack section whose formats fail validation falls back to the description-only
+    // section (`PackMetadataSection.FALLBACK_TYPE`): the pack is kept, flagged unknown.
+    let fallback =
+        parse_pack_metadata(r#"{"pack":{"description":"bad","pack_format":101}}"#).unwrap();
+    assert_eq!(fallback.compatibility, PackCompatibility::Unknown);
+    assert_eq!(fallback.description, "bad");
+    // No `pack` section at all drops the pack.
+    assert!(parse_pack_metadata(r#"{"features":{"enabled":[]}}"#).is_err());
 }
 
 #[test]
@@ -802,10 +814,27 @@ fn server_repository_discovers_compatible_directory_world_packs_with_metadata() 
     let mut ids = repository.available_ids();
     ids.sort();
 
-    assert_eq!(ids, vec!["file/dir_pack", VANILLA_PACK_ID]);
+    // The bundled feature packs, the vanilla pack, the valid directory pack and the
+    // (incompatible but well-formed) old pack; `missing_meta`, the empty archive and
+    // the stray file are not packs.
+    assert_eq!(
+        ids,
+        vec![
+            "file/dir_pack",
+            "file/old_pack",
+            "minecart_improvements",
+            "redstone_experiments",
+            "trade_rebalance",
+            VANILLA_PACK_ID
+        ]
+    );
+    assert_eq!(
+        repository.pack("file/old_pack").map(|pack| pack.metadata.compatibility),
+        Some(PackCompatibility::TooOld)
+    );
 
     let loaded = load_world_data_packs(&datapacks).unwrap();
-    assert_eq!(loaded.len(), 1);
+    assert_eq!(loaded.len(), 2);
     assert_eq!(loaded[0].pack.id, "file/dir_pack");
     assert_eq!(
         loaded[0].get("data/example/tags/item/test_items.json"),

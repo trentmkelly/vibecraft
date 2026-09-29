@@ -97,6 +97,13 @@ pub fn log_warn(message: &str) {
     }
 }
 
+/// Logs an error via the global logger, if logging has been initialized.
+pub fn log_error(message: &str) {
+    if let Some(logger) = GLOBAL_LOGGER.get() {
+        let _ = logger.error(message);
+    }
+}
+
 /// Logs a message at DEBUG level via the global logger.  No-ops when the global
 /// level is below Debug.
 pub fn log_debug(message: &str) {
@@ -182,7 +189,6 @@ impl Logger {
     }
 
     /// Writes a message at ERROR level.  Always emitted regardless of configured level.
-    #[cfg(test)]
     pub fn error(&self, message: &str) -> Result<(), String> {
         self.write("ERROR", message)
     }

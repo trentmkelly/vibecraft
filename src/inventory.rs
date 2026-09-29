@@ -22,12 +22,46 @@ pub enum ContainerInput {
     PickupAll,
 }
 
+/// Item-dependent `Slot.mayPlace` / `Slot.getMaxStackSize(stack)` overrides of
+/// the container slot subclasses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SlotRestriction {
+    /// A plain `Slot`.
+    #[default]
+    None,
+    /// `FurnaceFuelSlot`: only fuel or an empty bucket may be placed, and a
+    /// bucket stack holds a single item.
+    FurnaceFuel,
+}
+
+impl SlotRestriction {
+    /// `Slot.mayPlace(stack)` beyond the slot's static flag.
+    pub fn allows(self, stack: &ItemStack) -> bool {
+        match self {
+            Self::None => true,
+            Self::FurnaceFuel => {
+                crate::recipe_system::FuelValues::shared_vanilla().is_fuel(stack.item_id())
+                    || stack.item_id() == "minecraft:bucket"
+            }
+        }
+    }
+
+    /// `Slot.getMaxStackSize(stack)` given the slot's default.
+    pub fn max_stack_size(self, stack: &ItemStack, default: i32) -> i32 {
+        match self {
+            Self::FurnaceFuel if stack.item_id() == "minecraft:bucket" => 1,
+            _ => default,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Slot {
     pub stack: ItemStack,
     pub max_stack_size: i32,
     pub may_place: bool,
     pub may_pickup: bool,
+    pub restriction: SlotRestriction,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -170,6 +204,7 @@ impl Slot {
             max_stack_size: 64,
             may_place: true,
             may_pickup: true,
+            restriction: SlotRestriction::None,
         }
     }
 
@@ -179,7 +214,13 @@ impl Slot {
             max_stack_size: 64,
             may_place: true,
             may_pickup: true,
+            restriction: SlotRestriction::None,
         }
+    }
+
+    /// `Slot.mayPlace(stack)`.
+    pub fn may_place_item(&self, stack: &ItemStack) -> bool {
+        self.may_place && self.restriction.allows(stack)
     }
 
     pub fn has_item(&self) -> bool {
@@ -194,16 +235,16 @@ impl Slot {
     }
 
     pub fn safe_insert(&mut self, carried: &mut ItemStack, amount: i32) -> i32 {
-        if !self.may_place || carried.is_empty() || amount <= 0 {
+        if carried.is_empty() || !self.may_place_item(carried) || amount <= 0 {
             return 0;
         }
+        let slot_max = self.restriction.max_stack_size(carried, self.max_stack_size);
         if self.stack.is_empty() {
-            let inserted = amount.min(carried.count()).min(self.max_stack_size);
+            let inserted = amount.min(carried.count()).min(slot_max);
             self.stack = carried.split(inserted);
             inserted
         } else if same_item_same_components(&self.stack, carried) {
-            let room =
-                self.max_stack_size.min(self.stack.max_stack_size() as i32) - self.stack.count();
+            let room = slot_max.min(self.stack.max_stack_size() as i32) - self.stack.count();
             let inserted = amount.min(carried.count()).min(room.max(0));
             self.stack.grow(inserted);
             carried.shrink(inserted);
@@ -677,7 +718,7 @@ impl Menu {
                 slot: slot_index,
                 count: inserted,
             }
-        } else if slot.may_place {
+        } else if slot.may_place_item(&self.carried) {
             std::mem::swap(&mut slot.stack, &mut self.carried);
             InventoryAction::Swapped {
                 slot: slot_index,

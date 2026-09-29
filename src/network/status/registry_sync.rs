@@ -11,11 +11,10 @@ use crate::network::configuration::{
     ServerboundSelectKnownPacks,
 };
 use crate::registry_pipeline::builtin::BuiltinRegistries;
-use crate::registry_pipeline::resources::ResourceManager;
 use crate::registry_pipeline::sync::{
     pack_registries, serialize_tags_to_network, write_update_tags_packet,
 };
-use crate::registry_pipeline::vanilla_registries;
+use crate::registry_pipeline::server_resources::active_resources;
 
 fn registry_error(message: String) -> io::Error {
     io::Error::other(message)
@@ -28,11 +27,11 @@ pub(super) fn run_synchronize_registries_task(
     rate_limiter: &mut PacketRateLimiter,
     active_login: &ActiveLoginGuard,
 ) -> io::Result<()> {
-    let registries = vanilla_registries().map_err(registry_error)?;
+    let resources = active_resources().map_err(registry_error)?;
     let builtin = BuiltinRegistries::vanilla().map_err(registry_error)?;
 
-    // `SynchronizeRegistriesTask.start`: offer every pack the server can describe.
-    let requested = ResourceManager::vanilla().known_packs();
+    // `SynchronizeRegistriesTask.start`: offer every selected pack the server can describe.
+    let requested = resources.known_packs();
     write_framed_packet_with_compression(
         stream,
         compression,
@@ -70,10 +69,10 @@ pub(super) fn run_synchronize_registries_task(
     } else {
         &[]
     };
-    for packet in pack_registries(registries, builtin, negotiated).map_err(registry_error)? {
+    for packet in pack_registries(&resources.registries, builtin, negotiated).map_err(registry_error)? {
         write_registry_data_packet(stream, compression, &packet)?;
     }
-    let tags = serialize_tags_to_network(registries);
+    let tags = serialize_tags_to_network(&resources.registries);
     write_framed_packet_with_compression(
         stream,
         compression,

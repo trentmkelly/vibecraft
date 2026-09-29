@@ -28,6 +28,7 @@ use management_server::{startup_plan, ManagementServerConfig, ManagementStartupP
 use network::query::{spawn_query_server, QueryServerInfo};
 use network::rcon::spawn_rcon_server;
 use network::status::{read_code_of_conducts, run_status_server, ActiveLoginRegistry, ConsoleLink};
+use registry_pipeline::server_resources::persist_data_configuration;
 use resources::{
     configure_pack_repository, DataPackRepository, PackConfigureOptions, WorldDataConfiguration,
 };
@@ -113,15 +114,19 @@ fn run(options: CliOptions) -> Result<(), String> {
         .map_err(|err| format!("Failed to start server console input thread: {err}"))?;
     logger.info("Started server console input thread")?;
 
-    let world_options =
+    let (world_options, pack_repository, configured_data) =
         configure_initial_data_packs(&logger, &options, &startup.properties, &runtime)?;
-    // Java `WorldLoader.load` decodes the data-driven registries from the data packs
-    // before the server starts; any registry error is fatal.
-    let registries = registry_pipeline::vanilla_registries()
-        .map_err(|err| format!("Failed to load registries: {err}"))?;
+    // Java `WorldLoader.load` decodes the data-driven registries from the selected data
+    // packs before the server starts; any registry error is fatal.
+    let server_resources = registry_pipeline::server_resources::ServerResources::initialize(
+        pack_repository,
+        configured_data,
+        &world_dir,
+    )
+    .map_err(|err| format!("Failed to load registries: {err}"))?;
     logger.info(&format!(
         "Loaded {} data-driven registries",
-        registries.worldgen_layer().len()
+        server_resources.current().registries.worldgen_layer().len()
     ))?;
     // Java MinecraftServer loads RandomSequences saved data at startup and
     // writes it back (when dirty) on save/shutdown.
@@ -358,7 +363,7 @@ fn configure_initial_data_packs(
     options: &CliOptions,
     properties: &ServerProperties,
     runtime: &RuntimeSelection,
-) -> Result<WorldOptions, String> {
+) -> Result<(WorldOptions, DataPackRepository, WorldDataConfiguration), String> {
     let datapack_dir = runtime.universe.join(&runtime.world_name).join("datapacks");
     let mut pack_repository = DataPackRepository::server_repository(&datapack_dir)?;
     let layout = WorldLayout::new(runtime.universe.join(&runtime.world_name));
@@ -379,6 +384,14 @@ fn configure_initial_data_packs(
         "disabledDataPacks={}",
         configured_data.data_packs.disabled.join(",")
     ))?;
+    // `WorldData.setDataConfiguration`: Java writes it with the next level save.
+    if !init_mode && configured_data != initial_data_config {
+        if let Err(error) = persist_data_configuration(layout.root(), &configured_data) {
+            logger.warn(&format!(
+                "Failed to save the data pack configuration: {error}"
+            ))?;
+        }
+    }
     let world_options = WorldOptions::from_server_inputs(
         &properties.level_seed,
         properties.generate_structures,
@@ -394,7 +407,7 @@ fn configure_initial_data_packs(
         "generateBonusChest={}",
         world_options.generate_bonus_chest
     ))?;
-    Ok(world_options)
+    Ok((world_options, pack_repository, configured_data))
 }
 
 fn start_network_listeners(

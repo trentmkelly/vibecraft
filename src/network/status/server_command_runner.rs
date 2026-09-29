@@ -16,10 +16,12 @@
 use super::*;
 use crate::command::{CommandError, CommandResult, LevelBasedPermissionSet, PermissionLevel};
 use crate::log::log_info;
+use super::datapack_live::{apply_data_pack_requests, seed_data_pack_state, DataPackOutcome};
 use super::play_session_world_packets::{
     command_feedback_text, function_permission_level_from_properties,
 };
 use std::sync::atomic::AtomicBool;
+use crate::language;
 use std::sync::OnceLock;
 
 /// Late-bound handle to the live runner: `main` needs it for the RCON thread before the status
@@ -92,10 +94,10 @@ impl ServerCommandRunner {
 
     /// Runs one console line; every message is logged (`LOGGER.info(message.getString())`).
     pub fn run_console(&self, line: &str) {
-        // VibeCraft keeps reloading the on-disk player-access files from the console.
-        if line.eq_ignore_ascii_case("reload") || line.eq_ignore_ascii_case("whitelist reload") {
+        // VibeCraft also reloads the on-disk player-access files on a console `reload`;
+        // the command itself (the data pack reload) still runs below like in Java.
+        if line.eq_ignore_ascii_case("reload") {
             self.reload_player_access();
-            return;
         }
         for message in self.execute(CommandOrigin::Console, line) {
             log_info(&message);
@@ -110,11 +112,8 @@ impl ServerCommandRunner {
     }
 
     fn reload_player_access(&self) {
-        match PlayerAccess::load_from_dir(Path::new(".")) {
-            Ok(reloaded) => {
-                *lock_status_mutex(&self.player_access) = reloaded;
-                println!("Reloaded player access files");
-            }
+        match lock_status_mutex(&self.player_access).reload_lists() {
+            Ok(()) => println!("Reloaded player access files"),
             Err(err) => eprintln!("status access reload error: {err}"),
         }
     }
@@ -124,13 +123,29 @@ impl ServerCommandRunner {
     fn execute(&self, origin: CommandOrigin, line: &str) -> Vec<String> {
         let _serial = lock_status_mutex(&self.execution);
         let mut state = self.command_state();
+        seed_data_pack_state(&mut state, line);
+        let access_context = AccessContext {
+            access: &self.player_access,
+            properties: &self.properties,
+            sessions: self.active_logins.live_sessions(),
+            properties_file: Some(Path::new("server.properties")),
+        };
+        let access_seed = seed_access_state(&mut state, &self.player_access, access_context.sessions);
         let permissions = LevelBasedPermissionSet::new(PermissionLevel::Owners);
         let result = execute_builtin_command(&mut state, permissions, line);
         apply_command_game_rule_changes(&state, &self.game_rules);
+        apply_access_changes(&access_context, &access_seed, &state);
+        apply_console_disconnects(access_context.sessions, &state);
         if state.halt_requested {
             self.halt_requested.store(true, Ordering::SeqCst);
         }
-        self.messages_for(origin, line, result, &state)
+        let reload = apply_data_pack_requests(&state, &self.active_logins.world_bus);
+        let mut messages = self.messages_for(origin, line, result, &state);
+        if reload == DataPackOutcome::Failed {
+            // `ReloadCommand.reloadPacks`: `source.sendFailure(commands.reload.failure)`.
+            messages.push(language::translate("commands.reload.failure", &[]));
+        }
+        messages
     }
 
     fn command_state(&self) -> ServerCommandState {
@@ -148,6 +163,8 @@ impl ServerCommandRunner {
             world_seed: self.world_seed,
             world_preset: self.properties.level_type.clone(),
             function_permission_level: function_permission_level_from_properties(&self.properties),
+            // A dedicated server is always "published" (`/kick` requires it).
+            published_server: Some(dedicated_publish_request(&self.properties)),
             ..ServerCommandState::default()
         };
         seed_command_game_rules(&mut state, &self.game_rules);
@@ -181,8 +198,8 @@ impl ServerCommandRunner {
             Err(CommandError::PermissionDenied | CommandError::InvalidSyntax) => {
                 let input = line.strip_prefix('/').unwrap_or(line);
                 vec![
-                    translate("command.unknown.command", &[]),
-                    format!("{input}{}", translate("command.context.here", &[])),
+                    language::translate("command.unknown.command", &[]),
+                    format!("{input}{}", language::translate("command.context.here", &[])),
                 ]
             }
             // TODO(command-error-messages): the model reports typed errors without Brigadier
@@ -202,7 +219,7 @@ impl ServerCommandRunner {
         // cross-player send path (see the live player registry gap); only the log leg is live.
         let _ = send_feedback;
         if origin != CommandOrigin::Console && log_admin {
-            log_info(&translate(
+            log_info(&language::translate(
                 "chat.type.admin",
                 &[origin.display_name().to_string(), text.to_string()],
             ));
@@ -213,7 +230,7 @@ impl ServerCommandRunner {
 /// Plain-string text of a command's success feedback (`Component.getString`).
 fn success_message(result: &CommandResult, state: &ServerCommandState) -> String {
     if !state.feedback_args.is_empty() {
-        return translate(result.feedback_key, &state.feedback_args);
+        return language::translate(result.feedback_key, &state.feedback_args);
     }
     let text = command_feedback_text(result, state);
     let fallback = format!("{} ({})", result.feedback_key, result.success_count);
@@ -222,60 +239,8 @@ fn success_message(result: &CommandResult, state: &ServerCommandState) -> String
     }
     match result.feedback_key.strip_prefix(crate::command::LITERAL_COMMAND_FEEDBACK_PREFIX) {
         Some(literal) => literal.to_string(),
-        None => translate(result.feedback_key, &[]),
+        None => language::translate(result.feedback_key, &[]),
     }
-}
-
-/// The `en_us` server language (Java `Language.getInstance()`), or empty when the Java assets
-/// were not available at build time (keys then render as themselves, like a missing translation).
-fn server_language() -> &'static std::collections::HashMap<String, String> {
-    static LANGUAGE: OnceLock<std::collections::HashMap<String, String>> = OnceLock::new();
-    LANGUAGE.get_or_init(|| {
-        serde_json::from_str(vibecraft_java_source!("/assets/minecraft/lang/en_us.json"))
-            .unwrap_or_default()
-    })
-}
-
-/// `Language.getOrDefault(key)` + `String.format`-style `%s` / `%n$s` substitution.
-fn translate(key: &str, args: &[String]) -> String {
-    let template = server_language().get(key).map_or(key, String::as_str);
-    format_translation(template, args)
-}
-
-/// Java `TranslatableContents` argument formatting for `%s`, `%n$s` and `%%`.
-pub(super) fn format_translation(template: &str, args: &[String]) -> String {
-    let mut out = String::new();
-    let mut next_arg = 0;
-    let mut chars = template.chars();
-    while let Some(ch) = chars.next() {
-        if ch != '%' {
-            out.push(ch);
-            continue;
-        }
-        let mut spec = String::new();
-        for next in chars.by_ref() {
-            spec.push(next);
-            if matches!(next, 's' | 'd' | '%') {
-                break;
-            }
-        }
-        if spec == "%" {
-            out.push('%');
-            continue;
-        }
-        // `%s` consumes the next argument; `%n$s` picks argument `n` (1-based).
-        let index = match spec[..spec.len() - 1].strip_suffix('$') {
-            Some(number) => number.parse::<usize>().ok().map(|n| n.saturating_sub(1)),
-            None => {
-                next_arg += 1;
-                Some(next_arg - 1)
-            }
-        };
-        if let Some(arg) = index.and_then(|index| args.get(index)) {
-            out.push_str(arg);
-        }
-    }
-    out
 }
 
 /// Drains queued console input (`DedicatedServer.handleConsoleInputs`); returns true once the

@@ -52,6 +52,7 @@ macro_rules! default_server_command_state {
             feature_data_packs: Vec::new(),
             unavailable_feature_data_packs: Vec::new(),
             created_data_packs: Vec::new(),
+            datapack_directory: None,
             reload_requests: Vec::new(),
             transfer_requests: Vec::new(),
             chase_session: None,
@@ -151,6 +152,7 @@ macro_rules! default_server_command_state {
             banned_players: Vec::new(),
             banned_ips: Vec::new(),
             operator_players: Vec::new(),
+            known_profiles: Vec::new(),
             killed_entities: Vec::new(),
             ban_player_feedback_events: Vec::new(),
             ban_ip_feedback_events: Vec::new(),
@@ -375,7 +377,7 @@ impl ServerCommandState {
         }
         self.banned_players.push(BanEntry {
             user: profile,
-            created: "now".to_string(),
+            created: crate::player_access::ban_timestamp_now(),
             source: self.command_source_name(),
             expires: None,
             reason,
@@ -389,7 +391,7 @@ impl ServerCommandState {
         }
         self.banned_ips.push(BanEntry {
             user: ip,
-            created: "now".to_string(),
+            created: crate::player_access::ban_timestamp_now(),
             source: self.command_source_name(),
             expires: None,
             reason,
@@ -408,6 +410,19 @@ impl ServerCommandState {
         let old_len = self.banned_ips.len();
         self.banned_ips.retain(|entry| entry.user != ip);
         self.banned_ips.len() != old_len
+    }
+
+    /// `GameProfileArgument` name resolution (`nameToIdCache().get(name)`): an online player
+    /// or cached profile of that name (case-insensitive), else the offline-mode profile.
+    // TODO(profile-lookup-online): an online-mode server rejects unknown names with
+    // `argument.player.unknown` after a Mojang lookup instead of using the offline UUID.
+    pub(super) fn resolve_profile(&self, name: &str) -> NameAndId {
+        self.online_players
+            .iter()
+            .chain(&self.known_profiles)
+            .find(|profile| profile.name.eq_ignore_ascii_case(name))
+            .cloned()
+            .unwrap_or_else(|| NameAndId::create_offline(name))
     }
 
     pub(super) fn command_source_name(&self) -> String {

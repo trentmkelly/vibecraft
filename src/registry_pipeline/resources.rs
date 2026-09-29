@@ -7,13 +7,15 @@
 //! [`ResourceManager::list_matching_resource_stacks`] returns every pack's copy in
 //! priority order (used for tags, which merge across packs).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::network::configuration::KnownPack;
 use crate::registry::Identifier;
+use crate::registry_pipeline::zip_pack::SharedZip;
+use crate::resources::ResourceFilter;
 
 /// Data directory inside a pack (`PackType.SERVER_DATA.getDirectory()`).
 const DATA_DIRECTORY: &str = "data";
@@ -63,12 +65,47 @@ impl FileToIdConverter {
     }
 }
 
+/// Where a listed file's bytes come from.
+#[derive(Debug, Clone)]
+enum FileHandle {
+    /// A file on disk.
+    Path(PathBuf),
+    /// An entry of a shared zip archive.
+    ZipEntry { archive: SharedZip, name: String },
+}
+
 /// A file found in a pack.
 #[derive(Debug, Clone)]
 pub struct PackFile {
     /// Resource-file id including directory prefix and extension.
     pub location: Identifier,
-    path: PathBuf,
+    handle: FileHandle,
+}
+
+impl PackFile {
+    /// A file on disk.
+    fn on_disk(location: Identifier, path: PathBuf) -> Self {
+        Self {
+            location,
+            handle: FileHandle::Path(path),
+        }
+    }
+
+    /// A zip archive entry.
+    pub(crate) fn zip_entry(location: Identifier, archive: SharedZip, name: String) -> Self {
+        Self {
+            location,
+            handle: FileHandle::ZipEntry { archive, name },
+        }
+    }
+
+    /// Reads the file as UTF-8 text.
+    pub fn read_to_string(&self) -> io::Result<String> {
+        match &self.handle {
+            FileHandle::Path(path) => fs::read_to_string(path),
+            FileHandle::ZipEntry { archive, name } => archive.read_entry(name),
+        }
+    }
 }
 
 /// A source of data resources (`PackResources`).
@@ -79,12 +116,16 @@ pub trait PackResources: Send + Sync {
     /// The known-pack identity clients may already have (`PackLocationInfo.knownPackInfo`).
     fn known_pack(&self) -> Option<&KnownPack>;
 
+    /// `PackResources.getNamespaces(SERVER_DATA)`.
+    fn namespaces(&self) -> BTreeSet<String>;
+
     /// Lists every file matching `converter` in this pack.
     fn list_resources(&self, converter: &FileToIdConverter) -> Vec<PackFile>;
 
-    /// Reads a listed file.
-    fn read(&self, file: &PackFile) -> io::Result<String> {
-        fs::read_to_string(&file.path)
+    /// The pack's `filter` metadata section, hiding resources of lower-priority
+    /// packs (`ResourceFilterSection`).
+    fn filter(&self) -> Option<&ResourceFilter> {
+        None
     }
 }
 
@@ -94,6 +135,7 @@ pub struct DirectoryPack {
     id: String,
     root: PathBuf,
     known_pack: Option<KnownPack>,
+    filter: Option<ResourceFilter>,
 }
 
 impl DirectoryPack {
@@ -103,7 +145,14 @@ impl DirectoryPack {
             id: id.to_string(),
             root: root.into(),
             known_pack,
+            filter: None,
         }
+    }
+
+    /// Attaches the pack's `filter` metadata section.
+    pub fn with_filter(mut self, filter: Option<ResourceFilter>) -> Self {
+        self.filter = filter;
+        self
     }
 
     /// The built-in vanilla data pack bundled under `vanilla-data/`. Clients that
@@ -138,7 +187,7 @@ impl DirectoryPack {
             } else if converter.matches_file_name(&name) {
                 // Java skips (and logs) files whose path is not a valid identifier.
                 if let Ok(location) = Identifier::new(namespace, &relative_path) {
-                    out.push(PackFile { location, path });
+                    out.push(PackFile::on_disk(location, path));
                 }
             }
         }
@@ -152,6 +201,22 @@ impl PackResources for DirectoryPack {
 
     fn known_pack(&self) -> Option<&KnownPack> {
         self.known_pack.as_ref()
+    }
+
+    fn namespaces(&self) -> BTreeSet<String> {
+        let Ok(entries) = fs::read_dir(self.root.join(DATA_DIRECTORY)) else {
+            return BTreeSet::new();
+        };
+        entries
+            .flatten()
+            .filter(|entry| entry.path().is_dir())
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| Identifier::is_valid_namespace(name))
+            .collect()
+    }
+
+    fn filter(&self) -> Option<&ResourceFilter> {
+        self.filter.as_ref()
     }
 
     fn list_resources(&self, converter: &FileToIdConverter) -> Vec<PackFile> {
@@ -204,7 +269,60 @@ impl Resource<'_> {
 
     /// Reads the resource as UTF-8 text.
     pub fn read_to_string(&self) -> io::Result<String> {
-        self.pack.read(&self.file)
+        self.file.read_to_string()
+    }
+}
+
+/// `CompositePackResources`: a primary pack with overlay directories layered on top;
+/// later overlays win over earlier ones and all win over the primary.
+pub struct CompositePack {
+    primary: Box<dyn PackResources>,
+    /// Overlays in declaration order.
+    overlays: Vec<Box<dyn PackResources>>,
+}
+
+impl CompositePack {
+    /// Layers `overlays` (declaration order) over `primary`.
+    pub fn new(primary: Box<dyn PackResources>, overlays: Vec<Box<dyn PackResources>>) -> Self {
+        Self { primary, overlays }
+    }
+}
+
+impl PackResources for CompositePack {
+    fn pack_id(&self) -> &str {
+        self.primary.pack_id()
+    }
+
+    fn known_pack(&self) -> Option<&KnownPack> {
+        self.primary.known_pack()
+    }
+
+    fn namespaces(&self) -> BTreeSet<String> {
+        self.overlays
+            .iter()
+            .flat_map(|overlay| overlay.namespaces())
+            .chain(self.primary.namespaces())
+            .collect()
+    }
+
+    fn filter(&self) -> Option<&ResourceFilter> {
+        self.primary.filter()
+    }
+
+    fn list_resources(&self, converter: &FileToIdConverter) -> Vec<PackFile> {
+        // `result::putIfAbsent` over the stack [reversed overlays..., primary].
+        let mut result: BTreeMap<Identifier, PackFile> = BTreeMap::new();
+        for layer in self
+            .overlays
+            .iter()
+            .rev()
+            .chain(std::iter::once(&self.primary))
+        {
+            for file in layer.list_resources(converter) {
+                result.entry(file.location.clone()).or_insert(file);
+            }
+        }
+        result.into_values().collect()
     }
 }
 
@@ -233,14 +351,23 @@ impl ResourceManager {
             .collect()
     }
 
-    /// `listMatchingResourceStacks`: every pack's copy of each id, lowest priority
-    /// first.
+    /// `FallbackResourceManager.listResourceStacks`: every pack's copy of each id,
+    /// lowest priority first. A pack's `filter` first hides matching copies from the
+    /// packs below it, in the namespaces it provides or filters.
     pub fn list_matching_resource_stacks(
         &self,
         converter: &FileToIdConverter,
     ) -> BTreeMap<Identifier, Vec<Resource<'_>>> {
         let mut stacks: BTreeMap<Identifier, Vec<Resource<'_>>> = BTreeMap::new();
         for pack in &self.packs {
+            if let Some(filter) = pack.filter() {
+                let provided = pack.namespaces();
+                stacks.retain(|id, _| {
+                    let applies = provided.contains(id.namespace())
+                        || filter.is_namespace_filtered(id.namespace());
+                    !(applies && filter.is_path_filtered(id.path()))
+                });
+            }
             for file in pack.list_resources(converter) {
                 stacks
                     .entry(file.location.clone())

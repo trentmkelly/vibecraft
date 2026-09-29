@@ -119,59 +119,9 @@ impl TranslatableContentsModel {
         translations: &TranslationTable,
         context: &ResolutionContext,
     ) -> Result<Vec<String>, ()> {
-        let mut parts = Vec::new();
-        let mut current = 0;
-        let mut replacement_index = 0usize;
-
-        while let Some(relative) = template[current..].find('%') {
-            let start = current + relative;
-            if start > current {
-                parts.push(template[current..start].to_string());
-            }
-
-            let after_percent = start + 1;
-            if after_percent >= template.len() {
-                return Err(());
-            }
-
-            let bytes = template.as_bytes();
-            if bytes[after_percent] == b'%' {
-                parts.push("%".to_string());
-                current = after_percent + 1;
-                continue;
-            }
-
-            let mut scan = after_percent;
-            while scan < template.len() && bytes[scan].is_ascii_digit() {
-                scan += 1;
-            }
-
-            let index = if scan > after_percent {
-                if scan >= template.len() || bytes[scan] != b'$' {
-                    return Err(());
-                }
-                let parsed = template[after_percent..scan]
-                    .parse::<usize>()
-                    .map_err(|_| ())?;
-                scan += 1;
-                parsed.checked_sub(1).ok_or(())?
-            } else {
-                let index = replacement_index;
-                replacement_index += 1;
-                index
-            };
-
-            if scan >= template.len() || bytes[scan] != b's' {
-                return Err(());
-            }
-            parts.push(self.argument(index, translations, context)?);
-            current = scan + 1;
-        }
-
-        if current < template.len() {
-            parts.push(template[current..].to_string());
-        }
-        Ok(parts)
+        crate::language::decompose_template(template, |index| {
+            self.argument(index, translations, context).ok()
+        })
     }
 
     fn argument(

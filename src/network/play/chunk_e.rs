@@ -604,6 +604,7 @@ pub fn inventory_menu_to_flat_menu(inventory_menu: &InventoryMenu, carried: &Ite
             max_stack_size: 64,
             may_place: inventory_menu.may_place(i),
             may_pickup: true,
+            restriction: crate::inventory::SlotRestriction::None,
         };
     }
     menu.carried = carried.clone();

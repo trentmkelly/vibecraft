@@ -115,7 +115,7 @@ mod tests {
         assert!(layout.player_data_file("player").ends_with("player.dat"));
         assert!(layout.advancements_file("player").ends_with("player.json"));
         assert!(layout.stats_file("player").ends_with("player.json"));
-        assert!(layout.map_data_file(3).ends_with("map_3.dat"));
+        assert!(layout.map_data_file(3).ends_with("maps/3.dat"));
 
         let mut chunk = LevelChunk::empty(ChunkPos { x: 4, z: -2 });
         chunk.status = "minecraft:full".to_string();

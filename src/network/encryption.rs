@@ -209,3 +209,19 @@ mod tests {
         assert_eq!(decoded, vec![b"first".to_vec(), b"second".to_vec()]);
     }
 }
+
+#[cfg(test)]
+mod java_fixture_tests {
+    use super::*;
+
+    /// Fixture produced by the JDK running `Crypt.getCipher`'s exact recipe:
+    /// `AES/CFB8/NoPadding`, key = IV = `"0123456789abcdef"`.
+    #[test]
+    fn minecraft_aes_cfb8_matches_java_cipher_fixture() {
+        const JAVA_CIPHERTEXT: &str = "2686540e23130de191bc82166f1bab04e2cff68c517c28896f1f1cf127cfb9272f848bfbfb3c09e38b90daa1";
+        let mut bytes = b"The quick brown fox jumps over the lazy dog!".to_vec();
+        MinecraftCipher::new(*b"0123456789abcdef").apply_encrypt(&mut bytes);
+        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(hex, JAVA_CIPHERTEXT);
+    }
+}

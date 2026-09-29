@@ -1,8 +1,7 @@
 #![allow(dead_code)]
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::chat_component::{Component, Style};
 use crate::chat_formatting::ChatFormatting;
@@ -17,8 +16,8 @@ pub const LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT: u32 = 81;
 pub const VANILLA_PACK_MCMETA: &str = r#"{
   "pack": {
     "description": "dataPack.vanilla.description",
-    "min_format": [101, 0],
-    "max_format": [101, 1]
+    "min_format": [101, 1],
+    "max_format": 101
   },
   "features": {
     "enabled": ["minecraft:vanilla"]
@@ -58,6 +57,8 @@ pub struct DataPack {
     pub source: PackSource,
     pub requested_features: FeatureFlagSet,
     pub metadata: DataPackMetadata,
+    /// Where the pack's resources live (`Pack.ResourcesSupplier`).
+    pub content: PackContent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -387,7 +388,14 @@ impl DataPack {
             source,
             requested_features: FeatureFlagSet::empty(),
             metadata: DataPackMetadata::default_26_1_2(),
+            content: PackContent::Detached,
         }
+    }
+
+    /// Sets the resource location used by [`PackContent::open`].
+    pub fn with_content(mut self, content: PackContent) -> Self {
+        self.content = content;
+        self
     }
 
     pub fn with_features(mut self, requested_features: FeatureFlagSet) -> Self {
@@ -408,6 +416,9 @@ pub struct DataPackMetadata {
     pub supported_formats: PackFormatRange,
     pub compatibility: PackCompatibility,
     pub requested_features: FeatureFlagSet,
+    /// `Pack.Metadata.overlays`: overlay directories applicable to the current
+    /// data-pack format, in declaration order.
+    pub overlays: Vec<String>,
 }
 
 impl DataPackMetadata {
@@ -418,11 +429,12 @@ impl DataPackMetadata {
                 min: PackFormat::current_server_data(),
                 max: PackFormat {
                     major: SERVER_DATA_PACK_FORMAT_MAJOR,
-                    minor: u32::MAX,
+                    minor: pack_format::TOP_MINOR,
                 },
             },
             compatibility: PackCompatibility::Compatible,
             requested_features: FeatureFlagSet::empty(),
+            overlays: Vec::new(),
         }
     }
 }
@@ -451,8 +463,9 @@ impl PackFormat {
 
 impl std::fmt::Display for PackFormat {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.minor == 0 {
-            write!(formatter, "{}", self.major)
+        // `PackFormat.toString`.
+        if self.minor == pack_format::TOP_MINOR {
+            write!(formatter, "{}.*", self.major)
         } else {
             write!(formatter, "{}.{}", self.major, self.minor)
         }
@@ -474,7 +487,7 @@ pub enum PackCompatibility {
 }
 
 impl PackCompatibility {
-    pub const UNKNOWN_VERSION: u32 = u32::MAX;
+    pub const UNKNOWN_VERSION: u32 = i32::MAX as u32;
 
     pub fn is_compatible(self) -> bool {
         self == Self::Compatible
@@ -521,6 +534,8 @@ pub use data_configuration::{DataPackConfig, WorldDataConfiguration};
 pub struct DataPackRepository {
     available: BTreeMap<String, DataPack>,
     selected: Vec<String>,
+    /// The world `datapacks` folder re-scanned by [`Self::reload`].
+    folder: Option<PathBuf>,
 }
 
 impl DataPackRepository {
@@ -531,18 +546,39 @@ impl DataPackRepository {
                 .map(|pack| (pack.id.clone(), pack))
                 .collect(),
             selected: Vec::new(),
+            folder: None,
         }
     }
 
+    /// `ServerPacksSource.createPackRepository(datapackDir)`: the built-in vanilla and
+    /// feature packs plus the packs found in the world `datapacks` folder.
     pub fn server_repository(datapack_dir: &Path) -> Result<Self, String> {
-        let mut packs = vec![BuiltInDataPack::vanilla_26_1_2().as_data_pack()];
+        let mut repository = Self::new(Vec::new());
+        repository.folder = Some(datapack_dir.to_path_buf());
+        repository.reload();
+        Ok(repository)
+    }
 
-        packs.extend(
-            load_world_data_packs(datapack_dir)?
-                .into_iter()
-                .map(|loaded| loaded.pack),
-        );
-        Ok(Self::new(packs))
+    /// `PackRepository.reload`: re-discovers the available packs and keeps the
+    /// selected packs that are still present.
+    pub fn reload(&mut self) {
+        let Some(folder) = self.folder.clone() else {
+            return;
+        };
+        let mut discovered = builtin_packs();
+        discovered.extend(discover_pack_folder(&folder, PackSource::World));
+        // `Maps.newTreeMap()` keyed by id: later sources replace earlier ones.
+        self.available = discovered
+            .into_iter()
+            .map(|pack| (pack.id.clone(), pack))
+            .collect();
+        let selected = std::mem::take(&mut self.selected);
+        self.set_selected(selected.iter().map(String::as_str));
+    }
+
+    /// `PackRepository.getPack`.
+    pub fn pack(&self, id: &str) -> Option<&DataPack> {
+        self.available.get(id)
     }
 
     pub fn is_available(&self, id: &str) -> bool {
@@ -643,6 +679,7 @@ pub fn configure_pack_repository(
     } else {
         initial_data_config.enabled_features
     };
+    repository.reload();
 
     if options.safe_mode {
         return configure_repository_with_selection(
@@ -663,7 +700,9 @@ pub fn configure_pack_repository(
     let mut selected_lookup = BTreeSet::new();
 
     for id in &initial_data_config.data_packs.enabled {
-        if repository.is_available(id) && selected_lookup.insert(id.clone()) {
+        if !repository.is_available(id) {
+            crate::log::log_warn(&format!("Missing data pack {id}"));
+        } else if selected_lookup.insert(id.clone()) {
             selected.push(id.clone());
         }
     }
@@ -674,21 +713,37 @@ pub fn configure_pack_repository(
         }
 
         let is_selected = selected_lookup.contains(&pack.id);
-        if !is_selected
-            && pack.source.should_add_automatically()
-            && pack.requested_features.is_subset_of(allowed_features)
-        {
-            selected.push(pack.id.clone());
-            selected_lookup.insert(pack.id.clone());
+        let features_allowed = pack.requested_features.is_subset_of(allowed_features);
+        if !is_selected && pack.source.should_add_automatically() {
+            if features_allowed {
+                crate::log::log_info(&format!(
+                    "Found new data pack {}, loading it automatically",
+                    pack.id
+                ));
+                selected.push(pack.id.clone());
+                selected_lookup.insert(pack.id.clone());
+            } else {
+                crate::log::log_info(&format!(
+                    "Found new data pack {}, but can't load it due to missing features {}",
+                    pack.id,
+                    print_missing_flags(allowed_features, pack.requested_features)
+                ));
+            }
         }
 
-        if is_selected && !pack.requested_features.is_subset_of(allowed_features) {
+        if is_selected && !features_allowed {
+            crate::log::log_warn(&format!(
+                "Pack {} requires features {} that are not enabled for this world, disabling pack.",
+                pack.id,
+                print_missing_flags(allowed_features, pack.requested_features)
+            ));
             selected.retain(|id| id != &pack.id);
             selected_lookup.remove(&pack.id);
         }
     }
 
     if selected.is_empty() {
+        crate::log::log_info("No datapacks selected, forcing vanilla");
         selected.push(VANILLA_PACK_ID.to_string());
     }
 
@@ -787,6 +842,21 @@ fn enable_forced_feature_packs(
     repository.set_selected(selected.iter().map(String::as_str));
 }
 
+/// `FeatureFlags.printMissingFlags`: the requested flags that are not allowed.
+pub fn print_missing_flags(allowed: FeatureFlagSet, requested: FeatureFlagSet) -> String {
+    let Ok(registry) = FeatureFlagRegistry::main_26_1_2() else {
+        return String::new();
+    };
+    let allowed = registry.to_names(allowed);
+    registry
+        .to_names(requested)
+        .into_iter()
+        .filter(|name| !allowed.contains(name))
+        .map(|name| name.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 fn all_known_features_26_1_2() -> FeatureFlagSet {
     FeatureFlagSet::of(&[
         feature_flags::VANILLA,
@@ -801,131 +871,6 @@ fn split_pack_list(value: &str) -> Vec<String> {
         .split(',')
         .map(|entry| entry.trim().to_string())
         .collect()
-}
-
-pub fn load_world_data_packs(datapack_dir: &Path) -> Result<Vec<WorldDataPack>, String> {
-    if !datapack_dir.exists() {
-        return Ok(Vec::new());
-    }
-
-    let mut packs = Vec::new();
-    let entries = fs::read_dir(datapack_dir).map_err(|err| {
-        format!(
-            "Failed to read datapack directory '{}': {err}",
-            datapack_dir.display()
-        )
-    })?;
-
-    for entry in entries {
-        let entry = entry.map_err(|err| {
-            format!(
-                "Failed to read datapack entry in '{}': {err}",
-                datapack_dir.display()
-            )
-        })?;
-        let path = entry.path();
-        let file_type = entry.file_type().map_err(|err| {
-            format!(
-                "Failed to inspect datapack entry '{}': {err}",
-                path.display()
-            )
-        })?;
-
-        let id = if file_type.is_dir() {
-            entry.file_name().to_string_lossy().into_owned()
-        } else if file_type.is_file()
-            && path.extension().and_then(|ext| ext.to_str()) == Some("zip")
-        {
-            path.file_stem()
-                .and_then(|stem| stem.to_str())
-                .unwrap_or_default()
-                .to_string()
-        } else {
-            continue;
-        };
-
-        if !is_valid_pack_id(&id) {
-            continue;
-        }
-
-        let (metadata, resources) = if file_type.is_dir() {
-            let metadata_path = path.join("pack.mcmeta");
-            let contents = match fs::read_to_string(&metadata_path) {
-                Ok(contents) => contents,
-                Err(_) => continue,
-            };
-            let metadata = match parse_pack_metadata(&contents) {
-                Ok(metadata) => metadata,
-                Err(_) => continue,
-            };
-            (metadata, load_directory_pack_resources(&path)?)
-        } else {
-            continue;
-        };
-
-        if metadata.compatibility.is_compatible() {
-            packs.push(WorldDataPack {
-                pack: DataPack::new(format!("file/{id}"), PackSource::World)
-                    .with_metadata(metadata),
-                resources,
-            });
-        }
-    }
-
-    Ok(packs)
-}
-
-fn load_directory_pack_resources(root: &Path) -> Result<BTreeMap<String, String>, String> {
-    let mut resources = BTreeMap::new();
-    load_directory_pack_resources_inner(root, root, &mut resources)?;
-    Ok(resources)
-}
-
-fn load_directory_pack_resources_inner(
-    root: &Path,
-    current: &Path,
-    resources: &mut BTreeMap<String, String>,
-) -> Result<(), String> {
-    for entry in fs::read_dir(current).map_err(|err| {
-        format!(
-            "Failed to read datapack directory '{}': {err}",
-            current.display()
-        )
-    })? {
-        let entry = entry.map_err(|err| {
-            format!(
-                "Failed to read datapack entry in '{}': {err}",
-                current.display()
-            )
-        })?;
-        let path = entry.path();
-        let file_type = entry.file_type().map_err(|err| {
-            format!(
-                "Failed to inspect datapack entry '{}': {err}",
-                path.display()
-            )
-        })?;
-        if file_type.is_dir() {
-            load_directory_pack_resources_inner(root, &path, resources)?;
-        } else if file_type.is_file() {
-            let relative = path.strip_prefix(root).map_err(|err| {
-                format!(
-                    "Failed to relativize datapack path '{}' against '{}': {err}",
-                    path.display(),
-                    root.display()
-                )
-            })?;
-            let resource_path = relative.to_string_lossy().replace('\\', "/");
-            let contents = fs::read_to_string(&path).map_err(|err| {
-                format!(
-                    "Failed to read datapack resource '{}': {err}",
-                    path.display()
-                )
-            })?;
-            resources.insert(resource_path, contents);
-        }
-    }
-    Ok(())
 }
 
 fn parse_data_resource_path(path: &str, contents: &str) -> Result<Option<DataResource>, String> {
@@ -954,15 +899,15 @@ fn parse_data_resource_path(path: &str, contents: &str) -> Result<Option<DataRes
     }))
 }
 
-fn is_valid_pack_id(id: &str) -> bool {
-    !id.is_empty()
-        && id
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | '.' | '/'))
-}
-
+mod discovery;
 mod metadata_parser;
-pub use metadata_parser::parse_pack_metadata;
+mod pack_format;
+#[cfg(test)]
+pub use discovery::load_world_data_packs;
+pub use discovery::{builtin_packs, discover_pack_folder, write_pack_skeleton, PackContent};
+pub use metadata_parser::{parse_filter_section, parse_pack_metadata, ResourceFilter};
 
+#[cfg(test)]
+mod pack_metadata_tests;
 #[cfg(test)]
 mod tests;

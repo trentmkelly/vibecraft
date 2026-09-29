@@ -35,6 +35,7 @@ use admin_player::*;
 
 mod inventory_items;
 use inventory_items::*;
+pub(crate) use inventory_items::item_max_stack_size;
 
 mod locate_loot_place_raid;
 use locate_loot_place_raid::*;

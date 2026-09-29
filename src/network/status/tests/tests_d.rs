@@ -853,3 +853,21 @@ pub fn raw_command_suggestion_response_lists_served_debug_command() {
     assert_eq!(read_var_i32(&mut frame).unwrap(), 1);
     assert_eq!(read_string(&mut frame, 32767).unwrap(), "biome");
 }
+
+#[test]
+pub fn gamemode_self_feedback_uses_translated_mode_name() {
+    let mut state = crate::command::ServerCommandState {
+        command_source_player: Some(crate::player_access::NameAndId::create_offline("Steve")),
+        ..Default::default()
+    };
+    let result = crate::command::execute_builtin_command(
+        &mut state,
+        crate::command::LevelBasedPermissionSet::GAMEMASTER,
+        "gamemode creative",
+    )
+    .unwrap();
+    assert_eq!(
+        crate::language::translate(result.feedback_key, &state.feedback_args),
+        "Set own game mode to Creative Mode"
+    );
+}

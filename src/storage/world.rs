@@ -684,12 +684,30 @@ impl WorldLayout {
         self.stats_dir().join(format!("{uuid}.json"))
     }
 
+    /// Server-level `SavedDataType` file: `data/minecraft/<id path>.dat`
+    /// (`SavedDataStorage.getDataFile`; every vanilla level-wide type uses the
+    /// default `minecraft` namespace).
     pub fn saved_data_file(&self, name: &str) -> PathBuf {
-        self.data_dir().join(format!("{name}.dat"))
+        self.data_dir()
+            .join("minecraft")
+            .join(format!("{name}.dat"))
     }
 
+    /// Per-dimension `SavedDataType` file, `<dimension>/data/minecraft/<name>.dat`
+    /// (`chunk_tickets`, `raids`, `world_border`; see `DimensionStorageFileFix`).
+    /// `dimension` is the `minecraft` dimension path, e.g. `overworld`.
+    pub fn dimension_saved_data_file(&self, dimension: &str, name: &str) -> PathBuf {
+        self.dimensions_dir()
+            .join("minecraft")
+            .join(dimension)
+            .join("data")
+            .join("minecraft")
+            .join(format!("{name}.dat"))
+    }
+
+    /// `MapId.key()`: `data/minecraft/maps/<id>.dat`.
     pub fn map_data_file(&self, id: i32) -> PathBuf {
-        self.saved_data_file(&format!("map_{id}"))
+        self.saved_data_file(&format!("maps/{id}"))
     }
 
     pub fn ensure_base_dirs(&self) -> std::io::Result<()> {
@@ -864,17 +882,11 @@ impl WorldLayout {
     }
 
     pub fn save_saved_data(&self, name: &str, tag: &Tag) -> std::io::Result<()> {
-        fs::create_dir_all(self.data_dir())?;
-        let mut bytes = Vec::new();
-        let tag = tag_with_data_version(tag);
-        write_named_tag(&mut bytes, "", &tag)?;
-        durable_write_with_backup(&self.saved_data_file(name), None, &bytes)
+        write_saved_data_file(&self.saved_data_file(name), tag)
     }
 
     pub fn load_saved_data(&self, name: &str) -> std::io::Result<Tag> {
-        let bytes = fs::read(self.saved_data_file(name))?;
-        let (_name, tag) = read_named_tag(&mut bytes.as_slice())?;
-        checked_saved_tag(name, tag)
+        read_saved_data_file(&self.saved_data_file(name), name)
     }
 
     pub fn save_scoreboard(&self, tag: &Tag) -> std::io::Result<()> {
@@ -885,34 +897,36 @@ impl WorldLayout {
         self.load_saved_data("scoreboard")
     }
 
-    pub fn save_raids(&self, dimension_suffix: &str, tag: &Tag) -> std::io::Result<()> {
-        self.save_saved_data(&format!("raids{dimension_suffix}"), tag)
+    /// `Raids.TYPE` of the given `minecraft` dimension (`overworld`, `the_end`, ...).
+    pub fn save_raids(&self, dimension: &str, tag: &Tag) -> std::io::Result<()> {
+        write_saved_data_file(&self.dimension_saved_data_file(dimension, "raids"), tag)
     }
 
-    pub fn load_raids(&self, dimension_suffix: &str) -> std::io::Result<Tag> {
-        self.load_saved_data(&format!("raids{dimension_suffix}"))
+    pub fn load_raids(&self, dimension: &str) -> std::io::Result<Tag> {
+        read_saved_data_file(&self.dimension_saved_data_file(dimension, "raids"), "raids")
     }
 
     pub fn save_map_data(&self, id: i32, tag: &Tag) -> std::io::Result<()> {
-        fs::create_dir_all(self.data_dir())?;
-        let mut bytes = Vec::new();
-        let tag = tag_with_data_version(tag);
-        write_named_tag(&mut bytes, "", &tag)?;
-        durable_write_with_backup(&self.map_data_file(id), None, &bytes)
+        write_saved_data_file(&self.map_data_file(id), tag)
     }
 
     pub fn load_map_data(&self, id: i32) -> std::io::Result<Tag> {
-        let bytes = fs::read(self.map_data_file(id))?;
-        let (_name, tag) = read_named_tag(&mut bytes.as_slice())?;
-        checked_saved_tag(&format!("map_{id}"), tag)
+        read_saved_data_file(&self.map_data_file(id), &format!("maps/{id}"))
     }
 
+    /// Overworld `TicketStorage.TYPE` (`chunk_tickets`).
     pub fn save_forced_chunks(&self, tag: &Tag) -> std::io::Result<()> {
-        self.save_saved_data("chunk_tickets", tag)
+        write_saved_data_file(
+            &self.dimension_saved_data_file("overworld", "chunk_tickets"),
+            tag,
+        )
     }
 
     pub fn load_forced_chunks(&self) -> std::io::Result<Tag> {
-        self.load_saved_data("chunk_tickets")
+        read_saved_data_file(
+            &self.dimension_saved_data_file("overworld", "chunk_tickets"),
+            "chunk_tickets",
+        )
     }
 
     pub fn save_custom_bossbars(&self, tag: &Tag) -> std::io::Result<()> {
@@ -954,6 +968,24 @@ impl WorldLayout {
             .read_chunk_nbt(pos)
             .map(|chunk| chunk.map(|(_name, tag)| tag))
     }
+}
+
+/// Writes a `SavedData` file (named root tag + `DataVersion`), creating parents.
+fn write_saved_data_file(path: &Path, tag: &Tag) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut bytes = Vec::new();
+    let tag = tag_with_data_version(tag);
+    write_named_tag(&mut bytes, "", &tag)?;
+    durable_write_with_backup(path, None, &bytes)
+}
+
+/// Reads a `SavedData` file and checks its `DataVersion`.
+fn read_saved_data_file(path: &Path, label: &str) -> std::io::Result<Tag> {
+    let bytes = fs::read(path)?;
+    let (_name, tag) = read_named_tag(&mut bytes.as_slice())?;
+    checked_saved_tag(label, tag)
 }
 
 impl PlayerDataStorage {

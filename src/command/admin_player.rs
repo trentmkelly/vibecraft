@@ -67,8 +67,11 @@ pub(super) fn ban_command(
     let (targets, reason) = ban_targets_and_optional_reason(&parts[1..])?;
     let mut count = 0;
     for target in targets {
-        let profile = NameAndId::create_offline(target);
+        let profile = state.resolve_profile(target);
         if state.add_player_ban(profile.clone(), reason.clone()) {
+            if count == 0 {
+                state.feedback_args = vec![profile.name.clone(), ban_reason_message(reason.as_deref())];
+            }
             state
                 .ban_player_feedback_events
                 .push(BanPlayerFeedbackEvent {
@@ -99,6 +102,11 @@ pub(super) fn ban_command(
             broadcast_to_admins: true,
         })
     }
+}
+
+/// `BanListEntry.getReasonMessage` as plain text: the reason, or the translated default.
+fn ban_reason_message(reason: Option<&str>) -> String {
+    reason.unwrap_or("Banned by an operator.").to_string()
 }
 
 pub(super) fn ban_targets_and_optional_reason<'a>(
@@ -134,9 +142,10 @@ pub(super) fn ban_ip_command(
             .online_ip_for_name(target)
             .ok_or(CommandError::BanIpInvalid)?
     };
-    if !state.add_ip_ban(ip.clone(), reason) {
+    if !state.add_ip_ban(ip.clone(), reason.clone()) {
         return Err(CommandError::BanIpFailed);
     }
+    state.feedback_args = vec![ip.clone(), ban_reason_message(reason.as_deref())];
     state.ban_ip_feedback_events.push(BanIpFeedbackEvent {
         feedback_key: "commands.banip.success",
         broadcast_to_admins: true,
@@ -187,14 +196,18 @@ pub(super) fn pardon_command(
     if parts.len() < 2 {
         return Err(CommandError::InvalidSyntax);
     }
-    let pardoned = parts[1..]
+    let profiles = parts[1..]
         .iter()
-        .map(|target| NameAndId::create_offline(target))
+        .map(|target| state.resolve_profile(target))
+        .collect::<Vec<_>>();
+    let pardoned = profiles
+        .into_iter()
         .filter(|profile| state.remove_player_ban(profile))
         .collect::<Vec<_>>();
     if pardoned.is_empty() {
         Err(CommandError::PardonFailed)
     } else {
+        state.feedback_args = vec![pardoned[0].name.clone()];
         push_extra_admin_feedback(state, pardoned.len(), "commands.pardon.success");
         Ok(CommandResult {
             success_count: pardoned.len() as i32,
@@ -227,6 +240,7 @@ pub(super) fn pardon_ip_command(
             if !state.remove_ip_ban(ip) {
                 return Err(CommandError::PardonIpFailed);
             }
+            state.feedback_args = vec![(*ip).to_string()];
             Ok(CommandResult {
                 success_count: 1,
                 feedback_key: "commands.pardonip.success",

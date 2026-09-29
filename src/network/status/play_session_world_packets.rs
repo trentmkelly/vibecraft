@@ -1,6 +1,7 @@
 use crate::storage::world::WorldLayout;
 use super::*;
 use super::live_chat_state::CHAT_VALIDATION_FAILED;
+use super::datapack_live::seed_data_pack_state;
 
 pub fn write_generated_spawn_chunk_packets_from_chunk<W: Write>(
     writer: &mut W,
@@ -225,13 +226,12 @@ pub fn handle_chat_packet<R: Read>(
     input: &mut R,
     profile: &NameAndId,
     chat_state: &mut LiveChatState,
+    active_login: &ActiveLoginGuard,
+    properties: &ServerProperties,
 ) -> io::Result<()> {
     // Java handleChat: unpackAndApplyLastSeen runs first (disconnecting on a
     // validation failure), then tryHandleChat rejects StringUtil-disallowed
     // chat characters before decoration.
-    // TODO(secure-chat-chain): decode the signature through SignedMessageChain
-    // (needs a validated RemoteChatSession, i.e. online-mode profile keys) and
-    // surface handleMessageDecodeFailure; offline sessions are always unsigned.
     let packet = ServerboundChatPacket::read(input)?;
     if chat_state
         .unpack_and_apply_last_seen(&packet.last_seen_messages)
@@ -240,20 +240,13 @@ pub fn handle_chat_packet<R: Read>(
         write_disconnect_component(stream, compression, CHAT_VALIDATION_FAILED)?;
         return Ok(());
     }
-    if chat_message_is_illegal(&packet.message) {
-        write_disconnect_component(
-            stream,
-            compression,
-            "multiplayer.disconnect.illegal_characters",
-        )?;
-        return Ok(());
-    }
-
-    write_system_chat_text(
+    super::player_chat_live::handle_plain_chat(
         stream,
         compression,
-        &format!("<{}> {}", profile.name, packet.message),
-        false,
+        profile,
+        &packet.message,
+        active_login,
+        properties,
     )
 }
 
@@ -318,8 +311,18 @@ pub fn handle_chat_command_packet<R: Read>(
         context.active_login,
     );
     seed_command_game_rules(&mut command_state, context.game_rules);
+    seed_data_pack_state(&mut command_state, &command);
+    let access_context = AccessContext {
+        access: context.player_access,
+        properties: context.properties,
+        sessions: context.active_login.live_sessions(),
+        properties_file: Some(Path::new("server.properties")),
+    };
+    let access_seed =
+        seed_access_state(&mut command_state, context.player_access, access_context.sessions);
     let result = execute_builtin_command(&mut command_state, permissions, &command);
     apply_command_game_rule_changes(&command_state, context.game_rules);
+    apply_access_changes(&access_context, &access_seed, &command_state);
     apply_command_effects(context.active_login, &command_state, &result, context.game_rules)?;
     apply_command_side_effects(
         stream,
@@ -504,12 +507,16 @@ fn apply_command_side_effects(
     Ok(())
 }
 
+/// Plain-string feedback of a built-in command, formatted from the vendored `en_us` language
+/// (`Component.translatable(key, args).getString()`).
 pub(super) fn command_feedback_text(
     result: &crate::command::CommandResult,
     state: &ServerCommandState,
 ) -> String {
+    use crate::language::translate;
     match result.feedback_key {
-        "commands.seed.success" => format!("Seed: {}", state.world_seed),
+        // `ComponentUtils.copyOnClickText` wraps the seed in square brackets.
+        "commands.seed.success" => translate(result.feedback_key, &[format!("[{}]", state.world_seed)]),
         "commands.list.players" => {
             let players = state
                 .online_players
@@ -523,15 +530,15 @@ pub(super) fn command_feedback_text(
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!(
-                "There are {} of a max of {} players online: {}",
-                state.online_players.len(),
-                state.max_players,
-                players
+            translate(
+                result.feedback_key,
+                &[
+                    state.online_players.len().to_string(),
+                    state.max_players.to_string(),
+                    players,
+                ],
             )
         }
-        "commands.gamemode.success.self" => "Set own game mode".to_string(),
-        "commands.say.success" => "Message sent".to_string(),
         // VibeCraft-only debug command feedback; vanilla has no `/biome` command.
         "commands.vibecraft.debug.biome" => {
             format!("Biome: {}", debug_biome_at_command_source(state))

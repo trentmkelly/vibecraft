@@ -1,9 +1,10 @@
 use std::fs;
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::block_update::BlockPos;
+use chrono::{DateTime, Local};
 use serde_json::{Map, Value};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -71,6 +72,12 @@ pub struct PlayerAccess {
     whitelist: Vec<NameAndId>,
     ops: Vec<OpEntry>,
     user_cache: Vec<NameAndId>,
+    /// Java `MinecraftServer.usingWhitelist` (the `white-list` property, toggled live by
+    /// `/whitelist on|off`).
+    using_whitelist: bool,
+    /// Directory the JSON lists were loaded from and are written back to (Java's server
+    /// root, where `StoredUserList.save` writes). `None` keeps the lists memory-only.
+    storage_dir: Option<PathBuf>,
     #[cfg(test)]
     profile_cache: ProfileCache,
 }
@@ -82,6 +89,7 @@ impl PlayerAccess {
             banned_ips: load_ip_ban_entries(&dir.join("banned-ips.json"))?,
             whitelist: load_name_and_id_entries(&dir.join("whitelist.json"))?,
             ops: load_op_entries(&dir.join("ops.json"))?,
+            storage_dir: Some(dir.to_path_buf()),
             ..Self::default()
         };
         let cached = load_user_cache_entries(&dir.join("usercache.json"), SystemTime::now())?;
@@ -91,31 +99,186 @@ impl PlayerAccess {
         Ok(access)
     }
 
-    #[cfg(test)]
-    pub fn ban_player(&mut self, entry: BanEntry<NameAndId>) {
+    /// Java `UserBanList.add` (`StoredUserList.add`): stores `entry`, replacing any entry for
+    /// the same user, and saves `banned-players.json`. Returns false (and writes nothing) when
+    /// an equal entry (same user, source, expiry and reason) is already present.
+    pub fn ban_player(&mut self, entry: BanEntry<NameAndId>) -> bool {
+        let previous = self
+            .banned_players
+            .iter()
+            .position(|existing| existing.user.uuid == entry.user.uuid);
+        if previous.is_some_and(|index| same_ban(&self.banned_players[index], &entry)) {
+            return false;
+        }
         self.banned_players
             .retain(|existing| existing.user.uuid != entry.user.uuid);
         self.banned_players.push(entry);
+        self.save_list("banned-players.json", self.banned_players_json());
+        true
     }
 
-    #[cfg(test)]
-    pub fn ban_ip(&mut self, entry: BanEntry<String>) {
-        self.banned_ips
-            .retain(|existing| existing.user != entry.user);
+    /// Java `IpBanList.add`; see [`Self::ban_player`].
+    pub fn ban_ip(&mut self, entry: BanEntry<String>) -> bool {
+        let previous = self
+            .banned_ips
+            .iter()
+            .position(|existing| existing.user == entry.user);
+        if previous.is_some_and(|index| same_ban(&self.banned_ips[index], &entry)) {
+            return false;
+        }
+        self.banned_ips.retain(|existing| existing.user != entry.user);
         self.banned_ips.push(entry);
+        self.save_list("banned-ips.json", self.banned_ips_json());
+        true
     }
 
-    #[cfg(test)]
-    pub fn whitelist(&mut self, user: NameAndId) {
-        self.whitelist.retain(|existing| existing.uuid != user.uuid);
+    /// Java `UserBanList.remove` (`/pardon`): true when an entry was removed.
+    pub fn pardon_player(&mut self, uuid: &str) -> bool {
+        let old_len = self.banned_players.len();
+        self.banned_players.retain(|entry| entry.user.uuid != uuid);
+        let removed = self.banned_players.len() != old_len;
+        if removed {
+            self.save_list("banned-players.json", self.banned_players_json());
+        }
+        removed
+    }
+
+    /// Java `IpBanList.remove` (`/pardon-ip`): true when an entry was removed.
+    pub fn pardon_ip(&mut self, ip: &str) -> bool {
+        let old_len = self.banned_ips.len();
+        self.banned_ips.retain(|entry| entry.user != ip);
+        let removed = self.banned_ips.len() != old_len;
+        if removed {
+            self.save_list("banned-ips.json", self.banned_ips_json());
+        }
+        removed
+    }
+
+    /// Java `UserWhiteList.add`: true when the user was newly listed.
+    pub fn whitelist(&mut self, user: NameAndId) -> bool {
+        if self.is_whitelisted(&user.uuid) {
+            return false;
+        }
         self.whitelist.push(user);
+        self.save_list("whitelist.json", self.whitelist_json());
+        true
     }
 
-    #[cfg(test)]
-    pub fn op(&mut self, entry: OpEntry) {
+    /// Java `UserWhiteList.remove`: true when the user was listed.
+    pub fn unwhitelist(&mut self, uuid: &str) -> bool {
+        let old_len = self.whitelist.len();
+        self.whitelist.retain(|entry| entry.uuid != uuid);
+        let removed = self.whitelist.len() != old_len;
+        if removed {
+            self.save_list("whitelist.json", self.whitelist_json());
+        }
+        removed
+    }
+
+    /// Java `ServerOpList.add`: stores `entry` (replacing any entry for the same user) and
+    /// saves `ops.json`. Returns false when an identical entry already exists.
+    pub fn op(&mut self, entry: OpEntry) -> bool {
+        if self.ops.contains(&entry) {
+            return false;
+        }
         self.ops
             .retain(|existing| existing.user.uuid != entry.user.uuid);
         self.ops.push(entry);
+        self.save_list("ops.json", self.ops_json());
+        true
+    }
+
+    /// Java `ServerOpList.remove` (`PlayerList.deop`): true when the user was an operator.
+    pub fn deop(&mut self, uuid: &str) -> bool {
+        let old_len = self.ops.len();
+        self.ops.retain(|entry| entry.user.uuid != uuid);
+        let removed = self.ops.len() != old_len;
+        if removed {
+            self.save_list("ops.json", self.ops_json());
+        }
+        removed
+    }
+
+    /// Java `DedicatedPlayerList.reloadWhiteList` (`UserWhiteList.load`): re-reads
+    /// `whitelist.json` from the storage directory. A memory-only list is left untouched.
+    pub fn reload_whitelist(&mut self) -> std::io::Result<()> {
+        if let Some(dir) = &self.storage_dir {
+            self.whitelist = load_name_and_id_entries(&dir.join("whitelist.json"))?;
+        }
+        Ok(())
+    }
+
+    /// Re-reads every list file from the storage directory (operator `reload`): the ban, op
+    /// and whitelist lists follow the files while `usercache.json` and the live `white-list`
+    /// flag are kept.
+    pub fn reload_lists(&mut self) -> std::io::Result<()> {
+        let Some(dir) = self.storage_dir.clone() else { return Ok(()) };
+        self.banned_players = load_name_ban_entries(&dir.join("banned-players.json"))?;
+        self.banned_ips = load_ip_ban_entries(&dir.join("banned-ips.json"))?;
+        self.whitelist = load_name_and_id_entries(&dir.join("whitelist.json"))?;
+        self.ops = load_op_entries(&dir.join("ops.json"))?;
+        Ok(())
+    }
+
+    /// Java `MinecraftServer.isUsingWhitelist`.
+    pub fn using_whitelist(&self) -> bool {
+        self.using_whitelist
+    }
+
+    /// Java `MinecraftServer.setUsingWhitelist`.
+    pub fn set_using_whitelist(&mut self, using: bool) {
+        self.using_whitelist = using;
+    }
+
+    /// Writes one list file; failures are logged like Java's `StoredUserList.save` callers
+    /// (`LOGGER.warn("Failed to save ...")`) and never abort the command.
+    fn save_list(&self, file: &str, contents: String) {
+        let Some(dir) = &self.storage_dir else { return };
+        if let Err(err) = fs::create_dir_all(dir).and_then(|()| fs::write(dir.join(file), contents))
+        {
+            eprintln!("Failed to save {file}: {err}");
+        }
+    }
+
+    /// The unexpired user bans (Java `UserBanList.getEntries` after `removeExpired`).
+    pub fn banned_players(&self) -> Vec<&BanEntry<NameAndId>> {
+        let now = Local::now();
+        self.banned_players
+            .iter()
+            .filter(|entry| !ban_has_expired(entry, now))
+            .collect()
+    }
+
+    /// The unexpired IP bans (Java `IpBanList.getEntries` after `removeExpired`).
+    pub fn banned_ips(&self) -> Vec<&BanEntry<String>> {
+        let now = Local::now();
+        self.banned_ips
+            .iter()
+            .filter(|entry| !ban_has_expired(entry, now))
+            .collect()
+    }
+
+    /// The whitelisted users (Java `UserWhiteList.getEntries`).
+    pub fn whitelisted(&self) -> &[NameAndId] {
+        &self.whitelist
+    }
+
+    /// The operator entries (Java `ServerOpList.getEntries`).
+    pub fn operators(&self) -> &[OpEntry] {
+        &self.ops
+    }
+
+    /// Java `ServerOpList.canBypassPlayerLimit`.
+    pub fn can_bypass_player_limit(&self, uuid: &str) -> bool {
+        self.ops
+            .iter()
+            .find(|entry| entry.user.uuid == uuid)
+            .is_some_and(|entry| entry.bypasses_player_limit)
+    }
+
+    /// The cached profiles (Java `GameProfileCache` entries), newest last.
+    pub fn cached_users(&self) -> &[NameAndId] {
+        &self.user_cache
     }
 
     pub fn cache_user(&mut self, user: NameAndId) {
@@ -131,14 +294,30 @@ impl PlayerAccess {
         self.profile_cache.lookup(name, now)
     }
 
-    pub fn is_player_banned(&self, uuid: &str) -> bool {
+    /// The live (unexpired) ban of `uuid`, Java `UserBanList.get`.
+    pub fn player_ban(&self, uuid: &str) -> Option<&BanEntry<NameAndId>> {
+        let now = Local::now();
         self.banned_players
             .iter()
-            .any(|entry| entry.user.id() == uuid)
+            .find(|entry| entry.user.id() == uuid && !ban_has_expired(entry, now))
     }
 
+    /// The live (unexpired) ban of `ip`, Java `IpBanList.get`.
+    pub fn ip_ban(&self, ip: &str) -> Option<&BanEntry<String>> {
+        let now = Local::now();
+        self.banned_ips
+            .iter()
+            .find(|entry| entry.user == ip && !ban_has_expired(entry, now))
+    }
+
+    #[cfg(test)]
+    pub fn is_player_banned(&self, uuid: &str) -> bool {
+        self.player_ban(uuid).is_some()
+    }
+
+    #[cfg(test)]
     pub fn is_ip_banned(&self, ip: &str) -> bool {
-        self.banned_ips.iter().any(|entry| entry.user == ip)
+        self.ip_ban(ip).is_some()
     }
 
     pub fn is_whitelisted(&self, uuid: &str) -> bool {
@@ -223,63 +402,46 @@ impl PlayerAccess {
         Ok(())
     }
 
-    #[cfg(test)]
     fn banned_players_json(&self) -> String {
-        json_array(
+        gson_pretty(
             self.banned_players
                 .iter()
                 .map(|entry| {
-                    format!(
-                        "{{\"uuid\":\"{}\",\"name\":\"{}\",\"created\":\"{}\",\"source\":\"{}\",\"expires\":\"{}\",\"reason\":\"{}\"}}",
-                        escape(&entry.user.uuid),
-                        escape(&entry.user.name),
-                        escape(&entry.created),
-                        escape(&entry.source),
-                        escape(entry.expires.as_deref().unwrap_or("forever")),
-                        escape(entry.reason.as_deref().unwrap_or(""))
-                    )
+                    let mut fields = name_and_id_fields(&entry.user);
+                    append_ban_fields(entry, &mut fields);
+                    fields
                 })
                 .collect(),
         )
     }
 
-    #[cfg(test)]
     fn banned_ips_json(&self) -> String {
-        json_array(
+        gson_pretty(
             self.banned_ips
                 .iter()
                 .map(|entry| {
-                    format!(
-                        "{{\"ip\":\"{}\",\"created\":\"{}\",\"source\":\"{}\",\"expires\":\"{}\",\"reason\":\"{}\"}}",
-                        escape(&entry.user),
-                        escape(&entry.created),
-                        escape(&entry.source),
-                        escape(entry.expires.as_deref().unwrap_or("forever")),
-                        escape(entry.reason.as_deref().unwrap_or(""))
-                    )
+                    let mut fields = vec![("ip", Value::String(entry.user.clone()))];
+                    append_ban_fields(entry, &mut fields);
+                    fields
                 })
                 .collect(),
         )
     }
 
-    #[cfg(test)]
     fn whitelist_json(&self) -> String {
-        json_array(self.whitelist.iter().map(name_and_id_json).collect())
+        gson_pretty(self.whitelist.iter().map(name_and_id_fields).collect())
     }
 
-    #[cfg(test)]
+    /// Java `ServerOpListEntry.serialize`.
     fn ops_json(&self) -> String {
-        json_array(
+        gson_pretty(
             self.ops
                 .iter()
                 .map(|entry| {
-                    format!(
-                        "{{\"uuid\":\"{}\",\"name\":\"{}\",\"level\":{},\"bypassesPlayerLimit\":{}}}",
-                        escape(&entry.user.uuid),
-                        escape(&entry.user.name),
-                        entry.level,
-                        entry.bypasses_player_limit
-                    )
+                    let mut fields = name_and_id_fields(&entry.user);
+                    fields.push(("level", Value::from(entry.level)));
+                    fields.push(("bypassesPlayerLimit", Value::Bool(entry.bypasses_player_limit)));
+                    fields
                 })
                 .collect(),
         )
@@ -558,11 +720,6 @@ struct ProfileCacheEntry {
     cached_at: SystemTime,
 }
 
-#[cfg(test)]
-fn name_and_id_json(user: &NameAndId) -> String {
-    serde_json::to_string(&user.to_json_value()).unwrap_or_else(|_| "{}".to_string())
-}
-
 fn user_cache_expires_on(now: SystemTime) -> String {
     let expires = now + Duration::from_secs(60 * 60 * 24 * 30);
     let seconds = expires
@@ -643,19 +800,87 @@ fn json_array(entries: Vec<String>) -> String {
     }
 }
 
-#[cfg(test)]
-fn escape(value: &str) -> String {
-    value
-        .chars()
-        .flat_map(|ch| match ch {
-            '"' => "\\\"".chars().collect::<Vec<_>>(),
-            '\\' => "\\\\".chars().collect::<Vec<_>>(),
-            '\n' => "\\n".chars().collect::<Vec<_>>(),
-            '\r' => "\\r".chars().collect::<Vec<_>>(),
-            '\t' => "\\t".chars().collect::<Vec<_>>(),
-            ch => vec![ch],
+/// Java `BanListEntry.DATE_FORMAT` (`yyyy-MM-dd HH:mm:ss Z`).
+pub const BAN_DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S %z";
+
+/// `BanListEntry.DATE_FORMAT.format(new Date())`: the current time for a fresh ban's `created`.
+pub fn ban_timestamp_now() -> String {
+    Local::now().format(BAN_DATE_FORMAT).to_string()
+}
+
+/// `BanListEntry.equals`: user, source, expiry and reason (not the creation time).
+fn same_ban<T: PartialEq>(left: &BanEntry<T>, right: &BanEntry<T>) -> bool {
+    left.user == right.user
+        && left.source == right.source
+        && left.expires == right.expires
+        && left.reason == right.reason
+}
+
+/// `BanListEntry.hasExpired`: an unparsable expiry reads as "never" like Java's
+/// `ParseException` fallback (`expires = null`).
+fn ban_has_expired<T>(entry: &BanEntry<T>, now: DateTime<Local>) -> bool {
+    entry
+        .expires
+        .as_deref()
+        .and_then(|text| DateTime::parse_from_str(text, BAN_DATE_FORMAT).ok())
+        .is_some_and(|expires| expires < now)
+}
+
+/// One serialized list entry: JSON members in Java's insertion order (`JsonObject` keeps it).
+type JsonFields = Vec<(&'static str, Value)>;
+
+/// `NameAndId.appendTo`: `uuid` then `name`.
+fn name_and_id_fields(user: &NameAndId) -> JsonFields {
+    let mut object = Map::new();
+    user.append_to(&mut object);
+    vec![
+        ("uuid", object.remove("uuid").unwrap_or(Value::Null)),
+        ("name", Value::String(user.name.clone())),
+    ]
+}
+
+/// `BanListEntry.serialize`: `reason` is omitted when null (Gson drops `JsonNull` members).
+fn append_ban_fields<T>(entry: &BanEntry<T>, fields: &mut JsonFields) {
+    fields.push(("created", Value::String(entry.created.clone())));
+    fields.push(("source", Value::String(entry.source.clone())));
+    fields.push((
+        "expires",
+        Value::String(entry.expires.clone().unwrap_or_else(|| "forever".to_string())),
+    ));
+    if let Some(reason) = &entry.reason {
+        fields.push(("reason", Value::String(reason.clone())));
+    }
+}
+
+/// Java `StoredUserList.GSON` output (`setPrettyPrinting`, HTML escaping on): a JSON array of
+/// objects with two-space indentation and `< > & = '` written as `\u00XX` escapes.
+fn gson_pretty(entries: Vec<JsonFields>) -> String {
+    if entries.is_empty() {
+        return "[]".to_string();
+    }
+    let objects: Vec<String> = entries
+        .iter()
+        .map(|fields| {
+            let members: Vec<String> = fields
+                .iter()
+                .map(|(key, value)| {
+                    let value = serde_json::to_string(value).unwrap_or_else(|_| "null".into());
+                    format!("    \"{key}\": {}", gson_html_escape(&value))
+                })
+                .collect();
+            format!("  {{\n{}\n  }}", members.join(",\n"))
         })
-        .collect()
+        .collect();
+    format!("[\n{}\n]", objects.join(",\n"))
+}
+
+/// Gson's default HTML-safe escaping; those characters only occur inside string values here.
+fn gson_html_escape(json: &str) -> String {
+    json.replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026")
+        .replace('=', "\\u003d")
+        .replace('\'', "\\u0027")
 }
 
 fn load_name_and_id_entries(path: &Path) -> std::io::Result<Vec<NameAndId>> {
@@ -732,7 +957,7 @@ fn load_op_entries(path: &Path) -> std::io::Result<Vec<OpEntry>> {
             };
             Some(OpEntry {
                 user,
-                level: json_u8_field(&object, "level").unwrap_or(4),
+                level: json_u8_field(&object, "level").unwrap_or(0),
                 bypasses_player_limit: json_bool_field(&object, "bypassesPlayerLimit")
                     .unwrap_or(false),
             })
@@ -827,30 +1052,41 @@ fn parse_json_string(input: &str) -> Option<(String, &str)> {
         return None;
     }
     let mut out = String::new();
-    let mut escaped = false;
-    for (index, ch) in chars {
-        if escaped {
-            out.push(match ch {
-                '"' => '"',
-                '\\' => '\\',
-                '/' => '/',
-                'b' => '\u{0008}',
-                'f' => '\u{000c}',
-                'n' => '\n',
-                'r' => '\r',
-                't' => '\t',
-                other => other,
-            });
-            escaped = false;
-        } else if ch == '\\' {
-            escaped = true;
-        } else if ch == '"' {
+    let mut units: Vec<u16> = Vec::new();
+    while let Some((index, ch)) = chars.next() {
+        if ch == '"' {
+            flush_utf16(&mut out, &mut units);
             return Some((out, &input[index + 1..]));
-        } else {
-            out.push(ch);
         }
+        if ch != '\\' {
+            flush_utf16(&mut out, &mut units);
+            out.push(ch);
+            continue;
+        }
+        let (_, escape) = chars.next()?;
+        if escape == 'u' {
+            // `\uXXXX` is a UTF-16 code unit; pairs are combined by `flush_utf16`.
+            let hex: String = chars.by_ref().take(4).map(|(_, digit)| digit).collect();
+            units.push(u16::from_str_radix(&hex, 16).ok()?);
+            continue;
+        }
+        flush_utf16(&mut out, &mut units);
+        out.push(match escape {
+            'b' => '\u{0008}',
+            'f' => '\u{000c}',
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            other => other,
+        });
     }
     None
+}
+
+/// Appends pending `\uXXXX` UTF-16 code units (lone surrogates become U+FFFD like Gson's
+/// lenient decoding of malformed text).
+fn flush_utf16(out: &mut String, units: &mut Vec<u16>) {
+    out.extend(char::decode_utf16(units.drain(..)).map(|unit| unit.unwrap_or('\u{FFFD}')));
 }
 
 #[cfg(test)]

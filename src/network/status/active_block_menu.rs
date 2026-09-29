@@ -1,14 +1,15 @@
 use super::block_menu_open::LiveBlockMenuKind;
 use super::*;
 use crate::container_menus::CraftingMenu;
-use crate::inventory::{Menu, Slot};
+use crate::inventory::{Menu, Slot, SlotRestriction};
 use crate::inventory_transactions::{apply_scripted_packet, ScriptedContainerClickPacket};
 use crate::network::play::{
     ClientboundContainerPacket, ClientboundSetCursorItemPacket, ContainerInput,
     CLIENTBOUND_CONTAINER_SET_CONTENT_PACKET_ID,
 };
 use crate::block_entity::{AbstractFurnaceBlockEntity, FurnaceBlockEntityKind, PotItemStack};
-use crate::live_block_entities::furnace::apply_menu_slots;
+use crate::live_block_entities::furnace::{apply_menu_slots, award_used_recipes};
+use crate::live_block_entities::openers::OpenGuard;
 use crate::recipe_system::RecipeMap;
 
 mod sync;
@@ -24,6 +25,9 @@ pub(in crate::network::status) struct ActiveBlockMenu {
     pos: crate::block_update::BlockPos,
     kind: ActiveBlockMenuKind,
     slots: Vec<ItemStack>,
+    /// `Container.startOpen` registration of a chest, barrel or shulker box;
+    /// dropping the menu is `Container.stopOpen`.
+    opener: Option<OpenGuard>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -62,11 +66,14 @@ impl ActiveBlockMenu {
         recipes: &RecipeMap,
     ) -> Self {
         match live_kind {
-            LiveBlockMenuKind::Generic9x3 { block_entity_id } => Self::persistent(
+            LiveBlockMenuKind::Container {
+                block_entity_id,
+                slot_count,
+            } => Self::persistent(
                 container_id,
                 pos,
                 block_entity_id,
-                27,
+                slot_count,
                 None,
                 None,
                 world_layout,
@@ -96,6 +103,7 @@ impl ActiveBlockMenu {
                     menu: Box::new(CraftingMenu::new(recipes.clone())),
                 },
                 slots: Vec::new(),
+                opener: None,
             },
             LiveBlockMenuKind::Ephemeral {
                 slot_count,
@@ -106,6 +114,7 @@ impl ActiveBlockMenu {
                 pos,
                 kind: ActiveBlockMenuKind::Ephemeral { result_slot },
                 slots: vec![ItemStack::empty(); slot_count],
+                opener: None,
             },
         }
     }
@@ -139,6 +148,41 @@ impl ActiveBlockMenu {
                 furnace,
             },
             slots,
+            opener: None,
+        }
+    }
+
+    /// `Container.startOpen(player)` as `ChestMenu` / `ShulkerBoxMenu` do on
+    /// construction: registers the player with the block entity's
+    /// `ContainerOpenersCounter` so the lid animates and the sounds play.
+    /// Spectators never register (`!containerUser.getLivingEntity().isSpectator()`),
+    /// and only the block entities with an openers counter take part.
+    pub(in crate::network::status) fn start_open(
+        &mut self,
+        openers: &std::sync::Arc<crate::live_block_entities::openers::ContainerOpeners>,
+        state: &PlaySessionState,
+    ) {
+        let ActiveBlockMenuKind::Persistent {
+            block_entity_id, ..
+        } = &self.kind
+        else {
+            return;
+        };
+        let counts_openers = matches!(
+            *block_entity_id,
+            "minecraft:chest"
+                | "minecraft:trapped_chest"
+                | "minecraft:barrel"
+                | "minecraft:shulker_box"
+        );
+        if counts_openers && state.game_mode != GameMode::Spectator {
+            // `Player.getContainerInteractionRange` = `blockInteractionRange`.
+            let range = if state.game_mode == GameMode::Creative {
+                5.0
+            } else {
+                4.5
+            };
+            self.opener = Some(openers.start_open(self.pos, range));
         }
     }
 
@@ -212,14 +256,23 @@ impl ActiveBlockMenu {
         apply_scripted_packet(&mut menu, self.state_id, &scripted_packet);
 
         let result_slot_changed = self.result_slot_changed_after_click(&menu);
+        let result_before_click = self.furnace_result_stack();
         self.increment_state_id();
         self.apply_flat_menu(menu, state);
         self.apply_result_slot_take_if_needed(result_slot_changed);
         self.persist_if_needed(world_layout, world_seed, chunk_cache);
+        let awarded_recipes = self.award_furnace_result_take(
+            &result_before_click,
+            state,
+            world_layout,
+            world_seed,
+            chunk_cache,
+        );
 
         if full_resync_needed {
             let mut instructions = self.full_content_resync(state);
             self.push_recipe_unlocks(&mut instructions, state);
+            push_awarded_recipes(&mut instructions, state, awarded_recipes);
             return instructions;
         }
 
@@ -247,6 +300,7 @@ impl ActiveBlockMenu {
             }
         }
         self.push_recipe_unlocks(&mut instructions, state);
+        push_awarded_recipes(&mut instructions, state, awarded_recipes);
         instructions
     }
 
@@ -459,10 +513,75 @@ impl ActiveBlockMenu {
                 max_stack_size: 64,
                 may_place: result_slot != Some(slot),
                 may_pickup: true,
+                restriction: self.slot_restriction(slot),
             };
         }
         menu.carried = state.carried_item.clone();
         menu
+    }
+
+    /// The furnace menu's `FurnaceFuelSlot`; every other slot is a plain `Slot`
+    /// (the result slot's `mayPlace == false` is the `result_slot` flag).
+    fn slot_restriction(&self, slot: usize) -> SlotRestriction {
+        match &self.kind {
+            ActiveBlockMenuKind::Persistent {
+                furnace: Some(_), ..
+            } if slot == AbstractFurnaceBlockEntity::FUEL_SLOT => SlotRestriction::FurnaceFuel,
+            _ => SlotRestriction::None,
+        }
+    }
+
+    /// The furnace result slot's stack (empty for every other menu).
+    fn furnace_result_stack(&self) -> ItemStack {
+        match &self.kind {
+            ActiveBlockMenuKind::Persistent {
+                furnace: Some(_), ..
+            } => self.slots[AbstractFurnaceBlockEntity::RESULT_SLOT].clone(),
+            _ => ItemStack::empty(),
+        }
+    }
+
+    /// `FurnaceResultSlot.onTake` / `onQuickCraft` ->
+    /// `AbstractFurnaceBlockEntity.awardUsedRecipesAndPopExperience`: when the
+    /// click removed items from the result slot, the used recipes are awarded to
+    /// the player's recipe book, the experience is queued for the world ticker to
+    /// pop as orbs at the player, and `RecipesUsed` is cleared. Returns the
+    /// recipes to unlock.
+    fn award_furnace_result_take(
+        &mut self,
+        result_before: &ItemStack,
+        state: &PlaySessionState,
+        world_layout: &WorldLayout,
+        world_seed: i64,
+        chunk_cache: &GeneratedChunkCache,
+    ) -> Vec<&'static str> {
+        let ActiveBlockMenuKind::Persistent {
+            furnace: Some(furnace),
+            ..
+        } = &self.kind
+        else {
+            return Vec::new();
+        };
+        let result_after = &self.slots[AbstractFurnaceBlockEntity::RESULT_SLOT];
+        let taken = !result_before.is_empty()
+            && (result_after.is_empty() || result_after.count() < result_before.count());
+        if !taken {
+            return Vec::new();
+        }
+        let Some(existing) =
+            chunk_cache.block_entity_nbt_at(world_layout.root(), world_seed, self.pos)
+        else {
+            return Vec::new();
+        };
+        let mut rng = rand::thread_rng();
+        let award = award_used_recipes(furnace.kind, &existing, &furnace.recipes, || {
+            rand::Rng::gen::<f32>(&mut rng)
+        });
+        chunk_cache.set_block_entity_nbt(world_layout.root(), world_seed, self.pos, award.tag);
+        chunk_cache
+            .experience_awards
+            .award((state.x, state.y, state.z), award.experience);
+        award.recipe_ids
     }
 
     fn apply_flat_menu(&mut self, menu: Menu, state: &mut PlaySessionState) {
@@ -592,6 +711,22 @@ impl ActiveBlockMenu {
             tag = apply_menu_slots(furnace.kind, &existing, &stacks, &furnace.recipes);
         }
         chunk_cache.set_block_entity_nbt(world_layout.root(), world_seed, self.pos, tag);
+    }
+}
+
+/// `ServerPlayer.awardRecipes`: unlocks each recipe in the recipe book and tells
+/// the client about the newly unlocked ones.
+fn push_awarded_recipes(
+    instructions: &mut Vec<PlayInstruction>,
+    state: &mut PlaySessionState,
+    recipe_ids: Vec<&'static str>,
+) {
+    let unlocks = recipe_ids
+        .into_iter()
+        .filter(|recipe_id| state.inventory_menu.unlock_recipe(recipe_id))
+        .collect::<Vec<_>>();
+    if !unlocks.is_empty() {
+        instructions.push(PlayInstruction::RecipesUnlocked(unlocks));
     }
 }
 
@@ -790,3 +925,6 @@ fn tag_string_field<'a>(entries: &'a [(String, Tag)], key: &str) -> Option<&'a s
 #[cfg(test)]
 #[path = "active_block_menu_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "active_block_menu_furnace_tests.rs"]
+mod furnace_tests;

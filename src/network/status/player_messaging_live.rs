@@ -17,6 +17,7 @@
 use super::*;
 use crate::chat_component::Component;
 use crate::command::{ChatCommandEvent, ChatCommandKind};
+use super::datapack_live::{apply_data_pack_requests, DataPackOutcome};
 use crate::player_list::SERVER_SHUTDOWN_DISCONNECT;
 use crate::network::play::{
     ChatTypeBound, ClientboundDisguisedChatPacket, CLIENTBOUND_DISGUISED_CHAT_PACKET_ID,
@@ -56,7 +57,7 @@ pub(super) fn disconnect_payload(reason_json: String) -> io::Result<Vec<u8>> {
 /// Registry id of a chat type (`Registry.getId`). The synced `chat_type` registry
 /// is loaded from the data pack in sorted resource order, and the wire id is the
 /// element's position in it.
-fn chat_type_id(name: &str) -> i32 {
+pub(super) fn chat_type_id(name: &str) -> i32 {
     crate::registry_pipeline::registry_element_id("minecraft:chat_type", name)
         .unwrap_or_else(|| panic!("unknown chat type {name}")) as i32
 }
@@ -253,7 +254,7 @@ impl ActiveLoginGuard {
 
 /// JSON of a disconnect reason: a `multiplayer.*` translation key (as produced by
 /// the command model for the ban family) or literal `/kick <reason>` text.
-fn disconnect_reason_json(reason: &str) -> String {
+pub(super) fn disconnect_reason_json(reason: &str) -> String {
     if reason.starts_with("multiplayer.") {
         Component::translatable(reason, Vec::new()).to_json()
     } else {
@@ -312,6 +313,9 @@ impl CommandEffects<'_> {
         self.apply_disconnects()?;
         for event in &self.state.chat_events {
             self.apply_chat_event(event)?;
+        }
+        if apply_data_pack_requests(self.state, &self.guard.world_bus) == DataPackOutcome::Failed {
+            self.send_failure("commands.reload.failure")?;
         }
         Ok(())
     }

@@ -76,22 +76,14 @@ pub fn apply_player_movement(
         }
     }
 
-    let mut health_changed = false;
     if state.on_ground && state.fall_distance > 0.0 {
-        let damage = calculate_fall_damage(FallDamageInput {
-            fall_distance: state.fall_distance,
-            damage_modifier: 1.0,
-            safe_fall_distance: DEFAULT_SAFE_FALL_DISTANCE,
-            fall_damage_multiplier: DEFAULT_FALL_DAMAGE_MULTIPLIER,
-            fall_damage_enabled: true,
-            may_fly: state.abilities.mayfly,
-        });
-        if damage > 0 && state.health > 0.0 {
-            player_death::hurt_player(state, "minecraft:fall", damage as f32);
-            health_changed = true;
-        }
+        // Entity.checkFallDamage -> Block.fallOn: the damage depends on the landing block, which
+        // `player_environment::tick_player_environment` resolves against the world next tick.
+        let landing = &mut state.combat.hurt.pending_landing;
+        *landing = Some(landing.map_or(state.fall_distance, |pending| pending.max(state.fall_distance)));
         state.fall_distance = 0.0;
     }
+    let health_changed = false;
 
     PlaySessionUpdate {
         position_changed,
@@ -309,13 +301,16 @@ pub fn tick_play_session_water(
 
     if state.health > 0.0 {
         if state.eye_in_water {
-            if !state.abilities.invulnerable {
-                state.air_supply -= 1;
+            if !state.abilities.invulnerable && !player_environment::has_water_breathing(state) {
+                state.air_supply = player_environment::decrease_air_supply(state);
                 if state.air_supply <= DROWN_AIR_SUPPLY_THRESHOLD {
                     state.air_supply = 0;
+                    player_damage::queue_entity_event(state, player_damage::ENTITY_EVENT_DROWN);
                     player_death::hurt_player(state, "minecraft:drown", DROWN_DAMAGE);
                 }
-            } else if state.air_supply < MAX_AIR_SUPPLY {
+            } else if state.air_supply < MAX_AIR_SUPPLY
+                && player_environment::effects_refill_air_supply(state)
+            {
                 state.air_supply = (state.air_supply + 4).min(MAX_AIR_SUPPLY);
             }
         } else if state.air_supply < MAX_AIR_SUPPLY {
@@ -756,6 +751,7 @@ pub fn handle_use_item_on(
                 context.recipe_manager.recipe_map(),
             );
             write_open_block_menu(stream, compression, container_id, menu, packet.sequence)?;
+            active_menu.start_open(&context.chunk_cache.container_openers, state);
             active_menu.write_full_content(stream, compression, state)?;
             state.active_block_menu = Some(active_menu);
             return Ok(());
@@ -1051,8 +1047,8 @@ pub fn write_single_block_update<W: Write>(
     )
 }
 
-pub fn process_live_fluid_ticks(
-    stream: &mut TcpStream,
+pub fn process_live_fluid_ticks<W: Write>(
+    stream: &mut W,
     compression: CompressionState,
     live_fluid_ticks: &mut LiveFluidTicks,
     game_time: i64,

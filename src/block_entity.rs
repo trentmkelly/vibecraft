@@ -1111,6 +1111,9 @@ use functional_blocks::*;
 mod beacon_signs_brewing;
 mod beehive_creaking_bell;
 mod container_decorative;
+pub use container_decorative::{
+    ContainerOpenersCounterEffect, ContainerOpenersCounterModel, ContainerUserOpenState,
+};
 mod decorated_pot_patterns;
 mod ender_chest;
 mod sculk_conduit_campfire;

@@ -55,8 +55,12 @@ pub fn movement_packets_accumulate_and_apply_fall_damage_on_landing() {
     )
     .unwrap();
     assert!(update.position_changed);
-    assert!(update.health_changed);
     assert_eq!(state.fall_distance, 0.0);
+    // Block.fallOn depends on the landing block, so the damage is resolved by the next
+    // environment tick (player_environment) against the block below the player.
+    assert_eq!(state.combat.hurt.pending_landing, Some(10.0));
+    assert_eq!(state.health, 20.0);
+    super::super::player_environment::tick_player_environment(&mut state, -64, &mut |_, _, _| None);
     assert_eq!(state.health, 13.0);
 }
 

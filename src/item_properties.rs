@@ -830,6 +830,7 @@ pub fn representative_item_definitions() -> Vec<ItemDefinition> {
         ItemDefinition::new("minecraft:trial_key"),
     ];
     definitions.extend(tool_material_item_definitions());
+    definitions.extend(crate::armor_stats::armor_item_definitions());
     definitions
 }
 

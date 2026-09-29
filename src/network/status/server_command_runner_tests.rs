@@ -2,7 +2,6 @@
 //! end-to-end RCON socket round trip on an ephemeral port.
 
 use super::*;
-use super::server_command_runner::format_translation;
 use crate::game_rules::{GameRules, LiveGameRules};
 use crate::network::rcon::{
     read_packet, spawn_rcon_server, write_packet, RconPacket, SERVERDATA_AUTH,
@@ -30,9 +29,9 @@ fn default_runner() -> ServerCommandRunner {
 #[test]
 fn rcon_response_is_the_plain_feedback_text() {
     let runner = default_runner();
-    assert_eq!(runner.run_rcon("seed"), "Seed: 1234");
+    assert_eq!(runner.run_rcon("seed"), "Seed: [1234]");
     // Java `performPrefixedCommand` also accepts a leading slash.
-    assert_eq!(runner.run_rcon("/seed"), "Seed: 1234");
+    assert_eq!(runner.run_rcon("/seed"), "Seed: [1234]");
 }
 
 #[test]
@@ -76,14 +75,6 @@ fn console_input_queue_is_drained_and_stop_is_detected() {
     assert!(!handle_console_inputs(&receiver, &runner));
     sender.send(ConsoleInput::new("stop", source)).expect("queue");
     assert!(handle_console_inputs(&receiver, &runner));
-}
-
-#[test]
-fn translation_formatting_matches_java_placeholders() {
-    let args = ["a".to_string(), "b".to_string()];
-    assert_eq!(format_translation("[%s: %s]", &args), "[a: b]");
-    assert_eq!(format_translation("%2$s then %1$s", &args), "b then a");
-    assert_eq!(format_translation("100%% sure", &args), "100% sure");
 }
 
 fn send(stream: &mut TcpStream, request_id: i32, packet_type: i32, payload: &str) {
@@ -145,7 +136,7 @@ fn rcon_socket_round_trip_authenticates_and_executes_commands() {
         RconPacket {
             request_id: 8,
             packet_type: SERVERDATA_RESPONSE_VALUE,
-            payload: "Seed: 1234".to_string()
+            payload: "Seed: [1234]".to_string()
         }
     );
 

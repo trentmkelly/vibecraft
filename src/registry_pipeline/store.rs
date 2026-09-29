@@ -105,6 +105,12 @@ impl MappedRegistry {
         self.tags.insert(tag, elements);
     }
 
+    /// `MappedRegistry.prepareTagReload` + `PendingTags.apply`: replaces the whole tag
+    /// set of a frozen registry (tags absent from `tags` disappear).
+    pub fn replace_tags(&mut self, tags: BTreeMap<Identifier, Vec<usize>>) {
+        self.tags = tags;
+    }
+
     /// `Registry.freeze`.
     pub fn freeze(&mut self) {
         self.frozen = true;
@@ -166,6 +172,13 @@ impl Registries {
     /// `getAccessFrom(RegistryLayer.WORLDGEN)`.
     pub fn worldgen_layer(&self) -> &[MappedRegistry] {
         &self.worldgen_layer
+    }
+
+    /// Mutable access to both layers, used by the tag reload.
+    pub(crate) fn layers_mut(&mut self) -> impl Iterator<Item = &mut MappedRegistry> {
+        self.worldgen_layer
+            .iter_mut()
+            .chain(self.static_layer.iter_mut())
     }
 
     /// `RegistryAccess.lookup(key)` across both layers.

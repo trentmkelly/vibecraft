@@ -208,6 +208,12 @@ pub struct GeneratedChunkCache {
     /// set in the cache (instead of per-session) means two players editing
     /// the same chunk both contribute to the same flush.
     pub dirty: Arc<Mutex<HashSet<ChunkPos>>>,
+    /// Which players hold a chest/barrel/shulker menu open
+    /// (`ContainerOpenersCounter`); shared with the live block-entity ticker.
+    pub container_openers: Arc<crate::live_block_entities::openers::ContainerOpeners>,
+    /// Experience block entities award (furnace results) until the world ticker
+    /// spawns the orbs.
+    pub experience_awards: Arc<crate::live_block_entities::experience::ExperienceAwards>,
 }
 
 fn lock_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -858,6 +864,10 @@ pub struct ActiveLoginSession {
     /// `ClientInformation.createDefault()` — and is updated when a
     /// `ServerboundClientInformation` packet arrives during configuration or play.
     pub allows_listing: bool,
+    /// Java `ServerPlayer.chatVisibility` (default `FULL`).
+    pub chat_visibility: crate::network::common::ChatVisibility,
+    /// Java `ServerPlayer.textFilteringEnabled` (default `false`).
+    pub text_filtering_enabled: bool,
     /// The client's locale (Java `ClientInformation.language`), captured from the
     /// configuration-phase `ServerboundClientInformation`. Defaults to `en_us`
     /// (`ClientInformation.createDefault`). Used to pick the localized server code
@@ -877,9 +887,21 @@ impl ActiveLoginGuard {
     /// Update this session's listing preference, 1:1 with the effect of Java
     /// `ServerPlayer.updateOptions` propagating `ClientInformation.allowsListing`.
     /// The token guard ensures a stale (already-replaced) login can never clobber
-    /// the session that displaced it.
+    /// the session that displaced it. Live code goes through [`Self::set_client_information`];
+    /// this narrower setter is kept for the status-sample tests.
+    #[cfg(test)]
     pub fn set_allows_listing(&self, allows_listing: bool) {
         self.with_own_session(|session| session.allows_listing = allows_listing);
+    }
+
+    /// Applies a received `ClientInformation` (Java `ServerPlayer.updateOptions`):
+    /// listing preference, chat visibility and text-filtering flag.
+    pub fn set_client_information(&self, info: &crate::network::common::ClientInformation) {
+        self.with_own_session(|session| {
+            session.allows_listing = info.allows_listing;
+            session.chat_visibility = info.chat_visibility;
+            session.text_filtering_enabled = info.text_filtering_enabled;
+        });
     }
 
     /// Mark this session as having entered the PLAY state so it is counted in the
@@ -958,6 +980,8 @@ impl ActiveLoginRegistry {
                     name: name.to_string(),
                     in_play: false,
                     allows_listing: false,
+                    chat_visibility: crate::network::common::ChatVisibility::Full,
+                    text_filtering_enabled: false,
                     language: "en_us".to_string(),
                 },
             )

@@ -205,7 +205,7 @@ impl ServerProperties {
         }
     }
 
-    #[cfg(test)]
+    /// Java `DedicatedServerProperties` `Settings.update`: overrides one raw property.
     pub fn set(&mut self, key: &str, value: impl Into<String>) {
         let mut raw = self.raw.clone();
         raw.insert(key.to_string(), value.into());

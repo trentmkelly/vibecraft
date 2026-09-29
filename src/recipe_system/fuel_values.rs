@@ -9,6 +9,17 @@
 use super::{FuelValues, ItemTagMap};
 
 impl FuelValues {
+    /// `MinecraftServer.fuelValues` for the bundled vanilla data, built once.
+    pub fn shared_vanilla() -> &'static Self {
+        static VANILLA: std::sync::OnceLock<FuelValues> = std::sync::OnceLock::new();
+        VANILLA.get_or_init(|| {
+            Self::from_vanilla_data(
+                &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("vanilla-data/data/minecraft/tags/item"),
+            )
+        })
+    }
+
     /// `FuelValues.vanillaBurnTimes(registries, features)` with the default
     /// `baseUnit` (`AbstractFurnaceBlockEntity.BURN_TIME_STANDARD` = 200), built
     /// from the item tag JSON in `tag_dir` (`data/minecraft/tags/item`).

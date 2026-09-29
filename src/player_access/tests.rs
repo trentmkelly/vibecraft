@@ -128,7 +128,7 @@ fn writes_vanilla_access_control_files() {
     assert!(dir.join("usercache.json").is_file());
     assert!(fs::read_to_string(dir.join("ops.json"))
         .unwrap()
-        .contains("\"level\":3"));
+        .contains("\"level\": 3"));
 
     let _ = fs::remove_dir_all(&dir);
 }
@@ -397,4 +397,99 @@ fn spawn_protection_matches_dedicated_server_rules() {
         BlockPos { x: 0, y: 64, z: 0 },
         &player.uuid
     ));
+}
+
+fn temp_access_dir(tag: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("vibecraft-access-{tag}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+fn ban(user: NameAndId, reason: Option<&str>, expires: Option<&str>) -> BanEntry<NameAndId> {
+    BanEntry {
+        user,
+        created: "2026-05-17 00:00:00 +0000".to_string(),
+        source: "Server".to_string(),
+        expires: expires.map(str::to_string),
+        reason: reason.map(str::to_string),
+    }
+}
+
+#[test]
+fn mutators_persist_gson_formatted_files_and_reload_identically() {
+    let dir = temp_access_dir("persist");
+    let mut access = PlayerAccess::load_from_dir(&dir).unwrap();
+    let player = player();
+
+    assert!(access.ban_player(ban(player.clone(), Some("a <b> & 'c'"), None)));
+    assert!(access.whitelist(player.clone()));
+    assert!(access.op(OpEntry { user: player.clone(), level: 2, bypasses_player_limit: true }));
+
+    let banned = fs::read_to_string(dir.join("banned-players.json")).unwrap();
+    assert!(banned.starts_with("[\n  {\n    \"uuid\": "), "{banned}");
+    assert!(banned.contains("a \\u003cb\\u003e \\u0026 \\u0027c\\u0027"), "{banned}");
+    assert!(banned.contains("\"expires\": \"forever\""), "{banned}");
+
+    let reloaded = PlayerAccess::load_from_dir(&dir).unwrap();
+    assert!(reloaded.is_player_banned(&player.uuid));
+    assert!(reloaded.is_whitelisted(&player.uuid));
+    assert_eq!(reloaded.op_level(&player.uuid), Some(2));
+    assert!(reloaded.can_bypass_player_limit(&player.uuid));
+    assert_eq!(reloaded.banned_players()[0].reason.as_deref(), Some("a <b> & 'c'"));
+
+    assert!(access.pardon_player(&player.uuid));
+    assert!(access.unwhitelist(&player.uuid));
+    assert!(access.deop(&player.uuid));
+    assert!(!access.deop(&player.uuid));
+    for file in ["banned-players.json", "whitelist.json", "ops.json"] {
+        assert_eq!(fs::read_to_string(dir.join(file)).unwrap(), "[]", "{file}");
+    }
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn adding_an_identical_ban_is_a_no_op_but_a_changed_reason_replaces_it() {
+    let mut access = PlayerAccess::default();
+    let player = player();
+    assert!(access.ban_player(ban(player.clone(), Some("x"), None)));
+    assert!(!access.ban_player(ban(player.clone(), Some("x"), None)));
+    assert!(access.ban_player(ban(player.clone(), Some("y"), None)));
+    assert_eq!(access.banned_players().len(), 1);
+    assert_eq!(access.banned_players()[0].reason.as_deref(), Some("y"));
+}
+
+#[test]
+fn expired_bans_are_ignored_and_unparsable_expiry_never_expires() {
+    let mut access = PlayerAccess::default();
+    let past = NameAndId::create_offline("Past");
+    let future = NameAndId::create_offline("Future");
+    let garbage = NameAndId::create_offline("Garbage");
+    access.ban_player(ban(past.clone(), None, Some("2000-01-01 00:00:00 +0000")));
+    access.ban_player(ban(future.clone(), None, Some("2999-01-01 00:00:00 +0000")));
+    access.ban_player(ban(garbage.clone(), None, Some("someday")));
+
+    assert!(!access.is_player_banned(&past.uuid));
+    assert!(access.is_player_banned(&future.uuid));
+    assert!(access.is_player_banned(&garbage.uuid));
+    assert_eq!(access.banned_players().len(), 2);
+}
+
+#[test]
+fn whitelist_reload_rereads_the_file_and_lists_missing_level_reads_as_zero() {
+    let dir = temp_access_dir("reload-wl");
+    let mut access = PlayerAccess::load_from_dir(&dir).unwrap();
+    access.whitelist(player());
+    fs::write(dir.join("whitelist.json"), "[]").unwrap();
+    access.reload_whitelist().unwrap();
+    assert!(access.whitelisted().is_empty());
+
+    fs::write(
+        dir.join("ops.json"),
+        "[{\"uuid\":\"00000000-0000-0000-0000-000000000001\",\"name\":\"NoLevel\"}]",
+    )
+    .unwrap();
+    access.reload_lists().unwrap();
+    assert_eq!(access.op_level("00000000-0000-0000-0000-000000000001"), Some(0));
+    let _ = fs::remove_dir_all(&dir);
 }

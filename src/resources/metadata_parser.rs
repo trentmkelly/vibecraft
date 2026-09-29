@@ -1,269 +1,240 @@
+//! `pack.mcmeta` parsing: `Pack.readPackMetadata` with the `pack`, `features` and
+//! `overlays` sections (`PackMetadataSection`, `FeatureFlagsMetadataSection`,
+//! `OverlayMetadataSection`) and the `filter` section (`ResourceFilterSection`).
+
+use serde_json::{Map, Value};
+
 use crate::registry::{FeatureFlagRegistry, FeatureFlagSet, Identifier};
 
+use super::pack_format::{IntermediaryFormat, TOP_MINOR};
 use super::{
     DataPackMetadata, PackCompatibility, PackFormat, PackFormatRange,
     LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT,
 };
 
+/// `Pack.readPackMetadata` for `PackType.SERVER_DATA`: parses `contents` and
+/// classifies the pack against the current data-pack format.
+///
+/// An `Err` means Java would log a warning and drop the pack (`null` metadata):
+/// unreadable JSON, a missing `pack` section, or an invalid `features`/`overlays`
+/// section. A `pack` section whose formats fail validation falls back to
+/// `PackMetadataSection.FALLBACK_TYPE` (description only), which yields
+/// [`PackCompatibility::Unknown`].
 pub fn parse_pack_metadata(contents: &str) -> Result<DataPackMetadata, String> {
-    let pack_object = object_slice(contents, "pack").ok_or("missing pack metadata")?;
-    let description = string_field(pack_object, "description").unwrap_or_default();
-    let supported_formats = parse_supported_formats(pack_object)?;
-    let requested_features = if let Some(features_object) = object_slice(contents, "features") {
-        parse_feature_flags(features_object)?
-    } else {
-        FeatureFlagSet::empty()
+    let root = parse_root(contents)?;
+    let pack = root.get("pack").ok_or("missing pack metadata")?;
+    let (description, supported_formats) = match parse_pack_section(pack) {
+        Ok(section) => section,
+        // `JsonParseException` on the typed section: retry with the fallback codec.
+        Err(_) => (
+            parse_fallback_section(pack)?,
+            PackFormatRange {
+                min: PackFormat {
+                    major: TOP_MINOR,
+                    minor: 0,
+                },
+                max: PackFormat {
+                    major: TOP_MINOR,
+                    minor: 0,
+                },
+            },
+        ),
     };
-
+    let current = PackFormat::current_server_data();
     Ok(DataPackMetadata {
         description,
         supported_formats,
-        compatibility: PackCompatibility::for_version(
-            supported_formats,
-            PackFormat::current_server_data(),
-        ),
-        requested_features,
+        compatibility: PackCompatibility::for_version(supported_formats, current),
+        requested_features: parse_features_section(root.get("features"))?,
+        overlays: parse_overlays_section(root.get("overlays"), current)?,
     })
 }
 
-fn parse_supported_formats(pack_object: &str) -> Result<PackFormatRange, String> {
-    if let (Some(min), Some(max)) = (
-        pack_format_field(pack_object, "min_format"),
-        pack_format_field(pack_object, "max_format"),
-    ) {
-        if min > max {
-            return Err("min_format is greater than max_format".to_string());
-        }
-        if min.major <= LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT
-            && !has_field(pack_object, "supported_formats")
-        {
-            return Err("supported_formats required for pre-minor pack formats".to_string());
-        }
-        return Ok(PackFormatRange { min, max });
+/// A top-level `pack.mcmeta` JSON object (`GsonHelper.parse`).
+pub(super) fn parse_root(contents: &str) -> Result<Map<String, Value>, String> {
+    match serde_json::from_str::<Value>(contents) {
+        Ok(Value::Object(map)) => Ok(map),
+        Ok(_) => Err("pack.mcmeta is not a JSON object".to_string()),
+        Err(error) => Err(format!("invalid pack.mcmeta: {error}")),
     }
-
-    if let Some(range) = int_range_field(pack_object, "supported_formats") {
-        if range.max.major > LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT {
-            return Err("old supported_formats cannot exceed last pre-minor format".to_string());
-        }
-        return Ok(range);
-    }
-
-    if let Some(pack_format) = int_field(pack_object, "pack_format") {
-        if pack_format > LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT {
-            return Err("new pack formats require min_format and max_format".to_string());
-        }
-        return Ok(PackFormatRange {
-            min: PackFormat {
-                major: pack_format,
-                minor: 0,
-            },
-            max: PackFormat {
-                major: pack_format,
-                minor: 0,
-            },
-        });
-    }
-
-    Err("missing format version information".to_string())
 }
 
-fn parse_feature_flags(features_object: &str) -> Result<FeatureFlagSet, String> {
-    let names = string_array_field(features_object, "enabled")
-        .unwrap_or_default()
-        .into_iter()
-        .map(|name| Identifier::parse(&name))
+/// `PackMetadataSection.codecForPackType(SERVER_DATA)`.
+pub(super) fn parse_pack_section(pack: &Value) -> Result<(String, PackFormatRange), String> {
+    let map = pack
+        .as_object()
+        .ok_or_else(|| format!("Not a map: {pack}"))?;
+    let description = parse_description(map)?;
+    let formats = IntermediaryFormat::from_pack(map)?.validate(
+        LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT,
+        true,
+        false,
+        "Pack",
+        "supported_formats",
+    )?;
+    Ok((description, formats))
+}
+
+/// `PackMetadataSection.FALLBACK_CODEC`: only the description is read.
+fn parse_fallback_section(pack: &Value) -> Result<String, String> {
+    let map = pack
+        .as_object()
+        .ok_or_else(|| format!("Not a map: {pack}"))?;
+    parse_description(map)
+}
+
+/// The `description` component (`ComponentSerialization.CODEC`): the plain text of
+/// a literal, or the translation key of a translatable component.
+fn parse_description(pack: &Map<String, Value>) -> Result<String, String> {
+    let description = pack
+        .get("description")
+        .ok_or("No key description in pack section")?;
+    component_text(description)
+}
+
+fn component_text(component: &Value) -> Result<String, String> {
+    match component {
+        Value::String(text) => Ok(text.clone()),
+        Value::Array(parts) => parts
+            .first()
+            .ok_or_else(|| "Empty component list".to_string())
+            .and_then(component_text),
+        Value::Object(map) => ["text", "translate", "keybind", "selector"]
+            .iter()
+            .find_map(|key| map.get(*key).and_then(Value::as_str))
+            .map(str::to_string)
+            .or_else(|| (map.contains_key("score") || map.contains_key("nbt")).then(String::new))
+            .ok_or_else(|| format!("Don't know how to turn {component} into a Component")),
+        other => Ok(other.to_string()),
+    }
+}
+
+/// `FeatureFlagsMetadataSection`: absent means no requested features.
+fn parse_features_section(section: Option<&Value>) -> Result<FeatureFlagSet, String> {
+    let Some(section) = section else {
+        return Ok(FeatureFlagSet::empty());
+    };
+    let enabled = section
+        .as_object()
+        .and_then(|map| map.get("enabled"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("No key enabled in {section}"))?;
+    let names = enabled
+        .iter()
+        .map(|entry| {
+            entry
+                .as_str()
+                .ok_or_else(|| format!("Not a string: {entry}"))
+                .and_then(Identifier::parse)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     FeatureFlagRegistry::main_26_1_2()?
         .resolve_names(&names)
-        .map_err(|unknown| format!("unknown feature flags: {unknown:?}"))
+        .map_err(|unknown| format!("Unknown feature ids: {unknown:?}"))
 }
 
-fn object_slice<'a>(contents: &'a str, field: &str) -> Option<&'a str> {
-    let key = format!("\"{field}\"");
-    let key_index = contents.find(&key)?;
-    let start = contents[key_index + key.len()..].find('{')? + key_index + key.len();
-    let end = matching_delimiter(contents, start, '{', '}')?;
-    Some(&contents[start + 1..end])
+/// `OverlayMetadataSection.codecForPackType(SERVER_DATA)` followed by
+/// `overlaysForVersion(current)`.
+fn parse_overlays_section(
+    section: Option<&Value>,
+    current: PackFormat,
+) -> Result<Vec<String>, String> {
+    let Some(section) = section else {
+        return Ok(Vec::new());
+    };
+    let entries = section
+        .as_object()
+        .and_then(|map| map.get("entries"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| format!("No key entries in {section}"))?;
+    let mut parsed = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let map = entry
+            .as_object()
+            .ok_or_else(|| format!("Not a map: {entry}"))?;
+        let directory = map
+            .get("directory")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("No key directory in {entry}"))?;
+        if directory.is_empty()
+            || !directory
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+        {
+            return Err(format!("{directory} is not accepted directory name"));
+        }
+        parsed.push((
+            IntermediaryFormat::from_overlay(map)?,
+            directory.to_string(),
+        ));
+    }
+    // `PackFormat.validateHolderList`.
+    let min_version = parsed
+        .iter()
+        .map(|(format, _)| format.effective_min_major_version())
+        .min()
+        .unwrap_or(i32::MAX as u32);
+    let mut overlays = Vec::new();
+    for (format, directory) in parsed {
+        if format.is_empty() {
+            continue; // "Unknown or broken overlay entry" is logged and skipped.
+        }
+        let range = format.validate(
+            LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT,
+            false,
+            min_version <= LAST_PRE_MINOR_SERVER_DATA_PACK_FORMAT,
+            &format!("Overlay \"{directory}\""),
+            "formats",
+        )?;
+        if range.min <= current && current <= range.max {
+            overlays.push(directory);
+        }
+    }
+    Ok(overlays)
 }
 
-fn has_field(contents: &str, field: &str) -> bool {
-    contents.contains(&format!("\"{field}\""))
+/// `ResourceFilterSection`: `filter.block` patterns hiding resources of lower-priority
+/// packs. Unset pattern parts match everything; set parts match with
+/// `Pattern.asPredicate` (a partial match).
+#[derive(Debug, Clone)]
+pub struct ResourceFilter {
+    patterns: Vec<(Option<regex::Regex>, Option<regex::Regex>)>,
 }
 
-fn string_field(contents: &str, field: &str) -> Option<String> {
-    let raw = field_value(contents, field)?;
-    if raw.trim_start().starts_with('"') {
-        parse_json_string(raw.trim_start()).map(|(value, _)| value)
-    } else {
-        Some(raw.trim().to_string())
+impl ResourceFilter {
+    /// `isNamespaceFiltered`.
+    pub fn is_namespace_filtered(&self, namespace: &str) -> bool {
+        self.patterns
+            .iter()
+            .any(|(pattern, _)| pattern.as_ref().is_none_or(|p| p.is_match(namespace)))
+    }
+
+    /// `isPathFiltered`.
+    pub fn is_path_filtered(&self, path: &str) -> bool {
+        self.patterns
+            .iter()
+            .any(|(_, pattern)| pattern.as_ref().is_none_or(|p| p.is_match(path)))
     }
 }
 
-fn int_field(contents: &str, field: &str) -> Option<u32> {
-    let raw = field_value(contents, field)?;
-    parse_u32_prefix(raw.trim_start())
-}
-
-fn int_range_field(contents: &str, field: &str) -> Option<PackFormatRange> {
-    let raw = field_value(contents, field)?.trim_start();
-    if raw.starts_with('[') {
-        let end = matching_delimiter(raw, 0, '[', ']')?;
-        let values = raw[1..end]
-            .split(',')
-            .filter_map(|part| parse_u32_prefix(part.trim()))
-            .collect::<Vec<_>>();
-        match values.as_slice() {
-            [one] => Some(PackFormatRange {
-                min: PackFormat {
-                    major: *one,
-                    minor: 0,
-                },
-                max: PackFormat {
-                    major: *one,
-                    minor: 0,
-                },
-            }),
-            [min, max] => Some(PackFormatRange {
-                min: PackFormat {
-                    major: *min,
-                    minor: 0,
-                },
-                max: PackFormat {
-                    major: *max,
-                    minor: 0,
-                },
-            }),
-            _ => None,
-        }
-    } else {
-        int_field(contents, field).map(|value| PackFormatRange {
-            min: PackFormat {
-                major: value,
-                minor: 0,
-            },
-            max: PackFormat {
-                major: value,
-                minor: 0,
-            },
+/// Parses the `filter` section of raw `pack.mcmeta` text; `None` when the pack has no
+/// (valid) `filter` section (Java logs the failure and ignores the filter).
+pub fn parse_filter_section(contents: &str) -> Option<ResourceFilter> {
+    let root = parse_root(contents).ok()?;
+    let block = root.get("filter")?.as_object()?.get("block")?.as_array()?;
+    let patterns = block
+        .iter()
+        .map(|entry| {
+            let map = entry.as_object()?;
+            let compile = |key: &str| -> Option<Option<regex::Regex>> {
+                match map.get(key) {
+                    None => Some(None),
+                    Some(Value::String(text)) => regex::Regex::new(text).ok().map(Some),
+                    Some(_) => None,
+                }
+            };
+            Some((compile("namespace")?, compile("path")?))
         })
-    }
-}
-
-fn pack_format_field(contents: &str, field: &str) -> Option<PackFormat> {
-    let raw = field_value(contents, field)?.trim_start();
-    if raw.starts_with('[') {
-        let end = matching_delimiter(raw, 0, '[', ']')?;
-        let values = raw[1..end]
-            .split(',')
-            .filter_map(|part| parse_u32_prefix(part.trim()))
-            .collect::<Vec<_>>();
-        Some(PackFormat {
-            major: *values.first()?,
-            minor: *values.get(1).unwrap_or(&0),
-        })
-    } else {
-        int_field(contents, field).map(|major| PackFormat { major, minor: 0 })
-    }
-}
-
-fn string_array_field(contents: &str, field: &str) -> Option<Vec<String>> {
-    let raw = field_value(contents, field)?.trim_start();
-    if !raw.starts_with('[') {
-        return None;
-    }
-    let end = matching_delimiter(raw, 0, '[', ']')?;
-    let mut values = Vec::new();
-    let mut rest = raw[1..end].trim_start();
-    while !rest.is_empty() {
-        if let Some((value, remaining)) = parse_json_string(rest) {
-            values.push(value);
-            rest = remaining.trim_start();
-            if rest.starts_with(',') {
-                rest = rest[1..].trim_start();
-            } else {
-                break;
-            }
-        } else {
-            return None;
-        }
-    }
-    Some(values)
-}
-
-fn field_value<'a>(contents: &'a str, field: &str) -> Option<&'a str> {
-    let key = format!("\"{field}\"");
-    let key_index = contents.find(&key)?;
-    let after_key = &contents[key_index + key.len()..];
-    let colon = after_key.find(':')?;
-    Some(&after_key[colon + 1..])
-}
-
-fn matching_delimiter(contents: &str, start: usize, open: char, close: char) -> Option<usize> {
-    let mut depth = 0usize;
-    let mut in_string = false;
-    let mut escaped = false;
-    for (offset, ch) in contents[start..].char_indices() {
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-            continue;
-        }
-        if ch == '"' {
-            in_string = true;
-        } else if ch == open {
-            depth += 1;
-        } else if ch == close {
-            depth -= 1;
-            if depth == 0 {
-                return Some(start + offset);
-            }
-        }
-    }
-    None
-}
-
-fn parse_json_string(contents: &str) -> Option<(String, &str)> {
-    let mut chars = contents.char_indices();
-    if chars.next()?.1 != '"' {
-        return None;
-    }
-    let mut value = String::new();
-    let mut escaped = false;
-    for (index, ch) in chars {
-        if escaped {
-            value.push(match ch {
-                '"' => '"',
-                '\\' => '\\',
-                '/' => '/',
-                'b' => '\u{0008}',
-                'f' => '\u{000c}',
-                'n' => '\n',
-                'r' => '\r',
-                't' => '\t',
-                other => other,
-            });
-            escaped = false;
-        } else if ch == '\\' {
-            escaped = true;
-        } else if ch == '"' {
-            return Some((value, &contents[index + 1..]));
-        } else {
-            value.push(ch);
-        }
-    }
-    None
-}
-
-fn parse_u32_prefix(contents: &str) -> Option<u32> {
-    let digits = contents
-        .chars()
-        .take_while(|ch| ch.is_ascii_digit())
-        .collect::<String>();
-    (!digits.is_empty()).then(|| digits.parse().ok()).flatten()
+        .collect::<Option<Vec<_>>>()?;
+    Some(ResourceFilter { patterns })
 }

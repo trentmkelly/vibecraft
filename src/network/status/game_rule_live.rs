@@ -15,7 +15,7 @@ use crate::log::log_warn;
 use crate::network::play::{ClientboundGameRuleValuesPacket, CLIENTBOUND_GAME_RULE_VALUES_PACKET_ID};
 
 /// The single live player's network entity id, as sent in `ClientboundLoginPacket.player_id`.
-const SESSION_PLAYER_ENTITY_ID: i32 = 1;
+pub(super) const SESSION_PLAYER_ENTITY_ID: i32 = 1;
 /// `ClientboundGameEventPacket.IMMEDIATE_RESPAWN`
 const GAME_EVENT_IMMEDIATE_RESPAWN: u8 = 11;
 /// `ClientboundGameEventPacket.LIMITED_CRAFTING`

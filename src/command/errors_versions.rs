@@ -111,6 +111,8 @@ pub enum CommandError {
     DataPackInvalidName,
     DataPackInvalidFullName,
     DataPackAlreadyExists,
+    /// `commands.datapack.create.io_failure`.
+    DataPackIoFailure,
     HelpFailed,
     TeamMsgNoTeam,
     PlaySoundTooFar,

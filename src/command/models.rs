@@ -108,6 +108,9 @@ pub struct ServerCommandState {
     pub feature_data_packs: Vec<String>,
     pub unavailable_feature_data_packs: Vec<String>,
     pub created_data_packs: Vec<CreatedDataPack>,
+    /// The world `datapacks` folder `/datapack create` writes to
+    /// (`LevelResource.DATAPACK_DIR`). `None` keeps creation purely modelled.
+    pub datapack_directory: Option<std::path::PathBuf>,
     pub reload_requests: Vec<ReloadRequest>,
     pub transfer_requests: Vec<TransferRequest>,
     pub chase_session: Option<ChaseSession>,
@@ -217,6 +220,8 @@ pub struct ServerCommandState {
     pub banned_players: Vec<BanEntry<NameAndId>>,
     pub banned_ips: Vec<BanEntry<String>>,
     pub operator_players: Vec<NameAndId>,
+    /// Profiles from the user cache that `GameProfileArgument` can resolve by name.
+    pub known_profiles: Vec<NameAndId>,
     pub killed_entities: Vec<EntityRef>,
     pub ban_player_feedback_events: Vec<BanPlayerFeedbackEvent>,
     pub ban_ip_feedback_events: Vec<BanIpFeedbackEvent>,
@@ -529,6 +534,19 @@ pub enum GameMode {
     Creative,
     Adventure,
     Spectator,
+}
+
+impl GameMode {
+    /// `GameType.getLongDisplayName()`: the `en_us` text of `gameMode.<name>`.
+    pub fn long_display_name(self) -> String {
+        let name = match self {
+            GameMode::Survival => "survival",
+            GameMode::Creative => "creative",
+            GameMode::Adventure => "adventure",
+            GameMode::Spectator => "spectator",
+        };
+        crate::language::translate(&format!("gameMode.{name}"), &[])
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

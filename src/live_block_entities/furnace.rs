@@ -165,3 +165,89 @@ pub fn apply_menu_slots(
     }
     merge_owned_fields(existing, &entity.save_additional())
 }
+
+/// Writes `updated` (a furnace compound whose `Items` already hold the exact
+/// new stacks, components included) after a container-side change and applies
+/// `AbstractFurnaceBlockEntity.setItem`'s side effect on the cook counters:
+/// changing the ingredient stack resets `cooking_time_spent` and recomputes
+/// `cooking_total_time`. `existing` is the compound before the change.
+pub fn apply_container_slots(
+    kind: FurnaceBlockEntityKind,
+    existing: &Tag,
+    updated: &Tag,
+    slots: &[Option<super::stack::Stack>],
+    recipes: &RecipeMap,
+) -> Tag {
+    let pot_slots: Vec<Option<PotItemStack>> = slots
+        .iter()
+        .map(|stack| {
+            stack.as_ref().map(|stack| PotItemStack {
+                item_id: stack.id.clone(),
+                count: stack.count,
+            })
+        })
+        .collect();
+    let with_counters = apply_menu_slots(kind, existing, &pot_slots, recipes);
+    let (Tag::Compound(counters), Tag::Compound(updated_fields)) = (&with_counters, updated)
+    else {
+        return updated.clone();
+    };
+    const SETITEM_KEYS: [&str; 2] = ["cooking_time_spent", "cooking_total_time"];
+    let mut fields: Vec<(String, Tag)> = updated_fields
+        .iter()
+        .filter(|(key, _)| !SETITEM_KEYS.contains(&key.as_str()))
+        .cloned()
+        .collect();
+    fields.extend(
+        counters
+            .iter()
+            .filter(|(key, _)| SETITEM_KEYS.contains(&key.as_str()))
+            .cloned(),
+    );
+    Tag::Compound(fields)
+}
+
+/// What taking the furnace result awards.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FurnaceAward {
+    /// The furnace compound with `RecipesUsed` cleared.
+    pub tag: Tag,
+    /// Experience points to pop (`createExperience`, summed over recipes).
+    pub experience: i32,
+    /// The recipes to add to the player's recipe book (`awardRecipes`).
+    pub recipe_ids: Vec<&'static str>,
+}
+
+/// `AbstractFurnaceBlockEntity.awardUsedRecipesAndPopExperience`: for every
+/// recipe in `RecipesUsed` that still exists, rolls `floor(count * xp)` plus one
+/// with probability `frac(count * xp)` (`roll` is `level.getRandom().nextFloat()`),
+/// then clears the used recipes.
+pub fn award_used_recipes(
+    kind: FurnaceBlockEntityKind,
+    existing: &Tag,
+    recipes: &RecipeMap,
+    roll: impl FnMut() -> f32,
+) -> FurnaceAward {
+    let mut entity = AbstractFurnaceBlockEntity::load_additional(kind, existing);
+    let recipe_ids: Vec<&'static str> = entity
+        .recipes_used
+        .keys()
+        .filter_map(|id| recipes.by_key(id).map(|holder| holder.id))
+        .collect();
+    let experience = entity.xp_to_award_and_clear(
+        |id| {
+            match &recipes.by_key(id)?.recipe {
+                crate::recipe_system::RecipeKind::Cooking {
+                    experience_millis, ..
+                } => Some(*experience_millis as f32 / 1000.0),
+                _ => None,
+            }
+        },
+        roll,
+    );
+    FurnaceAward {
+        tag: merge_owned_fields(existing, &entity.save_additional()),
+        experience,
+        recipe_ids,
+    }
+}

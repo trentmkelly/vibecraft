@@ -132,7 +132,7 @@ fn show_death_messages_off_sends_empty_kill_message_and_no_broadcast() {
 fn mob_kill_message_names_the_attacker() {
     let fixture = Fixture::new();
     let mut state = PlaySessionState::default();
-    hurt_player_by_mob(&mut state, 77, "minecraft:zombie", 25.0);
+    hurt_player_by_mob(&mut state, 77, "minecraft:zombie", [0.0; 3], 25.0);
     let mut sent = Vec::new();
     die(&mut sent, CompressionState::disabled(), &mut state, &fixture.context(), 1).unwrap();
     let message = kill_message(&sent);
@@ -312,7 +312,7 @@ fn hurt_helpers_record_combat_entries_and_clamp_health() {
     let mut state = PlaySessionState::default();
     hurt_player(&mut state, "minecraft:drown", 2.0);
     assert_eq!(state.health, 18.0);
-    hurt_player_by_mob(&mut state, 3, "minecraft:zombie", 100.0);
+    hurt_player_by_mob(&mut state, 3, "minecraft:zombie", [0.0; 3], 100.0);
     assert_eq!(state.health, 0.0);
     assert_eq!(state.combat.tracker.entries.len(), 2);
     assert_eq!(state.combat.last_hurt_by_mob, Some((3, 0)));

@@ -25,6 +25,11 @@ impl CommandTreeSync {
         self.current_level = level;
     }
 
+    /// The player's current permission level (the level a resend is built for).
+    pub fn current_level(&self) -> u8 {
+        self.current_level
+    }
+
     /// `true` until the join-time tree has been sent.
     pub fn needs_initial_send(&self) -> bool {
         self.sent_level.is_none()

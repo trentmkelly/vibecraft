@@ -288,18 +288,29 @@ pub(super) fn datapack_create(
         return Err(CommandError::DataPackInvalidFullName);
     }
     let pack_id = format!("file/{id}");
-    if state
-        .available_data_packs
-        .iter()
-        .any(|pack| pack == &pack_id)
-        || state.created_data_packs.iter().any(|pack| pack.id == id)
-    {
+    let already_exists = match &state.datapack_directory {
+        // `Files.exists(datapackDir.resolve(id))`.
+        Some(directory) => directory.join(id).exists(),
+        None => state
+            .available_data_packs
+            .iter()
+            .any(|pack| pack == &pack_id),
+    };
+    if already_exists || state.created_data_packs.iter().any(|pack| pack.id == id) {
         return Err(CommandError::DataPackAlreadyExists);
     }
 
-    // Java creates the pack directory, data directory, and pack.mcmeta here. This
-    // command model records the same requested side effect until live datapack
-    // filesystem writes are wired into the server runtime.
+    // Java creates the pack directory, data directory, and pack.mcmeta here.
+    if let Some(directory) = &state.datapack_directory {
+        if let Err(error) = crate::resources::write_pack_skeleton(&directory.join(id), description)
+        {
+            crate::log::log_warn(&format!(
+                "Failed to create pack at {}: {error}",
+                directory.display()
+            ));
+            return Err(CommandError::DataPackIoFailure);
+        }
+    }
     state.created_data_packs.push(CreatedDataPack {
         id: id.to_string(),
         description: description.to_string(),

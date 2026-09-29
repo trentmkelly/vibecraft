@@ -15,6 +15,7 @@
 
 use std::collections::BTreeMap;
 
+use super::player_damage::{hurt_server, HurtOrigin};
 use super::*;
 use crate::chat_component::{ClickEvent, Component, ComponentArgument, HoverEvent, Style};
 use crate::combat_tracker::{CombatEntry, CombatTracker, DeathMessageSource, FallLocation};
@@ -52,6 +53,10 @@ pub(crate) struct PlayerCombatState {
     /// Registry names (`minecraft:zombie`) of entities that hurt the player, so the death
     /// message can name them even after they left the world.
     pub attacker_types: BTreeMap<i32, String>,
+    /// Hurt cooldown, absorption and the queued hurt packets, see [`super::player_damage`].
+    pub hurt: super::player_damage::HurtState,
+    /// Fire / freeze bookkeeping, see [`super::player_environment`].
+    pub environment: super::player_environment::EnvironmentState,
 }
 
 /// `DamageSources.<id>()` for a source without entities.
@@ -82,6 +87,17 @@ pub(super) fn record_player_damage(
     let fall_location = state.in_water.then_some(FallLocation::Water);
     let entry = CombatEntry::new(source, damage, fall_location, state.fall_distance);
     combat.tracker.record_damage(combat.tick_count, is_alive, entry);
+    note_hurt_by_entity(state, &source, attacker_type);
+}
+
+/// `LivingEntity.resolveMobResponsibleForDamage`: remembers a living attacker and its type so
+/// the death message can name it. Runs for every accepted hit, even one fully absorbed.
+pub(super) fn note_hurt_by_entity(
+    state: &mut PlaySessionState,
+    source: &DamageSource,
+    attacker_type: Option<&str>,
+) {
+    let combat = &mut state.combat;
     if let (Some(entity), Some(kind)) = (source.causing_entity, attacker_type) {
         if entity.is_living {
             combat.last_hurt_by_mob = Some((entity.id, combat.tick_count));
@@ -90,11 +106,10 @@ pub(super) fn record_player_damage(
     }
 }
 
-/// `LivingEntity.hurtServer` for an entity-less source: records the damage in the combat
-/// tracker and lowers health (armor/absorption are not modelled for these sources).
-pub(super) fn hurt_player(state: &mut PlaySessionState, damage_type: &str, damage: f32) {
-    record_player_damage(state, simple_damage_source(damage_type), damage, None);
-    state.health = (state.health - damage).max(0.0);
+/// `Entity.hurtServer` for an entity-less source, through the full
+/// [`hurt_server`](super::player_damage::hurt_server) pipeline. Returns whether it was accepted.
+pub(super) fn hurt_player(state: &mut PlaySessionState, damage_type: &str, damage: f32) -> bool {
+    hurt_server(state, simple_damage_source(damage_type), damage, HurtOrigin::default())
 }
 
 /// `LivingEntity.kill(level)`: `hurtServer(genericKill, Float.MAX_VALUE)`. `generic_kill` is in
@@ -127,15 +142,17 @@ pub(super) fn apply_kill_command(
     write_play_state_health_packet(stream, compression, state)
 }
 
-/// `LivingEntity.hurtServer` for `DamageSources.mobAttack(mob)`.
+/// `LivingEntity.hurtServer` for `DamageSources.mobAttack(mob)`; `mob_position` is the
+/// attacker's position (`DamageSource.getSourcePosition()` of an entity source).
 pub(super) fn hurt_player_by_mob(
     state: &mut PlaySessionState,
     mob_id: i32,
     mob_type: &str,
+    mob_position: [f64; 3],
     damage: f32,
-) {
-    record_player_damage(state, mob_attack_damage_source(mob_id), damage, Some(mob_type));
-    state.health = (state.health - damage).max(0.0);
+) -> bool {
+    let origin = HurtOrigin { attacker_type: Some(mob_type), position: Some(mob_position) };
+    hurt_server(state, mob_attack_damage_source(mob_id), damage, origin)
 }
 
 /// Collaborators [`tick_player_lifecycle`] needs from the running session.
@@ -177,6 +194,7 @@ pub(super) fn tick_player_lifecycle(
         context.bus,
         context.profile,
     )?;
+    super::player_damage::flush_hurt_packets(stream, compression, state)?;
     if state.health > 0.0 || state.combat.dead {
         return Ok(());
     }

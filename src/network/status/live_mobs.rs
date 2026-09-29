@@ -136,6 +136,7 @@ impl LiveMobStore {
                         play_state,
                         mob.entity_id,
                         &mob.entity_type,
+                        [mob.x, mob.y, mob.z],
                         damage,
                     );
                     mob.attack_cooldown_ticks = MOB_MELEE_ATTACK_INTERVAL_TICKS;

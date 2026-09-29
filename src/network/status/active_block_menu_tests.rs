@@ -13,6 +13,7 @@
             .set(0, ItemStack::new("minecraft:stone", 16));
         let mut menu = ActiveBlockMenu {
             container_id: 7,
+            opener: None,
             state_id: 0,
             pos,
             kind: ActiveBlockMenuKind::Persistent {
@@ -61,6 +62,7 @@
         let mut state = PlaySessionState::default();
         let menu = ActiveBlockMenu {
             container_id: 3,
+            opener: None,
             state_id: 0,
             pos: crate::block_update::BlockPos { x: 0, y: 64, z: 0 },
             kind: ActiveBlockMenuKind::Ephemeral {
@@ -330,6 +332,7 @@
         };
         let mut menu = ActiveBlockMenu {
             container_id: 7,
+            opener: None,
             state_id: 0,
             pos,
             kind: ActiveBlockMenuKind::Persistent {

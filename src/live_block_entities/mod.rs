@@ -15,6 +15,12 @@
 //! * [`lifecycle`] — `LevelChunk.setBlockState` block-entity create/remove.
 //! * [`furnace`] — `AbstractFurnaceBlockEntity.serverTick` for the furnace,
 //!   blast furnace and smoker.
+//! * [`hopper`] — `HopperBlockEntity.pushItemsTick`, which needs the whole
+//!   chunk map (neighbouring containers) and the world's item entities, so it
+//!   runs as a world-level pass ([`LiveBlockEntityTicker::tick`]) instead of a
+//!   [`TickerFn`]; [`container`] is the NBT-backed `Container` it works on.
+//! * [`openers`] / [`open_effects`] — `ContainerOpenersCounter` for chests,
+//!   trapped chests, barrels and shulker boxes, driven by menu open/close.
 //!
 //! Adding another ticking type means adding a [`TickerFn`] arm to
 //! [`ticker_for`]; the surrounding walk, dirty tracking and block-state
@@ -24,13 +30,25 @@
 //! entity-ticking chunks (near a player). The chunk cache does not track which
 //! sessions have a chunk loaded, so every cached chunk is ticked.
 
+pub mod container;
+mod entity_broadcast;
+pub mod experience;
 pub mod furnace;
+pub mod hopper;
 pub mod lifecycle;
+pub mod open_effects;
+pub mod openers;
+mod registry_ids;
+pub mod stack;
+#[cfg(test)]
+mod hopper_tests;
+#[cfg(test)]
+mod openers_tests;
 #[cfg(test)]
 mod tests;
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::block_entity::BlockEntityTypeId;
 use crate::block_update::BlockPos;
@@ -41,6 +59,7 @@ use crate::network::status::{
 };
 use crate::network::varint::write_var_i32;
 use crate::network::world_broadcast::WorldPacketBus;
+use crate::item_entity::WorldItemEntities;
 use crate::recipe_system::{FuelValues, RecipeManagerModel, RecipeMap};
 use crate::storage::chunk::{BlockStateEntry, LevelChunk};
 use crate::storage::nbt::Tag;
@@ -211,7 +230,12 @@ pub struct LiveBlockEntityTicker {
     world_root: Arc<PathBuf>,
     world_seed: i64,
     bus: WorldPacketBus,
-    fuel_values: FuelValues,
+    world_items: Arc<Mutex<WorldItemEntities>>,
+    fuel_values: &'static FuelValues,
+    /// `Level.getGameTime()` as seen by this ticker: ticks run so far.
+    game_time: i64,
+    hoppers: hopper::HopperTicker,
+    open_counters: open_effects::OpenCounters,
 }
 
 impl LiveBlockEntityTicker {
@@ -221,27 +245,41 @@ impl LiveBlockEntityTicker {
         world_root: Arc<PathBuf>,
         world_seed: i64,
         bus: WorldPacketBus,
+        world_items: Arc<Mutex<WorldItemEntities>>,
     ) -> Self {
-        // Java `MinecraftServer.fuelValues`, built once from the bundled item tags.
-        let tag_dir =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/tags/item");
         Self {
             cache,
             recipes,
             world_root,
             world_seed,
             bus,
-            fuel_values: FuelValues::from_vanilla_data(&tag_dir),
+            world_items,
+            fuel_values: FuelValues::shared_vanilla(),
+            game_time: 0,
+            hoppers: hopper::HopperTicker::default(),
+            open_counters: open_effects::OpenCounters::default(),
         }
     }
 
     /// Ticks every block entity once and broadcasts the resulting block changes.
     pub fn tick(&mut self) {
+        self.game_time += 1;
         let env = BlockEntityTickEnvironment {
             recipes: self.recipes.recipe_map(),
-            fuel_values: &self.fuel_values,
+            fuel_values: self.fuel_values,
         };
-        let changes = tick_cached_block_entities(&self.cache, &env);
+        let mut changes = tick_cached_block_entities(&self.cache, &env);
+        changes.extend(tick_world_level(
+            WorldLevelParts {
+                cache: &self.cache,
+                world_items: &self.world_items,
+                bus: &self.bus,
+                hoppers: &mut self.hoppers,
+                open_counters: &mut self.open_counters,
+            },
+            &env,
+            self.game_time,
+        ));
         apply_block_state_changes(
             &self.cache,
             &self.world_root,
@@ -250,4 +288,65 @@ impl LiveBlockEntityTicker {
             &changes,
         );
     }
+}
+
+/// The ticker state the world-level pass touches.
+struct WorldLevelParts<'a> {
+    cache: &'a GeneratedChunkCache,
+    world_items: &'a Mutex<WorldItemEntities>,
+    bus: &'a WorldPacketBus,
+    hoppers: &'a mut hopper::HopperTicker,
+    open_counters: &'a mut open_effects::OpenCounters,
+}
+
+/// The block-entity tickers that need the whole chunk map: menu open/close
+/// counters and hoppers. Returns the block-state writes they requested.
+fn tick_world_level(
+    parts: WorldLevelParts<'_>,
+    env: &BlockEntityTickEnvironment<'_>,
+    game_time: i64,
+) -> Vec<BlockStateChange> {
+    // Lock order: item entities, then chunks (no path nests them the other way
+    // round).
+    let mut items = parts.world_items.lock().unwrap_or_else(|e| e.into_inner());
+    let mut chunks = parts.cache.chunks.lock().unwrap_or_else(|e| e.into_inner());
+    let mut world = container::ChunkWorld::new(&mut chunks);
+    let opened = parts
+        .open_counters
+        .process(&world, &parts.cache.container_openers, game_time);
+    let effects = parts.hoppers.tick(&mut world, &mut items, env, game_time);
+    let dirtied = world.into_dirtied();
+    drop(chunks);
+    let orb_frames = spawn_awarded_experience(&mut items, &parts.cache.experience_awards);
+    drop(items);
+    if !dirtied.is_empty() {
+        parts
+            .cache
+            .dirty
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .extend(dirtied);
+    }
+    let _ = parts.bus.publish_frames(&opened.frames);
+    let _ = parts.bus.publish_frames(&orb_frames);
+    let _ = entity_broadcast::publish_item_effects(parts.bus, &effects);
+    opened.state_changes
+}
+
+/// `ExperienceOrb.award` for every recorded award; returns the spawn packets.
+fn spawn_awarded_experience(
+    items: &mut WorldItemEntities,
+    awards: &experience::ExperienceAwards,
+) -> Vec<u8> {
+    use crate::network::status::xp_orb_live::write_xp_orb_spawn_packets;
+    use crate::xp_orb_entity::XpOrbRandom;
+
+    let mut frames = Vec::new();
+    for award in awards.drain() {
+        let mut random = XpOrbRandom::new(rand::random());
+        for orb in items.award_experience(award.pos, award.amount, &mut random) {
+            let _ = write_xp_orb_spawn_packets(&mut frames, CompressionState::disabled(), &orb);
+        }
+    }
+    frames
 }

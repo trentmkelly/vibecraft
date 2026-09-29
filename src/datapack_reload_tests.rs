@@ -47,7 +47,7 @@ mod tests {
     }
 
     #[test]
-    fn reload_discovers_valid_directory_packs_and_skips_invalid_packs() {
+    fn reload_discovers_directory_packs_and_flags_unvalidatable_formats_unknown() {
         let root = std::env::temp_dir().join(format!("vibecraft-datapacks-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let datapacks = root.join("datapacks");
@@ -76,10 +76,19 @@ mod tests {
                 .iter()
                 .map(|pack| pack.pack.id.as_str())
                 .collect::<Vec<_>>(),
-            vec!["file/valid_pack"]
+            // Java keeps packs whose format cannot be validated (fallback metadata section,
+            // compatibility `Unknown`) in the repository; they are merely flagged.
+            vec!["file/invalid_pack", "file/valid_pack"]
         );
         assert_eq!(
             packs[0]
+                .pack
+                .metadata
+                .compatibility,
+            crate::resources::PackCompatibility::Unknown
+        );
+        assert_eq!(
+            packs[1]
                 .data_resources()
                 .unwrap()
                 .get(
@@ -107,14 +116,17 @@ mod tests {
                     .iter()
                     .map(|pack| pack.id.as_str())
                     .collect::<Vec<_>>();
-                assert_eq!(ids, vec![VANILLA_PACK_ID, "file/valid_pack"]);
+                assert_eq!(
+                    ids,
+                    vec![VANILLA_PACK_ID, "file/invalid_pack", "file/valid_pack"]
+                );
                 Ok(())
             },
         )
         .unwrap();
         assert_eq!(
             configured.data_packs.enabled,
-            vec![VANILLA_PACK_ID, "file/valid_pack"]
+            vec![VANILLA_PACK_ID, "file/invalid_pack", "file/valid_pack"]
         );
 
         fs::remove_dir_all(root).unwrap();

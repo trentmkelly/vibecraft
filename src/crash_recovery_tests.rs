@@ -118,8 +118,10 @@ mod tests {
         assert!(layout.load_player_data(uuid).is_err());
         assert!(layout.player_data_file(uuid).is_file());
 
-        fs::create_dir_all(layout.data_dir()).unwrap();
-        fs::write(layout.saved_data_file("scoreboard"), b"corrupt scoreboard").unwrap();
+        // 26.1.2 SavedData lives under `data/<namespace>/`, so create the file's parent.
+        let scoreboard_file = layout.saved_data_file("scoreboard");
+        fs::create_dir_all(scoreboard_file.parent().unwrap()).unwrap();
+        fs::write(scoreboard_file, b"corrupt scoreboard").unwrap();
         assert!(layout.load_scoreboard().is_err());
 
         let _ = fs::remove_dir_all(&path);
