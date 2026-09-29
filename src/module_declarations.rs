@@ -1,6 +1,10 @@
 // Player progress on top of these models is pending: TODO(player-advancements-live).
 #[allow(dead_code)]
 mod advancement_criteria;
+mod advancement_codec;
+#[cfg(test)]
+mod advancement_codec_tests;
+mod advancement_condition_schema;
 #[cfg(test)]
 mod advancement_display;
 #[cfg(test)]
@@ -17,7 +21,7 @@ mod advancement_system;
 mod advancement_tree;
 #[cfg(test)]
 mod advancement_tree_position;
-#[cfg(test)]
+#[allow(dead_code)]
 mod advancement_trigger_registry;
 #[cfg(test)]
 mod advancement_visibility_evaluator;

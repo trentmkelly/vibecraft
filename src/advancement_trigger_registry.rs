@@ -42,6 +42,8 @@ impl CriteriaTriggersModel {
         &self.entries
     }
 
+    // Serialized names are compile-time constants, valid by construction.
+    #[allow(clippy::unwrap_used)]
     fn trigger_model(entry: CriteriaTriggerEntry) -> CriterionTriggerModel {
         CriterionTriggerModel::new(Identifier::parse(entry.serialized_name).unwrap())
     }
