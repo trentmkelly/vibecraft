@@ -608,7 +608,7 @@ fn write_join_login_and_profile_packets(
 /// recipe's displays (highlighting the unseen ones) as a replacing add packet. Sent at
 /// join and again after a reload (`PlayerList.reloadResources`).
 pub(super) fn write_initial_recipe_book(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &PlaySessionState,
     recipes: &RecipeMap,

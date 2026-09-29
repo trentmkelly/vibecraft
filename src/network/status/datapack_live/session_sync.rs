@@ -17,7 +17,7 @@
 
 use std::cell::RefCell;
 use std::io;
-use std::net::TcpStream;
+use crate::network::transport::ClientStream;
 use std::sync::Arc;
 
 use crate::network::compression::CompressionState;
@@ -46,7 +46,7 @@ pub(in crate::network::status) fn begin_session_sync(joined_with: &Arc<RecipeMan
 /// reloaded since the last call. A no-op without an installed server state or a
 /// session that never called [`begin_session_sync`].
 pub(in crate::network::status) fn sync_reloaded_recipes(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
 ) -> io::Result<()> {
@@ -55,7 +55,7 @@ pub(in crate::network::status) fn sync_reloaded_recipes(
 
 /// [`sync_reloaded_recipes`] against an explicit `current` manager.
 fn sync_to(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     current: Option<Arc<RecipeManagerModel>>,

@@ -2,7 +2,7 @@
 //! manager the session last synchronised is replaced.
 
 use std::io::Read;
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::path::Path;
 use std::time::Duration;
 
@@ -12,7 +12,7 @@ use crate::network::varint::read_var_i32;
 use crate::recipe_system::load_recipe_directory;
 
 /// A connected loopback pair: (server side written to, client side read from).
-fn socket_pair() -> (TcpStream, TcpStream) {
+fn socket_pair() -> (ClientStream, TcpStream) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap_or_else(|e| panic!("{e}"));
     let client = TcpStream::connect(listener.local_addr().unwrap_or_else(|e| panic!("{e}")))
         .unwrap_or_else(|e| panic!("{e}"));
@@ -20,7 +20,7 @@ fn socket_pair() -> (TcpStream, TcpStream) {
     client
         .set_read_timeout(Some(Duration::from_millis(200)))
         .unwrap_or_else(|e| panic!("{e}"));
-    (server, client)
+    (ClientStream::new(server), client)
 }
 
 /// Every packet id the client received so far.
