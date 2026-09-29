@@ -86,8 +86,8 @@ pub fn biome_network() -> Codec {
 /// `Biome.DIRECT_CODEC`.
 ///
 /// The generation settings' `carvers` and `features` resolve into the
-/// `configured_carver`/`placed_feature` registries, which are loaded by
-/// [`worldgen_reference_target`] so unknown references fail the load. Inline
+/// `configured_carver` registry (loaded by [`worldgen_reference_target`]) and the
+/// typed `placed_feature` registry so unknown references fail the load. Inline
 /// (non-registered) carvers/features are not supported.
 pub fn biome_direct() -> Codec {
     let mut fields = climate_settings();
@@ -240,11 +240,10 @@ pub fn world_clock() -> Codec {
 }
 
 /// Registries the server loads only so other registries' references into them can
-/// be resolved (`configured_carver`, `placed_feature`, `structure`). Elements are
+/// be resolved (`configured_carver`, `structure`). Elements are
 /// accepted as any JSON value; none of these registries is sent to clients.
 ///
 /// TODO(registry-pipeline-worldgen-configured-carver): `ConfiguredWorldCarver.DIRECT_CODEC`.
-/// TODO(registry-pipeline-worldgen-placed-feature): `PlacedFeature.DIRECT_CODEC`.
 /// TODO(registry-pipeline-worldgen-structure): `Structure.DIRECT_CODEC`.
 pub fn worldgen_reference_target() -> Codec {
     generic()

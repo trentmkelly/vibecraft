@@ -280,6 +280,18 @@ pub fn positive_float() -> Codec {
     })
 }
 
+/// `Codec.LONG` (`Number.longValue()`: decimals truncate).
+pub fn long_codec() -> Codec {
+    Codec::new(|json, _| match json {
+        Json::Number(n) => Ok(Tag::Long(
+            n.as_i64()
+                .or_else(|| n.as_u64().map(|u| u as i64))
+                .unwrap_or_else(|| n.as_f64().unwrap_or(0.0) as i64),
+        )),
+        _ => Ok(Tag::Long(number_of(json)? as i64)),
+    })
+}
+
 /// `Codec.DOUBLE`.
 pub fn double_codec() -> Codec {
     Codec::new(|json, _| Ok(Tag::Double(number_of(json)?)))

@@ -7,6 +7,7 @@
 use crate::registry_pipeline::element_codecs as codecs;
 use crate::registry_pipeline::gametest_codecs as gametest;
 use crate::registry_pipeline::loader::{ElementCodecs, LoadTask};
+use crate::registry_pipeline::worldgen_feature;
 use crate::resource_registry_data_loader::{RegistryDataLoaderRegistryData, WORLDGEN_REGISTRIES};
 
 /// Resolves the direct (pack-decoding) and network (sync-encoding) codecs of a
@@ -16,7 +17,6 @@ use crate::resource_registry_data_loader::{RegistryDataLoaderRegistryData, WORLD
 /// are not ported yet. None of them is in `SYNCHRONIZED_REGISTRIES`, so clients
 /// never receive them, but the server still needs them for worldgen:
 ///
-/// - TODO(registry-pipeline-worldgen-features): `worldgen/configured_feature`
 /// - TODO(registry-pipeline-worldgen-structures): `worldgen/structure_set`,
 ///   `worldgen/processor_list`, `worldgen/template_pool`
 /// - TODO(registry-pipeline-worldgen-noise): `worldgen/noise_settings`,
@@ -81,9 +81,12 @@ pub fn element_codecs(key: &str) -> Option<ElementCodecs> {
         "minecraft:test_environment" => same(gametest::test_environment()),
         "minecraft:test_instance" => same(gametest::test_instance()),
         "minecraft:enchantment" | "minecraft:dialog" => same(codecs::unported()),
-        "minecraft:worldgen/configured_carver"
-        | "minecraft:worldgen/placed_feature"
-        | "minecraft:worldgen/structure" => same(codecs::worldgen_reference_target()),
+        // TODO(registry-pipeline-worldgen-structures): typed `Structure` and carver codecs.
+        "minecraft:worldgen/configured_carver" | "minecraft:worldgen/structure" => {
+            same(codecs::worldgen_reference_target())
+        }
+        "minecraft:worldgen/configured_feature" => same(worldgen_feature::configured_feature()),
+        "minecraft:worldgen/placed_feature" => same(worldgen_feature::placed_feature()),
         "minecraft:jukebox_song" => same(codecs::jukebox_song()),
         "minecraft:instrument" => same(codecs::instrument()),
         "minecraft:world_clock" => same(codecs::world_clock()),

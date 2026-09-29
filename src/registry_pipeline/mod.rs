@@ -13,6 +13,7 @@
 //! - [`tags`] — `TagLoader` (merge, `replace`, optional entries, dependency order).
 //! - [`codec`], [`shared`], [`attributes`], [`element_codecs`], [`gametest_codecs`] —
 //!   the JSON-to-network codecs for registry elements.
+//! - [`worldgen_feature`] — the typed `configured_feature`/`placed_feature` codecs.
 //! - [`loader`] — `RegistryDataLoader.load`, freezing, validators and error reports,
 //!   plus the tag reload `/reload` performs.
 //! - [`store`] — `MappedRegistry` and the layered [`Registries`] access.
@@ -39,6 +40,7 @@ pub mod shared;
 pub mod store;
 pub mod sync;
 pub mod tags;
+pub mod worldgen_feature;
 pub mod zip_pack;
 
 use std::sync::OnceLock;
