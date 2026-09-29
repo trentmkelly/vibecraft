@@ -125,7 +125,7 @@ pub(super) fn kill_player(state: &mut PlaySessionState) {
 /// (STAGE 4 of [[project-live-player-registry-gap]]), and a bare `/kill` needs
 /// `command_source_entity` seeded in `command_state_for_player`.
 pub(super) fn apply_kill_command(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
     profile: &NameAndId,
@@ -176,7 +176,7 @@ pub(super) fn live_random_seed() -> u64 {
 /// Per-tick player lifecycle: collects experience orbs, advances the combat clock and
 /// runs [`die`] when health has reached zero.
 pub(super) fn tick_player_lifecycle(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
     context: &PlayerLifecycleContext<'_>,

@@ -76,7 +76,7 @@ pub fn write_bool<W: Write>(writer: &mut W, value: bool) -> io::Result<()> {
 /// Writes a ClientboundGameEventPacket with the given type and float parameter.
 /// Java: ClientboundGameEventPacket — byte event type, float param
 pub fn write_game_event(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     event_type: u8,
     param: f32,
@@ -177,7 +177,7 @@ pub fn write_status_pong_packet<W: Write>(
 }
 
 pub fn handle_legacy_status_tcp_connection(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     properties: &ServerProperties,
     online: usize,
 ) -> io::Result<()> {

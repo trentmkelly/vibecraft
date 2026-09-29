@@ -140,7 +140,7 @@ impl ActiveLoginGuard {
 /// Java `tryHandleChat(message, false, ...)` followed by the unsigned
 /// `getSignedMessage` decode and `broadcastChatMessage`.
 pub(super) fn handle_plain_chat(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     profile: &NameAndId,
     message: &str,
@@ -170,7 +170,7 @@ pub(super) fn handle_plain_chat(
 }
 
 fn write_system_chat_tag(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     content: Tag,
 ) -> io::Result<()> {

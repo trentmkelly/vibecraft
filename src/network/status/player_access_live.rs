@@ -374,7 +374,7 @@ fn format_ban_expiration(stored: &str) -> Option<String> {
 /// `PlayerList.sendPlayerPermissionLevel`: the `ENTITY_EVENT` carrying the new permission level
 /// (`24..=28`) followed by the resent command tree (`Commands.sendCommands`).
 pub(super) fn write_permission_level_update(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     sync: &mut CommandTreeSync,
 ) -> io::Result<()> {

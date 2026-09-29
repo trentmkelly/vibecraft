@@ -3,11 +3,11 @@ use crate::command::{execute_builtin_command, CommandError, CommandResult};
 use crate::command::{LevelBasedPermissionSet, PermissionLevel};
 use std::fs;
 
-fn loopback_pair() -> (TcpStream, TcpStream) {
+fn loopback_pair() -> (ClientStream, std::net::TcpStream) {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let client = std::net::TcpStream::connect(listener.local_addr().unwrap()).unwrap();
     let (server, _) = listener.accept().unwrap();
-    (client, server)
+    (ClientStream::new(client), server)
 }
 
 fn temp_dir(name: &str) -> PathBuf {
@@ -31,7 +31,7 @@ struct Online {
     profile: NameAndId,
     _guard: ActiveLoginGuard,
     inbox: Subscription,
-    _peer: TcpStream,
+    _peer: std::net::TcpStream,
 }
 
 fn join(registry: &ActiveLoginRegistry, name: &str) -> Online {

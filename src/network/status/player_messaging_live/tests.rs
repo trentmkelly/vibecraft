@@ -2,11 +2,11 @@ use super::*;
 use crate::command::{PlayerDisconnect, ServerCommandState};
 use crate::network::varint::read_var_i32;
 
-fn loopback_stream() -> TcpStream {
+fn loopback_stream() -> ClientStream {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let client = std::net::TcpStream::connect(listener.local_addr().unwrap()).unwrap();
     let _server = listener.accept().unwrap();
-    client
+    ClientStream::new(client)
 }
 
 struct Player {

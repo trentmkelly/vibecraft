@@ -61,7 +61,8 @@ pub fn inventory_menu_full_sync_writes_all_slots_and_carried_item() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let handle = std::thread::spawn(move || {
-        let (mut stream, _) = listener.accept().unwrap();
+        let (accepted, _) = listener.accept().unwrap();
+        let mut stream = ClientStream::new(accepted);
         let mut state = session_state_with_inventory(&[("minecraft:oak_log", 2, 0)]);
         state.carried_item = ItemStack::new("minecraft:oak_planks", 4);
         write_inventory_menu_full_sync(&mut stream, CompressionState::disabled(), &state).unwrap();

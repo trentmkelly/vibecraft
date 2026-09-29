@@ -30,7 +30,7 @@ pub fn chunk_batch_size(radius: i32) -> i32 {
 }
 
 pub fn delay_initial_chunk_batch_for_probe(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
 ) -> io::Result<()> {
     let delay_ms = env::var("VIBECRAFT_INITIAL_CHUNK_DELAY_MS")
@@ -141,13 +141,15 @@ pub fn chunk_coordinate(block_coordinate: f64) -> i32 {
 pub fn write_player_info_initializing_packet<W: Write>(
     writer: &mut W,
     profile: &NameAndId,
+    properties: &[crate::player_online_auth::ProfileProperty],
     game_mode: GameMode,
 ) -> io::Result<()> {
     writer.write_all(&[0xff])?;
     write_var_i32(writer, 1)?;
     write_uuid(writer, uuid_from_hyphenated(&profile.uuid)?)?;
     crate::network::codec::write_string(writer, &profile.name, 16)?;
-    write_var_i32(writer, 0)?;
+    // ADD_PLAYER carries `GameProfile.properties` (skin textures + signature).
+    crate::network::login::write_profile_properties(writer, properties)?;
     write_bool(writer, false)?;
     write_var_i32(writer, game_mode_legacy_id(game_mode))?;
     write_bool(writer, true)?;
@@ -208,7 +210,7 @@ pub fn write_command_suggestions_response<W: Write, R: Read>(
 /// Java `ServerGamePacketListenerImpl.handleChatAck`: advances the last-seen
 /// window, disconnecting with `CHAT_VALIDATION_FAILED` when the offset is invalid.
 pub fn handle_chat_ack_packet<R: Read>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut R,
     chat_state: &mut LiveChatState,
@@ -221,7 +223,7 @@ pub fn handle_chat_ack_packet<R: Read>(
 }
 
 pub fn handle_chat_packet<R: Read>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut R,
     profile: &NameAndId,
@@ -266,7 +268,7 @@ pub struct ChatCommandContext<'a> {
 }
 
 pub fn handle_chat_command_packet<R: Read>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut R,
     signed: bool,
@@ -465,7 +467,7 @@ pub fn function_permission_level_from_properties(properties: &ServerProperties) 
 }
 
 fn apply_command_side_effects(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     profile: &NameAndId,
@@ -548,7 +550,7 @@ pub(super) fn command_feedback_text(
 }
 
 pub fn write_system_chat_text(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     text: &str,
     overlay: bool,
@@ -568,7 +570,7 @@ pub fn write_system_chat_text(
 }
 
 pub(super) fn write_disconnect_component(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     translation_key: &str,
 ) -> io::Result<()> {

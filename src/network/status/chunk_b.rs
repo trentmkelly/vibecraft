@@ -615,7 +615,7 @@ fn use_item_on_spawn_protected(
 /// sendSpawnProtectionMessage): writes the denial message and returns whether
 /// the interaction is rejected (the caller acks the sequence).
 fn use_item_on_denied_by_world_gates(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     context: &UseItemOnContext<'_, '_>,
     clicked_pos: crate::block_update::BlockPos,
@@ -652,7 +652,7 @@ fn use_item_on_denied_by_world_gates(
 /// to `BlockItem.place`.
 #[allow(clippy::too_many_arguments)]
 fn dispatch_behavioral_item_use_on(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
     context: &mut UseItemOnContext<'_, '_>,
@@ -708,7 +708,7 @@ fn dispatch_behavioral_item_use_on(
 }
 
 pub fn handle_use_item_on(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
     mut context: UseItemOnContext<'_, '_>,
@@ -836,7 +836,7 @@ pub fn bucket_fluid_kind(item_name: &str) -> Option<FluidKind> {
 }
 
 pub fn handle_bucket_place_fluid(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
     context: UseItemOnContext<'_, '_>,

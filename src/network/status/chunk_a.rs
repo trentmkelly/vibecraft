@@ -753,7 +753,7 @@ fn run_status_accept_loop(
                         remote_address: &remote_address,
                         remote_ip: &remote_ip,
                     };
-                    if let Err(err) = handle_status_connection(stream, context) {
+                    if let Err(err) = handle_status_connection(ClientStream::new(stream), context) {
                         eprintln!("status connection error from {remote_for_log}: {err}");
                     }
                 });
@@ -767,7 +767,7 @@ fn run_status_accept_loop(
 }
 
 fn handle_status_connection(
-    mut stream: TcpStream,
+    mut stream: ClientStream,
     context: StatusConnectionContext<'_>,
 ) -> io::Result<()> {
     let StatusConnectionContext {
@@ -883,7 +883,7 @@ fn handle_status_connection(
 }
 
 pub fn write_login_protocol_mismatch_disconnect(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     protocol: i32,
 ) -> io::Result<()> {
     let key = if protocol < 754 {
@@ -907,7 +907,7 @@ pub fn write_login_protocol_mismatch_disconnect(
 /// `multiplayer.disconnect.transfers_disabled` reason (no translation args) and
 /// close. The outbound protocol is already LOGIN at this point, so the login
 /// disconnect packet form is correct.
-pub fn write_transfers_disabled_disconnect(stream: &mut TcpStream) -> io::Result<()> {
+pub fn write_transfers_disabled_disconnect(stream: &mut ClientStream) -> io::Result<()> {
     write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
         ClientboundLoginDisconnectPacket {
             reason: crate::network::codec::ComponentJson(
@@ -929,7 +929,7 @@ pub(super) fn is_rate_limit_disconnect_error(err: &io::Error) -> bool {
 }
 
 fn write_login_rate_limit_disconnect(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     reason: &str,
 ) -> io::Result<()> {
@@ -954,7 +954,7 @@ fn is_invalid_login_hello_error(err: &io::Error) -> bool {
         )
 }
 
-fn write_invalid_login_hello_disconnect(stream: &mut TcpStream, err: &io::Error) -> io::Result<()> {
+fn write_invalid_login_hello_disconnect(stream: &mut ClientStream, err: &io::Error) -> io::Result<()> {
     // Java `Connection.exceptionCaught`: username validation and login-string
     // codec failures are sent as a login-state generic-disconnect component.
     let internal = if err.to_string() == "invalid characters in username" {
@@ -977,7 +977,7 @@ fn write_invalid_login_hello_disconnect(stream: &mut TcpStream, err: &io::Error)
 }
 
 pub(super) fn write_configuration_rate_limit_disconnect(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     reason: &str,
 ) -> io::Result<()> {
@@ -995,7 +995,7 @@ pub(super) fn write_configuration_rate_limit_disconnect(
 }
 
 fn wait_for_configuration_packet_or_rate_disconnect(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     expected_packet_id: i32,
     expected_name: &'static str,
@@ -1042,7 +1042,7 @@ enum LoginHandshakeOutcome {
 }
 
 fn complete_login_handshake(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     context: &mut LoginConnectionContext<'_>,
 ) -> io::Result<LoginHandshakeOutcome> {
     let mut login = LoginSession::default();
@@ -1072,11 +1072,7 @@ fn complete_login_handshake(
             context.rate_limiter,
             crate::network::yggdrasil::YggdrasilSessionService::new(),
         )? {
-            online_login::OnlineLoginOutcome::Authenticated {
-                result,
-                stream: decrypted,
-            } => {
-                *stream = decrypted;
+            online_login::OnlineLoginOutcome::Authenticated(result) => {
                 login.accept_authenticated_profile(result)
             }
             online_login::OnlineLoginOutcome::Closed => return Ok(LoginHandshakeOutcome::Closed),
@@ -1120,7 +1116,7 @@ fn complete_login_handshake(
 }
 
 fn send_login_success_packets(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     properties: &ServerProperties,
     login: &mut LoginSession,
     finished: &ClientboundLoginFinishedPacket,
@@ -1146,7 +1142,7 @@ fn send_login_success_packets(
 }
 
 fn wait_for_login_acknowledgement(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     rate_limiter: &mut PacketRateLimiter,
     login: &mut LoginSession,
@@ -1171,7 +1167,7 @@ fn wait_for_login_acknowledgement(
 }
 
 fn run_configuration_handshake(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     properties: &ServerProperties,
     compression: CompressionState,
     rate_limiter: &mut PacketRateLimiter,
@@ -1230,7 +1226,7 @@ fn run_configuration_handshake(
 }
 
 fn run_server_resource_pack_configuration_task(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     properties: &ServerProperties,
     compression: CompressionState,
     rate_limiter: &mut PacketRateLimiter,
@@ -1341,7 +1337,7 @@ fn hex_value(byte: u8) -> Option<u8> {
 }
 
 pub fn read_expected_configuration_resource_pack_response(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     rate_limiter: &mut PacketRateLimiter,
     active_login: &ActiveLoginGuard,
@@ -1388,7 +1384,7 @@ pub fn read_expected_configuration_resource_pack_response(
 }
 
 fn run_code_of_conduct_configuration_task(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     properties: &ServerProperties,
     compression: CompressionState,
     rate_limiter: &mut PacketRateLimiter,
@@ -1421,7 +1417,7 @@ fn run_code_of_conduct_configuration_task(
 }
 
 fn initialize_joined_play_session(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     finished: &ClientboundLoginFinishedPacket,
     shared: ConnectionSharedContext<'_>,
@@ -1457,6 +1453,7 @@ fn initialize_joined_play_session(
             properties: shared.properties,
             world_seed: shared.world_seed,
             profile: &finished.profile,
+            profile_properties: &finished.properties,
             play_state: &play_state,
             recipe_manager: shared.recipe_manager,
             world_root: shared.world_root,
@@ -1531,7 +1528,7 @@ fn initialize_joined_play_session(
 }
 
 fn send_existing_item_entities(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     world_items: &Arc<Mutex<WorldItemEntities>>,
 ) -> io::Result<()> {
@@ -1551,7 +1548,7 @@ fn send_existing_item_entities(
 /// Returns `false` once the keepalive has timed out (the `disconnect.timeout`
 /// packet has already been written and the play loop should end the session).
 pub(super) fn tick_keep_alive_and_time(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     clock: &Arc<Mutex<ServerClockManager>>,
     keep_alive: &mut KeepAliveState,
@@ -1602,7 +1599,7 @@ pub(super) fn tick_keep_alive_and_time(
 }
 
 fn tick_item_entities_for_client(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     world_items: &Arc<Mutex<WorldItemEntities>>,
     last_item_tick: &mut Instant,
@@ -1655,7 +1652,7 @@ fn tick_item_entities_for_client(
 }
 
 fn broadcast_weather_if_changed(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     weather: &Arc<Mutex<WeatherCycle>>,
     last_sent_rain_level: &mut f32,
@@ -1715,7 +1712,7 @@ struct PlayerTickContext<'a, 'b> {
 /// Applies one tick of in-water state (air supply, buoyancy motion) and returns
 /// whether health changed (drowning).
 fn tick_player_water(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     world_root: &Path,
@@ -1737,7 +1734,7 @@ fn tick_player_water(
 /// Runs the player's death lifecycle and then syncs health if it changed. Java runs
 /// `ServerPlayer.die` from inside `hurtServer`, before `doTick` syncs health.
 fn sync_player_vitals(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     lifecycle: &player_death::PlayerLifecycleContext<'_>,
@@ -1755,7 +1752,7 @@ fn sync_player_vitals(
 /// (`ServerGamePacketListenerImpl.disconnect`): the notice is flushed and EOF on the
 /// next read runs the normal disconnect/save path.
 fn deliver_world_bus(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     world_bus: &Subscription,
 ) -> io::Result<bool> {
@@ -1768,7 +1765,7 @@ fn deliver_world_bus(
 }
 
 fn tick_player_and_chunk_sender(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     context: PlayerTickContext<'_, '_>,
@@ -1888,7 +1885,7 @@ struct ChunkDrainContext<'a, 'b> {
 /// Sits at the end of the player tick so fluid/entity ticking sees the same
 /// chunk snapshot as the chunks being flushed.
 fn drain_chunks_for_tick(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     context: ChunkDrainContext<'_, '_>,
 ) -> io::Result<()> {
@@ -1943,7 +1940,7 @@ struct LiveWorldTickContext<'a, 'b> {
 }
 
 fn tick_live_world_systems(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     context: LiveWorldTickContext<'_, '_>,
@@ -2017,7 +2014,7 @@ struct LiveDestroyContext<'a, 'b> {
 }
 
 fn tick_live_block_destroy_progress(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     context: LiveDestroyTickContext<'_, '_>,
@@ -2211,7 +2208,7 @@ struct JoinedPlayLoopTickContext<'a, 'b> {
 /// Returns `false` when the session should end (e.g. a keepalive timeout, whose
 /// `disconnect.timeout` packet has already been written).
 fn tick_joined_play_session_loop(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     context: JoinedPlayLoopTickContext<'_, '_>,
@@ -2366,7 +2363,7 @@ struct RespawnSessionContext<'a, 'b> {
 }
 
 fn handle_respawn_session_update(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     context: RespawnSessionContext<'_, '_>,
@@ -2435,7 +2432,7 @@ struct PositionSessionContext<'a, 'b> {
 }
 
 fn handle_position_session_update(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     context: PositionSessionContext<'_, '_>,
@@ -2542,7 +2539,7 @@ struct PlayerActionContext<'a, 'b> {
 }
 
 fn handle_player_action_packet<R: Read>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut R,
     play_state: &mut PlaySessionState,
@@ -2674,7 +2671,7 @@ fn spawn_protection_message_tag(x: i32, y: i32, z: i32) -> crate::storage::nbt::
 /// `sendSystemMessage(message, true)`: a system-chat packet with `overlay = true`
 /// (the action-bar slot) carrying the RED `build.spawn_protection` component.
 pub(crate) fn write_spawn_protection_message(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     x: i32,
     y: i32,
@@ -2720,7 +2717,7 @@ pub(crate) fn build_limit_message_tag(is_too_high: bool, limit: i32) -> crate::s
 /// Send the RED build-limit overlay message (`ServerPlayer.sendBuildLimitMessage`)
 /// as a system-chat packet with `overlay = true`.
 pub(crate) fn write_build_limit_message(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     is_too_high: bool,
     limit: i32,
@@ -2748,7 +2745,7 @@ pub(crate) fn write_build_limit_message(
 /// 3. send the RED `build.spawn_protection` overlay message
 ///    (`ServerPlayer.sendSpawnProtectionMessage`).
 fn write_block_break_denied(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     fields: &PlayerActionFields,
     context: &PlayerActionContext<'_, '_>,
@@ -2837,7 +2834,7 @@ fn is_block_break_action(action: i32) -> bool {
 }
 
 fn handle_player_block_action(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     fields: &PlayerActionFields,
@@ -2996,7 +2993,7 @@ fn should_drop_block_loot<'a>(
 }
 
 fn handle_player_block_break(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     fields: &PlayerActionFields,
@@ -3031,7 +3028,7 @@ fn handle_player_block_break(
 }
 
 fn destroy_live_block_at(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     context: LiveDestroyContext<'_, '_>,
@@ -3156,7 +3153,7 @@ fn damage_main_hand_tool_after_block_break(
 }
 
 fn write_block_break_ack_and_air(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     fields: &PlayerActionFields,
     game_mode: GameMode,
@@ -3202,7 +3199,7 @@ fn write_block_break_ack_and_air(
 /// Per-tick falling-block simulation (Java `FallingBlockEntity.tick`).
 #[allow(clippy::too_many_arguments)]
 fn spawn_block_break_drops(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     world_items: &Arc<Mutex<WorldItemEntities>>,
     play_state: &PlaySessionState,
@@ -3260,7 +3257,7 @@ struct InventoryPacketContext<'a, 'b> {
 }
 
 fn try_handle_inventory_packet<R: Read>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut R,
     packet_id: i32,
@@ -3321,7 +3318,7 @@ fn try_handle_inventory_packet<R: Read>(
 }
 
 fn handle_container_click_packet<R: Read>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut R,
     play_state: &mut PlaySessionState,
@@ -3371,7 +3368,7 @@ fn handle_container_click_packet<R: Read>(
 }
 
 fn write_container_click_instruction(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     instruction: PlayInstruction,
     recipe_manager: &RecipeManagerModel,
@@ -3411,7 +3408,7 @@ fn write_container_click_instruction(
 }
 
 fn handle_pick_item_from_block_packet<R: Read>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut R,
     play_state: &mut PlaySessionState,
@@ -3428,7 +3425,7 @@ fn handle_pick_item_from_block_packet<R: Read>(
 }
 
 fn handle_pick_item_from_entity_packet<R: Read>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut R,
     play_state: &mut PlaySessionState,
@@ -3440,7 +3437,7 @@ fn handle_pick_item_from_entity_packet<R: Read>(
 }
 
 fn write_pick_item_outcome(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &mut PlaySessionState,
     outcome: super::player_creative_packets::PickItemOutcome,
@@ -3468,7 +3465,7 @@ fn write_pick_item_outcome(
 }
 
 fn handle_edit_book_packet<R: Read>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut R,
     play_state: &mut PlaySessionState,
@@ -3483,7 +3480,7 @@ fn handle_edit_book_packet<R: Read>(
 }
 
 fn handle_set_creative_mode_slot_packet<R: Read>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut R,
     play_state: &mut PlaySessionState,
@@ -3503,7 +3500,7 @@ fn handle_set_creative_mode_slot_packet<R: Read>(
 }
 
 fn handle_place_recipe_packet<R: Read>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut R,
     play_state: &mut PlaySessionState,
@@ -3542,7 +3539,7 @@ enum PlayPacketReadOutcome {
 }
 
 fn read_play_packet_or_handle_disconnect(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     rate_limiter: &mut PacketRateLimiter,
     context: PlayDisconnectContext<'_, '_>,
@@ -3607,7 +3604,7 @@ fn read_play_packet_or_handle_disconnect(
 }
 
 fn write_translatable_play_disconnect(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     reason: &str,
 ) -> io::Result<()> {
@@ -3691,7 +3688,7 @@ struct JoinedPlayPacketStepContext<'a, 'b> {
 }
 
 fn read_and_dispatch_joined_play_packet(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     rate_limiter: &mut PacketRateLimiter,
     play_state: &mut PlaySessionState,
@@ -3734,7 +3731,7 @@ fn read_and_dispatch_joined_play_packet(
 /// `chat_command_signed`) to their handlers, mirroring the `handleChat*` methods
 /// of Java `ServerGamePacketListenerImpl`. Returns `false` for any other packet.
 fn try_handle_chat_packet(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     input: &mut Cursor<Vec<u8>>,
     packet_id: i32,
@@ -3772,7 +3769,7 @@ fn try_handle_chat_packet(
 }
 
 fn handle_decoded_play_packet(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     packet: Vec<u8>,
     play_state: &mut PlaySessionState,
@@ -4052,7 +4049,7 @@ impl<'a, 'b> DecodedPlayPacketContext<'a, 'b> {
 }
 
 fn write_unexpected_play_packet_disconnect(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     packet_id: i32,
 ) -> io::Result<()> {
@@ -4072,7 +4069,7 @@ fn write_unexpected_play_packet_disconnect(
 }
 
 fn handle_login_connection(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     mut context: LoginConnectionContext<'_>,
 ) -> io::Result<()> {
     let LoginHandshakeOutcome::Complete(CompletedLogin {
@@ -4125,7 +4122,7 @@ fn handle_login_connection(
 // function than split across artificial seams.
 #[allow(clippy::too_many_lines)]
 fn run_joined_play_session(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     finished: ClientboundLoginFinishedPacket,
     context: PlayConnectionContext<'_>,

@@ -150,11 +150,11 @@ fn removed_bed_is_a_missing_respawn_block_but_forced_spawn_still_works() {
     assert_eq!(found.position, (0.5, 64.1, 0.5));
 }
 
-fn loopback() -> (TcpStream, TcpStream) {
+fn loopback() -> (ClientStream, std::net::TcpStream) {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let client = std::net::TcpStream::connect(listener.local_addr().unwrap()).unwrap();
     let (server, _) = listener.accept().unwrap();
-    (server, client)
+    (ClientStream::new(server), client)
 }
 
 #[test]
