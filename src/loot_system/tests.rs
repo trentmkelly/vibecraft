@@ -367,6 +367,9 @@ fn java_condition_surface_context() -> LootContext {
     context
         .block_state_properties
         .insert("axis".to_string(), "y".to_string());
+    context
+        .enchantment_levels
+        .insert("minecraft:fortune".to_string(), 2);
     context.scores.insert("kills".to_string(), 6);
     context.entity_properties.insert(
         "damage_source.bypasses_armor".to_string(),
@@ -393,7 +396,8 @@ fn java_condition_surface_condition() -> LootCondition {
             LootCondition::RandomChance(1.0),
             LootCondition::RandomChanceWithEnchantedBonus {
                 unenchanted_chance: 0.0,
-                enchanted_chance: 1.0,
+                enchanted_chance: LevelBasedValue::Constant(1.0),
+                enchantment: "minecraft:looting".to_string(),
             },
         ]),
         LootCondition::Inverted(Box::new(LootCondition::RandomChance(0.0))),
@@ -462,6 +466,7 @@ fn java_condition_surface_condition() -> LootCondition {
             value: 0.8,
         },
         LootCondition::TableBonus {
+            enchantment: "minecraft:fortune".to_string(),
             chances: vec![0.0, 0.0, 1.0],
         },
     ])
@@ -586,14 +591,22 @@ fn entry_types_cover_tags_nested_tables_dynamic_alternatives_sequences_and_group
                 weight: 1,
                 quality: 0,
                 conditions: Vec::new(),
+                functions: Vec::new(),
             },
             LootEntry::NestedTable("minecraft:bonus".to_string()),
-            LootEntry::Dynamic("minecraft:sherds".to_string()),
+            LootEntry::Dynamic {
+                name: "minecraft:sherds".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: Vec::new(),
+                functions: Vec::new(),
+            },
             LootEntry::Alternatives(vec![
                 LootEntry::Empty {
                     weight: 0,
                     quality: 0,
                     conditions: Vec::new(),
+                    functions: Vec::new(),
                 },
                 LootEntry::item("minecraft:emerald", 1),
             ]),
@@ -741,6 +754,7 @@ fn validation_reports_invalid_pool_and_entry_shapes() {
             weight: -1,
             quality: 0,
             conditions: Vec::new(),
+            functions: Vec::new(),
         }],
         conditions: Vec::new(),
         functions: Vec::new(),

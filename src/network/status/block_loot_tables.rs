@@ -24,9 +24,20 @@ pub fn block_loot_table(block_name: &str) -> Option<LootTable> {
 
 /// The loot table the enabled data packs define under `table_id`, when a server state
 /// is installed.
+///
+/// Only tables the runtime models completely are used: one containing a predicate,
+/// enchantment-dependent function or other part the runtime cannot evaluate yet
+/// (`LootTable::is_fully_modeled`) would drop the wrong items, so it falls through to
+/// the built-in tables below instead.
+/// TODO(loot-json-codec): drop the fallback once every loot part is modeled.
 fn datapack_block_loot_table(table_id: &str) -> Option<LootTable> {
     let resources = ServerResources::installed()?.current();
-    resources.content.loot_tables.get(table_id).cloned()
+    resources
+        .content
+        .loot_tables
+        .get(table_id)
+        .filter(|table| table.is_fully_modeled())
+        .cloned()
 }
 
 fn terrain_block_loot_table(key: &str, random_sequence: &str) -> Option<LootTable> {

@@ -7,7 +7,9 @@ impl LootFunction {
             | Self::LimitCount { .. }
             | Self::AddLootingBonus { .. }
             | Self::ApplyFortuneBonus { .. }
-            | Self::ApplyBonus(_)
+            | Self::ApplyBonus { .. }
+            | Self::AddCount(_)
+            | Self::EnchantedCountIncrease { .. }
             | Self::SetOminousBottleAmplifier(_) => self.apply_count_function(stack, context),
             Self::SetItem(_)
             | Self::SetEnchantments(_)
@@ -46,6 +48,7 @@ impl LootFunction {
             | Self::Discard
             | Self::ApplyExplosionDecay
             | Self::Filtered { .. }
+            | Self::Unmodeled { .. }
             | Self::Sequence(_) => self.apply_control_function(stack, context),
         }
     }
@@ -70,7 +73,29 @@ impl LootFunction {
                     stack.count = stack.count.min(*limit);
                 }
             }
-            Self::ApplyBonus(formula) => stack.count = formula.apply(stack.count, context),
+            Self::ApplyBonus {
+                enchantment,
+                formula,
+            } => {
+                let level = context.enchantment_level_of(enchantment);
+                stack.count = formula.apply(stack.count, level, context);
+            }
+            Self::AddCount(provider) => stack.count += provider.int(context),
+            Self::EnchantedCountIncrease {
+                enchantment,
+                count,
+                limit,
+            } => {
+                let level = context.enchantment_level_of(enchantment);
+                if level != 0 {
+                    let addition = level as f32 * count.float(context);
+                    // `Math.round(float)`.
+                    stack.count += (addition + 0.5).floor() as i32;
+                    if *limit > 0 {
+                        stack.count = stack.count.min(*limit);
+                    }
+                }
+            }
             Self::SetOminousBottleAmplifier(provider) => {
                 stack.components.insert(
                     "minecraft:ominous_bottle_amplifier".to_string(),
@@ -295,6 +320,7 @@ impl LootFunction {
                 }
             }
             Self::Sequence(functions) => apply_function_sequence(functions, stack, context),
+            Self::Unmodeled { .. } => Some(stack),
             _ => unreachable!("non-control loot function routed to control handler"),
         }
     }

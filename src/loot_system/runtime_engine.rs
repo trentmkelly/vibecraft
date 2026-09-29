@@ -237,6 +237,7 @@ pub enum LootEntry {
         weight: i32,
         quality: i32,
         conditions: Vec<LootCondition>,
+        functions: Vec<LootFunction>,
     },
     Tag {
         tag: String,
@@ -244,6 +245,7 @@ pub enum LootEntry {
         weight: i32,
         quality: i32,
         conditions: Vec<LootCondition>,
+        functions: Vec<LootFunction>,
     },
     Alternatives(Vec<LootEntry>),
     Sequence(Vec<LootEntry>),
@@ -254,8 +256,31 @@ pub enum LootEntry {
         weight: i32,
         quality: i32,
         conditions: Vec<LootCondition>,
+        functions: Vec<LootFunction>,
     },
-    Dynamic(String),
+    /// `DynamicLoot`: drops the context's dynamic drop named `name`.
+    Dynamic {
+        name: String,
+        weight: i32,
+        quality: i32,
+        conditions: Vec<LootCondition>,
+        functions: Vec<LootFunction>,
+    },
+    /// `CompositeEntryBase.conditions`: `entry` (an alternatives/sequence/group
+    /// container) only expands when every condition holds.
+    Conditional {
+        conditions: Vec<LootCondition>,
+        entry: Box<LootEntry>,
+    },
+    /// A `LootPoolEntries` type (`loot_table` with an inline table, `slots`) the
+    /// runtime cannot evaluate yet. The JSON codec validates and keeps the document,
+    /// but the entry never produces drops and [`LootTable::is_fully_modeled`] reports
+    /// the table as unusable.
+    /// TODO(loot-json-codec): model these entry types.
+    Unmodeled {
+        kind: String,
+        data: serde_json::Value,
+    },
 }
 
 impl LootEntry {
@@ -276,27 +301,26 @@ impl LootEntry {
                 quality,
                 conditions,
                 ..
-            } => {
-                if conditions
-                    .iter()
-                    .all(|condition| condition.matches(context))
-                {
-                    output.push(ExpandedEntry {
-                        entry: self.clone(),
-                        weight: *weight,
-                        quality: *quality,
-                    });
-                }
             }
-            Self::Empty {
+            | Self::Empty {
                 weight,
                 quality,
                 conditions,
+                ..
+            }
+            | Self::WeightedNestedTable {
+                weight,
+                quality,
+                conditions,
+                ..
+            }
+            | Self::Dynamic {
+                weight,
+                quality,
+                conditions,
+                ..
             } => {
-                if conditions
-                    .iter()
-                    .all(|condition| condition.matches(context))
-                {
+                if conditions_hold(conditions, context) {
                     output.push(ExpandedEntry {
                         entry: self.clone(),
                         weight: *weight,
@@ -310,26 +334,28 @@ impl LootEntry {
                 weight,
                 quality,
                 conditions,
+                functions,
             } => {
-                if !conditions
-                    .iter()
-                    .all(|condition| condition.matches(context))
-                {
+                if !conditions_hold(conditions, context) {
                     return;
                 }
-                if *expand {
-                    if let Some(items) = context.tags.get(tag) {
-                        for item in items {
-                            output.push(ExpandedEntry {
-                                entry: LootEntry::item(item.clone(), *weight),
-                                weight: *weight,
-                                quality: *quality,
-                            });
-                        }
-                    }
-                } else {
+                if !*expand {
                     output.push(ExpandedEntry {
                         entry: self.clone(),
+                        weight: *weight,
+                        quality: *quality,
+                    });
+                    return;
+                }
+                for item in context.tags.get(tag).into_iter().flatten() {
+                    output.push(ExpandedEntry {
+                        entry: LootEntry::Item {
+                            item: item.clone(),
+                            weight: *weight,
+                            quality: *quality,
+                            conditions: Vec::new(),
+                            functions: functions.clone(),
+                        },
                         weight: *weight,
                         quality: *quality,
                     });
@@ -345,28 +371,17 @@ impl LootEntry {
                 });
             }
             Self::Alternatives(_) | Self::Sequence(_) | Self::Group(_) => {}
-            Self::NestedTable(_) | Self::Dynamic(_) => output.push(ExpandedEntry {
+            Self::NestedTable(_) => output.push(ExpandedEntry {
                 entry: self.clone(),
                 weight: 1,
                 quality: 0,
             }),
-            Self::WeightedNestedTable {
-                weight,
-                quality,
-                conditions,
-                ..
-            } => {
-                if conditions
-                    .iter()
-                    .all(|condition| condition.matches(context))
-                {
-                    output.push(ExpandedEntry {
-                        entry: self.clone(),
-                        weight: *weight,
-                        quality: *quality,
-                    });
+            Self::Conditional { conditions, entry } => {
+                if conditions_hold(conditions, context) {
+                    entry.expand(context, output);
                 }
             }
+            Self::Unmodeled { .. } => {}
         }
     }
 
@@ -384,29 +399,37 @@ impl LootEntry {
                 }
                 vec![stack]
             }
-            Self::Empty { .. } => Vec::new(),
-            Self::Tag { tag, expand, .. } => context
-                .tags
-                .get(tag)
-                .map(|items| {
-                    if *expand {
-                        items.iter().map(|item| LootStack::new(item, 1)).collect()
-                    } else {
-                        vec![LootStack::new(format!("#{tag}"), 1)]
-                    }
-                })
-                .unwrap_or_default(),
-            Self::NestedTable(table) | Self::WeightedNestedTable { table, .. } => {
-                if let Some(nested) = context.tables.get(table).cloned() {
-                    nested.evaluate(context)
-                } else {
-                    context
-                        .warnings
-                        .push(format!("Unknown nested loot table {table}"));
-                    Vec::new()
-                }
+            Self::Empty { .. } | Self::Unmodeled { .. } => Vec::new(),
+            Self::Tag {
+                tag,
+                expand,
+                functions,
+                ..
+            } => {
+                let stacks = context
+                    .tags
+                    .get(tag)
+                    .map(|items| {
+                        if *expand {
+                            items.iter().map(|item| LootStack::new(item, 1)).collect()
+                        } else {
+                            vec![LootStack::new(format!("#{tag}"), 1)]
+                        }
+                    })
+                    .unwrap_or_default();
+                apply_entry_functions(functions, stacks, context)
             }
-            Self::Dynamic(name) => context.dynamic_drops.get(name).cloned().unwrap_or_default(),
+            Self::NestedTable(table) => create_nested_table(table, &[], context),
+            Self::WeightedNestedTable {
+                table, functions, ..
+            } => create_nested_table(table, functions, context),
+            Self::Dynamic {
+                name, functions, ..
+            } => {
+                let stacks = context.dynamic_drops.get(name).cloned().unwrap_or_default();
+                apply_entry_functions(functions, stacks, context)
+            }
+            Self::Conditional { entry, .. } => entry.create(context),
             Self::Alternatives(children) => {
                 for child in children {
                     let mut expanded = Vec::new();
@@ -474,17 +497,59 @@ impl LootEntry {
             }
             Self::NestedTable(table)
             | Self::WeightedNestedTable { table, .. }
-            | Self::Dynamic(table)
+            | Self::Dynamic { name: table, .. }
                 if table.is_empty() =>
             {
                 errors.push(format!("{path} has an empty reference"));
             }
+            Self::Conditional { entry, .. } => entry.validate(path, errors),
             Self::WeightedNestedTable { weight, .. } if *weight < 0 => {
                 errors.push(format!("{path} has invalid nested-table weight"));
             }
             _ => {}
         }
     }
+}
+
+/// True when every condition matches (`LootItemConditions.andConditions`).
+fn conditions_hold(conditions: &[LootCondition], context: &LootContext) -> bool {
+    conditions
+        .iter()
+        .all(|condition| condition.matches(context))
+}
+
+/// `LootPoolSingletonContainer.functions`: runs the entry's item modifiers over the
+/// stacks it produced; a modifier returning nothing drops the stack.
+fn apply_entry_functions(
+    functions: &[LootFunction],
+    stacks: Vec<LootStack>,
+    context: &mut LootContext,
+) -> Vec<LootStack> {
+    stacks
+        .into_iter()
+        .filter_map(|stack| {
+            functions
+                .iter()
+                .try_fold(stack, |stack, function| function.apply(stack, context))
+        })
+        .collect()
+}
+
+/// `NestedLootTable.createItemStack`: rolls the referenced table, then applies the
+/// entry's own functions to its output.
+fn create_nested_table(
+    table: &str,
+    functions: &[LootFunction],
+    context: &mut LootContext,
+) -> Vec<LootStack> {
+    let Some(nested) = context.tables.get(table).cloned() else {
+        context
+            .warnings
+            .push(format!("Unknown nested loot table {table}"));
+        return Vec::new();
+    };
+    let stacks = nested.evaluate(context);
+    apply_entry_functions(functions, stacks, context)
 }
 
 struct ExpandedEntry {
@@ -538,6 +603,14 @@ pub enum NumberProvider {
     Sum(Vec<NumberProvider>),
     EnvironmentAttribute {
         attribute: String,
+    },
+    /// A `NumberProviders` type the runtime cannot evaluate yet (`score`, `storage`
+    /// and `enchantment_level` with their full Java parameters). The codec validated
+    /// the document; it evaluates to zero and marks the table as not fully modeled.
+    /// TODO(loot-json-codec): model these providers.
+    Unmodeled {
+        kind: String,
+        data: serde_json::Value,
     },
 }
 
@@ -645,6 +718,7 @@ impl NumberProvider {
                 .get(attribute)
                 .copied()
                 .unwrap_or(0.0),
+            Self::Unmodeled { .. } => 0.0,
         }
     }
 
@@ -658,6 +732,7 @@ impl NumberProvider {
             Self::EnchantmentLevel { .. } => 0.0,
             Self::Sum(summands) => summands.iter().map(NumberProvider::minimum).sum(),
             Self::EnvironmentAttribute { .. } => f32::MIN,
+            Self::Unmodeled { .. } => 0.0,
         }
     }
 }
@@ -679,9 +754,12 @@ pub enum LootCondition {
         chance: f32,
         looting_multiplier: f32,
     },
+    /// `LootItemRandomChanceWithEnchantedBonusCondition`: the attacker's level of
+    /// `enchantment` picks `enchanted_chance` (or `unenchanted_chance` at level 0).
     RandomChanceWithEnchantedBonus {
         unenchanted_chance: f32,
-        enchanted_chance: f32,
+        enchanted_chance: LevelBasedValue,
+        enchantment: String,
     },
     KilledByPlayer,
     SurvivesExplosion,
@@ -733,13 +811,27 @@ pub enum LootCondition {
         attribute: String,
         value: f32,
     },
+    /// `BonusLevelTableCondition`: `chances[min(level, len - 1)]` for the tool's level
+    /// of `enchantment`.
     TableBonus {
+        enchantment: String,
         chances: Vec<f32>,
     },
+    /// `MatchTool` with an item/enchantment `ItemPredicate`.
+    ToolMatches(ToolPredicate),
     Reference(String),
     Inverted(Box<LootCondition>),
     AllOf(Vec<LootCondition>),
     AnyOf(Vec<LootCondition>),
+    /// A `LootItemConditions` type (or parameterisation) the runtime cannot
+    /// evaluate yet: entity/location/item/damage-source predicates, enchantment
+    /// based chances, scores and clocks. The codec validated the document; the
+    /// condition never matches and marks the table as not fully modeled.
+    /// TODO(loot-json-codec): model these conditions.
+    Unmodeled {
+        kind: String,
+        data: serde_json::Value,
+    },
 }
 
 impl LootCondition {
@@ -761,9 +853,11 @@ impl LootCondition {
             Self::RandomChanceWithEnchantedBonus {
                 unenchanted_chance,
                 enchanted_chance,
+                enchantment,
             } => {
-                let chance = if context.enchantment_active {
-                    *enchanted_chance
+                let level = context.enchantment_level_of(enchantment);
+                let chance = if level > 0 {
+                    enchanted_chance.calculate(level)
                 } else {
                     *unenchanted_chance
                 };
@@ -822,8 +916,12 @@ impl LootCondition {
                 .environment_attributes
                 .get(attribute)
                 .is_some_and(|actual| (*actual - *value).abs() <= f32::EPSILON),
-            Self::TableBonus { chances } => {
-                let index = context.enchantment_level.max(0) as usize;
+            Self::ToolMatches(predicate) => predicate.matches(context),
+            Self::TableBonus {
+                enchantment,
+                chances,
+            } => {
+                let index = context.enchantment_level_of(enchantment).max(0) as usize;
                 let chance = chances
                     .get(index)
                     .or_else(|| chances.last())
@@ -839,6 +937,7 @@ impl LootCondition {
             Self::AnyOf(conditions) => conditions
                 .iter()
                 .any(|condition| condition.matches_mut(context)),
+            Self::Unmodeled { .. } => false,
         }
     }
 }
@@ -858,7 +957,21 @@ pub enum LootFunction {
         per_level: NumberProvider,
         limit: Option<i32>,
     },
-    ApplyBonus(LootBonusFormula),
+    /// `ApplyBonusCount`: `formula` over the tool's level of `enchantment`.
+    ApplyBonus {
+        enchantment: String,
+        formula: LootBonusFormula,
+    },
+    /// `SetItemCountFunction` with `add: true`.
+    AddCount(NumberProvider),
+    /// `EnchantedCountIncreaseFunction`: grows the count by
+    /// `round(level * count)` for the attacker's level of `enchantment`, capped at
+    /// `limit` when it is positive.
+    EnchantedCountIncrease {
+        enchantment: String,
+        count: NumberProvider,
+        limit: i32,
+    },
     SetItem(String),
     SetEnchantments(HashMap<String, i32>),
     SetDamage(NumberProvider),
@@ -922,6 +1035,14 @@ pub enum LootFunction {
         function: Box<LootFunction>,
     },
     Sequence(Vec<LootFunction>),
+    /// A `LootItemFunctions` type (or parameterisation) the runtime cannot apply
+    /// yet. The codec validated the document; the function leaves the stack
+    /// untouched and marks the table as not fully modeled.
+    /// TODO(loot-json-codec): model these functions.
+    Unmodeled {
+        kind: String,
+        data: serde_json::Value,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -932,8 +1053,8 @@ pub enum LootBonusFormula {
 }
 
 impl LootBonusFormula {
-    pub(super) fn apply(&self, base_count: i32, context: &mut LootContext) -> i32 {
-        let fortune = context.fortune_level.max(0);
+    pub(super) fn apply(&self, base_count: i32, level: i32, context: &mut LootContext) -> i32 {
+        let fortune = level.max(0);
         match self {
             Self::UniformBonusCount { bonus_multiplier } => {
                 let bound = fortune * (*bonus_multiplier).max(0) + 1;

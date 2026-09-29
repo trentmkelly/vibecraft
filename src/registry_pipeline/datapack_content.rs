@@ -31,10 +31,11 @@ const ADVANCEMENT_DIRECTORY: &str = "advancement";
 /// The loot tables the enabled packs define (`LootDataType.TABLE` registry).
 ///
 /// Java's `ReloadableServerRegistries.Holder.getLootTable` answers `LootTable.EMPTY`
-/// for an id that no pack defines. The bundled vanilla pack does not ship loot table
-/// JSON yet (vanilla drops still come from built-in Rust tables), so this holds only
-/// the tables packs define; callers fall back to the built-in table for anything
-/// absent. TODO(vanilla-loot-table-json): bundle vanilla `loot_table/` so this holder
+/// for an id that no pack defines. The bundled vanilla pack ships every vanilla loot
+/// table and the codec decodes them all, but the runtime cannot evaluate every part
+/// of them yet ([`LootTable::is_fully_modeled`]), so vanilla drops still come from the
+/// built-in Rust tables wherever a table is not fully modeled.
+/// TODO(vanilla-loot-table-json): model the remaining loot parts so this holder
 /// becomes the single source, as in Java.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct LootTables {
@@ -99,29 +100,43 @@ impl DatapackContent {
     /// loot data, then recipes, the function library and advancements. Problems the
     /// components log and recover from are written to the server log.
     pub fn load(manager: &ResourceManager, registries: &Registries) -> Result<Self, String> {
+        let (content, problems) = Self::load_reporting(manager, registries)?;
+        for problem in problems.iter().chain(content.functions.errors()) {
+            log_error(problem);
+        }
+        for warning in content.advancements.validation_warnings() {
+            log_warn(warning);
+        }
+        // `RecipeManager.apply`: `LOGGER.info("Loaded {} recipes", ...)`.
+        log_info(&format!(
+            "Loaded {} recipes",
+            content.recipes.recipe_map().values().len()
+        ));
+        Ok(content)
+    }
+
+    /// [`Self::load`] without logging: also returns the per-resource problems Java
+    /// would log and skip (loot tables, recipes and advancements that failed to
+    /// decode), so tests can require that a pack loads cleanly.
+    pub fn load_reporting(
+        manager: &ResourceManager,
+        registries: &Registries,
+    ) -> Result<(Self, Vec<String>), String> {
         let mut problems = Vec::new();
         let loot_tables = LootTables::load(manager, &mut problems);
         let recipes = Arc::new(load_recipes(manager, registries, &mut problems)?);
         let functions = ServerFunctionLibrary::from_resource_manager(manager);
         let advancements = load_advancements(manager, &mut problems);
 
-        for problem in problems.iter().chain(functions.errors()) {
-            log_error(problem);
-        }
-        for warning in advancements.validation_warnings() {
-            log_warn(warning);
-        }
-        // `RecipeManager.apply`: `LOGGER.info("Loaded {} recipes", ...)`.
-        log_info(&format!(
-            "Loaded {} recipes",
-            recipes.recipe_map().values().len()
-        ));
-        Ok(Self {
-            recipes,
-            loot_tables,
-            advancements: Arc::new(advancements),
-            functions,
-        })
+        Ok((
+            Self {
+                recipes,
+                loot_tables,
+                advancements: Arc::new(advancements),
+                functions,
+            },
+            problems,
+        ))
     }
 }
 

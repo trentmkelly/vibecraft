@@ -84,6 +84,7 @@ fn fishing_loot_test_engine() -> LootBehaviorEngine {
                     weight: 10,
                     quality: -2,
                     conditions: Vec::new(),
+                    functions: Vec::new(),
                 },
                 LootEntry::WeightedNestedTable {
                     table: "minecraft:gameplay/fishing/treasure".to_string(),
@@ -99,12 +100,14 @@ fn fishing_loot_test_engine() -> LootBehaviorEngine {
                             value: "true".to_string(),
                         },
                     ],
+                    functions: Vec::new(),
                 },
                 LootEntry::WeightedNestedTable {
                     table: "minecraft:gameplay/fishing/fish".to_string(),
                     weight: 85,
                     quality: -1,
                     conditions: Vec::new(),
+                    functions: Vec::new(),
                 },
             ],
             conditions: Vec::new(),
@@ -428,26 +431,35 @@ fn assert_copy_name_reads_block_entity_name(context: &mut LootContext) {
 fn apply_bonus_function_covers_uniform_binomial_and_ore_drop_formulas() {
     let mut uniform = LootContext::new(LootParamSet::Block, 1);
     uniform.fortune_level = 2;
-    let uniform_stack = LootFunction::ApplyBonus(LootBonusFormula::UniformBonusCount {
-        bonus_multiplier: 2,
-    })
+    let uniform_stack = LootFunction::ApplyBonus {
+        enchantment: "minecraft:fortune".to_string(),
+        formula: LootBonusFormula::UniformBonusCount {
+            bonus_multiplier: 2,
+        },
+    }
     .apply(LootStack::new("minecraft:lapis_lazuli", 1), &mut uniform)
     .unwrap();
     assert!((1..=5).contains(&uniform_stack.count));
 
     let mut binomial = LootContext::new(LootParamSet::Block, 2);
     binomial.fortune_level = 3;
-    let binomial_stack = LootFunction::ApplyBonus(LootBonusFormula::BinomialWithBonusCount {
-        extra: 1,
-        probability: 1.0,
-    })
+    let binomial_stack = LootFunction::ApplyBonus {
+        enchantment: "minecraft:fortune".to_string(),
+        formula: LootBonusFormula::BinomialWithBonusCount {
+            extra: 1,
+            probability: 1.0,
+        },
+    }
     .apply(LootStack::new("minecraft:redstone", 1), &mut binomial)
     .unwrap();
     assert_eq!(binomial_stack.count, 5);
 
     let mut ore = LootContext::new(LootParamSet::Block, 3);
     ore.fortune_level = 3;
-    let ore_stack = LootFunction::ApplyBonus(LootBonusFormula::OreDrops)
+    let ore_stack = LootFunction::ApplyBonus {
+        enchantment: "minecraft:fortune".to_string(),
+        formula: LootBonusFormula::OreDrops,
+    }
         .apply(LootStack::new("minecraft:diamond", 2), &mut ore)
         .unwrap();
     assert!(ore_stack.count >= 2);

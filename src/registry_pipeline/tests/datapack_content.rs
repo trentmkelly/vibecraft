@@ -171,7 +171,10 @@ fn reload_applies_recipe_overrides_additions_and_removals_from_packs() {
 fn reload_loads_loot_tables_and_skips_undecodable_ones() {
     let world = world_with_content();
     let resources = world.server();
-    assert!(resources.current().content.loot_tables.get("minecraft:blocks/stone").is_none());
+    // The bundled vanilla pack ships `blocks/stone`; the pack copy replaces it below.
+    let vanilla_stone = resources.current().content.loot_tables.get("minecraft:blocks/stone").cloned();
+    assert!(vanilla_stone.is_some_and(|table| table.pools[0].entries[0]
+        != LootEntry::item("minecraft:diamond", 1)));
 
     resources
         .reload(&ContentWorld::enabled())
@@ -189,8 +192,8 @@ fn reload_loads_loot_tables_and_skips_undecodable_ones() {
         &stone.pools[0].entries[0],
         LootEntry::Item { item, .. } if item == "minecraft:diamond"
     ));
-    // `enchanted_count_increase` is outside the modelled function set: rejected, not
-    // silently stripped.
+    // `enchanted_count_increase` without its required `enchantment` and `count` fields
+    // fails the codec: the copy is skipped (and still shadows the vanilla table).
     assert!(current.content.loot_tables.get("minecraft:blocks/dirt").is_none());
 }
 

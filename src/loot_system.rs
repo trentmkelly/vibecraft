@@ -133,6 +133,17 @@ pub enum LootParamSet {
     Selector,
     AdvancementEntity,
     Equipment,
+    VillagerTrade,
+    AdvancementLocation,
+    BlockUse,
+    Shearing,
+    EntityInteract,
+    BlockInteract,
+    EnchantedDamage,
+    EnchantedItem,
+    EnchantedLocation,
+    EnchantedEntity,
+    HitBlock,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -790,6 +801,9 @@ fn json_string_value(value: &serde_json::Value) -> Result<String, String> {
 
 mod json_codec;
 pub use json_codec::decode_loot_table;
+mod enchanted;
+mod modeling;
+pub use enchanted::{EnchantmentBound, HolderSet, LevelBasedValue, ToolPredicate};
 mod runtime_engine;
 pub use runtime_engine::*;
 mod runtime_functions;

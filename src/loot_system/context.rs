@@ -14,6 +14,9 @@ pub struct LootContext {
     pub luck: f32,
     pub looting_level: i32,
     pub fortune_level: i32,
+    /// Levels of the tool/attacker enchantments beyond the request scalars
+    /// (`silk_touch`, `fortune_level`, `looting_level`).
+    pub enchantment_levels: HashMap<String, i32>,
     pub enchantment_level: i32,
     pub enchantment_active: bool,
     pub killed_by_player: bool,
@@ -57,6 +60,7 @@ impl LootContext {
             luck: 0.0,
             looting_level: 0,
             fortune_level: 0,
+            enchantment_levels: HashMap::new(),
             enchantment_level: 0,
             enchantment_active: false,
             killed_by_player: false,
@@ -98,6 +102,7 @@ impl LootContext {
             luck: self.luck,
             looting_level: self.looting_level,
             fortune_level: self.fortune_level,
+            enchantment_levels: self.enchantment_levels.clone(),
             enchantment_level: self.enchantment_level,
             enchantment_active: self.enchantment_active,
             killed_by_player: self.killed_by_player,
@@ -272,7 +277,20 @@ fn entity_type_for_param_set(param_set: LootParamSet) -> LootContextEntityType {
         LootParamSet::Selector => LootContextEntityType::Selector,
         LootParamSet::AdvancementEntity => LootContextEntityType::AdvancementEntity,
         LootParamSet::Equipment => LootContextEntityType::Equipment,
-        LootParamSet::Empty | LootParamSet::AllParams => LootContextEntityType::Command,
+        // Parameter sets with no dedicated context type evaluate like a command.
+        LootParamSet::Empty
+        | LootParamSet::AllParams
+        | LootParamSet::VillagerTrade
+        | LootParamSet::AdvancementLocation
+        | LootParamSet::BlockUse
+        | LootParamSet::Shearing
+        | LootParamSet::EntityInteract
+        | LootParamSet::BlockInteract
+        | LootParamSet::EnchantedDamage
+        | LootParamSet::EnchantedItem
+        | LootParamSet::EnchantedLocation
+        | LootParamSet::EnchantedEntity
+        | LootParamSet::HitBlock => LootContextEntityType::Command,
     }
 }
 
