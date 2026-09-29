@@ -108,6 +108,18 @@ fn assert_biased_height_provider_sampling(context: WorldGenerationHeightContext)
         9
     );
 
+    // Degenerate ranges follow `Mth.nextInt` (returns min without a draw) instead of dividing by
+    // zero: min == max with inner == 0.
+    let degenerate_very_biased = HeightProvider::VeryBiasedToBottom {
+        min_inclusive: VerticalAnchor::Absolute(0),
+        max_inclusive: VerticalAnchor::Absolute(0),
+        inner: 0,
+    };
+    assert_eq!(
+        super::super::height_provider_sample_with_rolls(degenerate_very_biased, context, 5, 7, 9),
+        0
+    );
+
     let trapezoid = HeightProvider::Trapezoid {
         min_inclusive: VerticalAnchor::Absolute(0),
         max_inclusive: VerticalAnchor::Absolute(10),

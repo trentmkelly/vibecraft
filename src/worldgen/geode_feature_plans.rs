@@ -33,7 +33,8 @@ pub fn validate_geode_config(config: &GeodeConfigurationModel) -> Result<(), &'s
 pub fn geode_invalid_point_count(config: &GeodeConfigurationModel, sampled_states: &[&str]) -> i32 {
     sampled_states
         .iter()
-        .filter(|state| **state == "minecraft:air" || config.invalid_blocks.contains(state))
+        // Java `state.isAir() || state.is(invalidBlocks)`: `isAir` covers cave/void air too.
+        .filter(|state| block_is_air(state) || config.invalid_blocks.contains(state))
         .count() as i32
 }
 

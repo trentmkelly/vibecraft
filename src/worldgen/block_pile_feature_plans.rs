@@ -14,8 +14,9 @@ pub fn block_pile_placement_candidates(
     let z_radius = 2 + z_radius_roll.rem_euclid(2);
     let mut positions = Vec::new();
     let mut roll_index = 0;
-    for y_offset in 0..=1 {
-        for z in origin.z - z_radius..=origin.z + z_radius {
+    // Java `BlockPos.betweenClosed` iterates X fastest, then Y, then Z slowest.
+    for z in origin.z - z_radius..=origin.z + z_radius {
+        for y_offset in 0..=1 {
             for x in origin.x - x_radius..=origin.x + x_radius {
                 let (first, second, sparse) = shape_rolls
                     .get(roll_index)

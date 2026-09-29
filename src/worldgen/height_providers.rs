@@ -119,9 +119,19 @@ pub fn height_provider_sample_with_rolls(
             if max - min < inner {
                 min
             } else {
+                // Java uses `Mth.nextInt(random, a, b)`, which returns `a` without consuming
+                // randomness when `a >= b`, so degenerate ranges must not use a roll.
                 let upper = min + inner + first_roll.rem_euclid(max - (min + inner) + 1);
-                let biased_upper = min + second_roll.rem_euclid(upper - min);
-                min + third_roll.rem_euclid(biased_upper - min + inner)
+                let biased_upper = if min >= upper - 1 {
+                    min
+                } else {
+                    min + second_roll.rem_euclid(upper - min)
+                };
+                if min >= biased_upper - 1 + inner {
+                    min
+                } else {
+                    min + third_roll.rem_euclid(biased_upper - min + inner)
+                }
             }
         }
         HeightProvider::Trapezoid {

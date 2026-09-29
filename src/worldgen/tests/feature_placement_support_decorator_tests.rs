@@ -34,8 +34,34 @@ fn assert_fallen_tree_support() {
             1,
             &[false, true],
         ),
-        Some(BlockPos { x: 3, y: 64, z: 0 })
+        BlockPos { x: 3, y: 64, z: 0 }
     );
+    // No suitable ground within six probes: Java leaves the cursor six blocks lower.
+    assert_eq!(
+        super::super::fallen_tree_start_pos(
+            BlockPos { x: 0, y: 64, z: 0 },
+            super::super::HorizontalDirection::East,
+            0,
+            &[false; 6],
+        ),
+        BlockPos { x: 2, y: 59, z: 0 }
+    );
+    // A blocked log still leaves the stump (and its decorators) in place.
+    let blocked =
+        super::super::fallen_tree_placement_plan(super::super::FallenTreePlacementInput {
+            origin: BlockPos { x: 0, y: 64, z: 0 },
+            config: &fallen_config,
+            direction: super::super::HorizontalDirection::East,
+            log_length_roll: 1,
+            distance_roll: 0,
+            ground_probe: &[true],
+            valid_tree_positions: &[true, false, true],
+            over_solid_ground: &[true, true, true],
+        })
+        .unwrap();
+    assert_eq!(blocked.blocks.len(), 1);
+    assert_eq!(blocked.stump_decorators, 1);
+    assert_eq!(blocked.log_decorators, 0);
     assert!(super::super::fallen_tree_can_place_log(
         &[true, true, true, true],
         &[true, false, false, true],

@@ -3,10 +3,11 @@ use super::*;
 pub fn disk_placement_plan(
     origin: BlockPos,
     config: &DiskConfigurationModel,
+    radius_roll: i32,
     column_contexts: &[(BlockPos, BlockPredicateContext)],
     provider_rolls: &[i32],
 ) -> Vec<DiskPlacementBlock> {
-    let radius = sample_int_provider_from_roll(config.radius, 0).clamp(0, 8);
+    let radius = sample_int_provider_from_roll(config.radius, radius_roll).clamp(0, 8);
     let half_height = config.half_height.clamp(0, 4);
     let top = origin.y + half_height;
     let bottom_exclusive = origin.y - half_height - 1;
@@ -33,7 +34,7 @@ pub fn disk_placement_plan(
                     let provider_roll = provider_rolls.get(provider_index).copied().unwrap_or(0);
                     provider_index += 1;
                     if let Some(state) =
-                        block_state_provider_sample(&config.state_provider, provider_roll)
+                        disk_optional_state(&config.state_provider, *context, y, provider_roll)
                     {
                         placed.push(DiskPlacementBlock {
                             pos,
@@ -49,4 +50,26 @@ pub fn disk_placement_plan(
         }
     }
     placed
+}
+
+/// Java `RuleBasedStateProvider.getOptionalState`: the first rule whose predicate matches supplies
+/// the state; with no matching rule the fallback is used, and a missing fallback yields `null`
+/// (no block placed) rather than the existing block. Non-rule providers sample normally.
+fn disk_optional_state(
+    provider: &BlockStateProviderModel,
+    context: BlockPredicateContext,
+    y: i32,
+    provider_roll: i32,
+) -> Option<&'static str> {
+    match provider {
+        BlockStateProviderModel::RuleBased { fallback, rules } => {
+            let chosen = rules
+                .iter()
+                .find(|rule| block_predicate_test(rule.if_true, context, y))
+                .map(|rule| rule.then.as_ref())
+                .or(fallback.as_deref());
+            chosen.and_then(|state| block_state_provider_sample(state, provider_roll))
+        }
+        _ => block_state_provider_sample(provider, provider_roll),
+    }
 }

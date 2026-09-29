@@ -48,20 +48,23 @@ pub fn dripstone_cluster_height_for_column(
     max_height: i32,
     config: DripstoneClusterSampledConfig,
     density_roll: f32,
-    biased_height_sample: f32,
+    height_gaussian: f64,
 ) -> i32 {
     if density_roll > density {
         return 0;
     }
     let distance_from_center = dx.abs() + dz.abs();
-    let _height_mean = clamped_map_f64(
+    let height_mean = clamped_map_f64(
         distance_from_center as f64,
         0.0,
         config.max_distance_from_center_affecting_height_bias as f64,
         max_height as f64 / 2.0,
         0.0,
-    );
-    biased_height_sample.clamp(0.0, max_height as f32) as i32
+    ) as f32;
+    // Java `ClampedNormalFloat.sample(random, mean, deviation, 0, maxHeight)`:
+    // `clamp(mean + (float) nextGaussian() * deviation, min, max)`, then truncated to int.
+    let value = height_mean + height_gaussian as f32 * config.height_deviation as f32;
+    value.clamp(0.0, max_height as f32) as i32
 }
 
 pub fn dripstone_cluster_column_plan(
@@ -171,7 +174,7 @@ fn dripstone_cluster_stalactite_height(
         max_height,
         config,
         rolls.stalactite_density_roll,
-        rolls.stalactite_biased_height,
+        rolls.stalactite_height_gaussian,
     )
 }
 
@@ -202,7 +205,7 @@ fn dripstone_cluster_stalagmite_height(
         config.height,
         config,
         rolls.stalagmite_density_roll,
-        rolls.stalagmite_biased_height,
+        rolls.stalagmite_height_gaussian,
     )
 }
 
@@ -239,7 +242,8 @@ fn dripstone_cluster_should_merge_tips(
     let column_height = input
         .ceiling_y
         .zip(floor_y)
-        .map(|(ceiling, floor)| ceiling - floor);
+        // Java `Column.Range.height()` is `ceiling - floor - 1` (the open gap between the blocks).
+        .map(|(ceiling, floor)| ceiling - floor - 1);
     rolls.merge_tips_roll
         && state.stalactite_height > 0
         && state.stalagmite_height > 0

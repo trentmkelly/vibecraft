@@ -636,9 +636,9 @@ pub(super) fn height_provider_sample_with_random(
             if max - min < inner {
                 min
             } else {
-                let upper = random_next_i32_between_inclusive(random, min + inner, max);
-                let biased_upper = random_next_i32_between_inclusive(random, min, upper - 1);
-                random_next_i32_between_inclusive(random, min, biased_upper - 1 + inner)
+                let upper = mth_next_int(random, min + inner, max);
+                let biased_upper = mth_next_int(random, min, upper - 1);
+                mth_next_int(random, min, biased_upper - 1 + inner)
             }
         }
         HeightProvider::Trapezoid {
@@ -685,6 +685,17 @@ pub(super) fn height_provider_sample_with_random(
             };
             height_provider_sample_with_random(selected.provider, context, random)
         }
+    }
+}
+
+/// Java `Mth.nextInt(random, min, max)`: returns `min` without consuming randomness when
+/// `min >= max`, otherwise `random.nextInt(max - min + 1) + min`. Distinct from
+/// `Mth.randomBetweenInclusive`, which always draws (see [`random_next_i32_between_inclusive`]).
+fn mth_next_int(random: &mut RandomSourceKind, min_inclusive: i32, max_inclusive: i32) -> i32 {
+    if min_inclusive >= max_inclusive {
+        min_inclusive
+    } else {
+        min_inclusive + feature_random_next_i32_bound(random, max_inclusive - min_inclusive + 1)
     }
 }
 

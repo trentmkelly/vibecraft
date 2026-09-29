@@ -290,6 +290,7 @@ pub fn coral_claw_positions(
     sideway_rolls: &[i32],
     inway_rolls: &[i32],
     up_rolls: &[f32],
+    segment_up_rolls: &[bool],
 ) -> Vec<BlockPos> {
     let mut positions = vec![origin];
     for (branch_index, direction) in branch_directions.iter().take(3).enumerate() {
@@ -309,11 +310,23 @@ pub fn coral_claw_positions(
         if *direction != claw_direction {
             pos.y += 1;
         }
+        // Java: a non-claw branch picks `Util.getRandom({branchDirection, UP})` as the
+        // sideways segment direction; the claw-direction branch always uses its own direction.
+        let segment_up = *direction != claw_direction
+            && segment_up_rolls.get(branch_index).copied().unwrap_or(false);
         for _ in 0..sideway_length {
             positions.push(pos);
-            pos = offset_horizontal(pos, *direction, 1);
+            if segment_up {
+                pos.y += 1;
+            } else {
+                pos = offset_horizontal(pos, *direction, 1);
+            }
         }
-        pos = offset_horizontal(pos, direction.opposite(), 1);
+        if segment_up {
+            pos.y -= 1;
+        } else {
+            pos = offset_horizontal(pos, direction.opposite(), 1);
+        }
         pos.y += 1;
         for i in 0..inway_length {
             pos = offset_horizontal(pos, claw_direction, 1);

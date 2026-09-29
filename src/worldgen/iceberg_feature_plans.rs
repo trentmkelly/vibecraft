@@ -53,7 +53,9 @@ pub fn iceberg_signed_distance_circle(
     radius: i32,
     float_roll: f32,
 ) -> f64 {
-    let off = 10.0 * f64::from(float_roll.clamp(0.2, 0.8)) / f64::from(radius.max(1));
+    // Java computes `10.0F * clamp(nextFloat, 0.2F, 0.8F) / radius` in f32 (a zero radius yields
+    // infinity, which never counts as inside the iceberg) before widening to double.
+    let off = f64::from(10.0_f32 * float_roll.clamp(0.2, 0.8) / radius as f32);
     let dx = f64::from(xo - origin.x);
     let dz = f64::from(zo - origin.z);
     off + dx.powi(2) + dz.powi(2) - f64::from(radius).powi(2)
@@ -69,8 +71,10 @@ pub fn iceberg_signed_distance_ellipse(
 ) -> f64 {
     let dx = f64::from(xo - origin.x);
     let dz = f64::from(zo - origin.z);
-    ((dx * angle.cos() - dz * angle.sin()) / f64::from(a.max(1))).powi(2)
-        + ((dx * angle.sin() + dz * angle.cos()) / f64::from(c.max(1))).powi(2)
+    // No zero guards: Java divides by the int axes directly, so a non-positive `c` produces
+    // infinity/NaN (never `< 0`) and the block is left untouched.
+    ((dx * angle.cos() - dz * angle.sin()) / f64::from(a)).powi(2)
+        + ((dx * angle.sin() + dz * angle.cos()) / f64::from(c)).powi(2)
         - 1.0
 }
 
@@ -135,12 +139,19 @@ pub fn iceberg_set_block_action(
     }
 }
 
+/// Java `generateIcebergBlock` surface-noise skip: the compare value is `-0.5` for ellipses and
+/// `-6 - random.nextInt(3)` for round icebergs (`circle_compare_roll` is that `nextInt(3)` draw).
 pub fn iceberg_should_skip_surface_noise(
     signed_distance: f64,
     is_ellipse: bool,
+    circle_compare_roll: i32,
     roll: f64,
 ) -> bool {
-    let compare_val = if is_ellipse { -0.5 } else { -6.0 };
+    let compare_val = if is_ellipse {
+        -0.5
+    } else {
+        -6.0 - f64::from(circle_compare_roll.rem_euclid(3))
+    };
     signed_distance > compare_val && roll > 0.9
 }
 

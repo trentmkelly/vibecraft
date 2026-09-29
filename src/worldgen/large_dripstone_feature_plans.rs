@@ -151,7 +151,8 @@ pub fn large_dripstone_blocks(
     let mut factor_roll_index = 0;
     for dx in -dripstone.radius..=dripstone.radius {
         for dz in -dripstone.radius..=dripstone.radius {
-            let current_radius = ((dx * dx + dz * dz) as f64).sqrt();
+            // Java `Mth.sqrt(float)`: the distance is a float widened to double afterwards.
+            let current_radius = f64::from(((dx * dx + dz * dz) as f32).sqrt());
             if current_radius > dripstone.radius as f64 {
                 continue;
             }
@@ -173,7 +174,8 @@ pub fn large_dripstone_blocks(
                     .unwrap_or(1.0)
                     .clamp(0.0, 1.0);
                 factor_roll_index += 1;
-                height = (height as f32 * (0.8 + 0.2 * factor_roll)) as i32;
+                // Java `Mth.randomBetween(random, 0.8F, 1.0F)` = `nextFloat() * (1.0F - 0.8F) + 0.8F`.
+                height = (height as f32 * (factor_roll * (1.0_f32 - 0.8_f32) + 0.8_f32)) as i32;
             }
             for i in 0..height {
                 let raw = BlockPos {

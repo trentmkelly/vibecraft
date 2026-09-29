@@ -143,10 +143,23 @@ fn assert_coral_shape_helpers() {
         &[0, 0],
         &[0, 0],
         &[1.0; 10],
+        &[false, false],
     );
     assert!(coral_claw.contains(&pos(0, 60, 0)));
     assert!(coral_claw.contains(&pos(0, 60, -1)));
     assert!(coral_claw.contains(&pos(1, 61, 0)));
+    // A non-claw branch whose segment direction rolls UP grows vertically (Java
+    // `segmentDirection = getRandom({branchDirection, UP})`).
+    let upward = super::super::coral_claw_positions(
+        pos(0, 60, 0),
+        super::super::HorizontalDirection::North,
+        &[super::super::HorizontalDirection::East],
+        &[1],
+        &[0],
+        &[1.0; 5],
+        &[true],
+    );
+    assert_eq!(&upward[..3], &[pos(0, 60, 0), pos(1, 61, 0), pos(1, 62, 0)]);
 }
 
 pub(super) fn assert_vegetation_patch_helpers() {
@@ -375,7 +388,8 @@ fn assert_valid_fossil_placement_plan(
             fossil_structure: "minecraft:fossil/skull_1",
             overlay_structure: "minecraft:fossil/skull_1_coal",
             rotation: super::super::StructureRotation::Clockwise90,
-            target_pos: pos(94, 35, 196),
+            // Low corner (94, 196) shifted by template sizeZ - 1 = 11 for Clockwise90.
+            target_pos: pos(105, 35, 196),
             fossil_processors: "minecraft:fossil_rot",
             overlay_processors: "minecraft:fossil_coal",
         })

@@ -100,19 +100,20 @@ static BLOCK_TAGS: LazyLock<HashMap<String, HashSet<String>>> = LazyLock::new(||
 /// Java: `BlockState.is(TagKey)` membership. Both arguments accept bare paths
 /// or `minecraft:`-prefixed ids.
 pub fn block_tag_contains(tag: &str, block_id: &str) -> bool {
-    let tag = if tag.contains(':') {
-        tag.to_string()
-    } else {
-        format!("minecraft:{tag}")
-    };
-    let block = if block_id.contains(':') {
-        block_id.to_string()
-    } else {
-        format!("minecraft:{block_id}")
-    };
+    use std::borrow::Cow;
+    // Fast path: already-namespaced ids (the hot worldgen case) need no allocation.
+    fn qualify(id: &str) -> Cow<'_, str> {
+        if id.contains(':') {
+            Cow::Borrowed(id)
+        } else {
+            Cow::Owned(format!("minecraft:{id}"))
+        }
+    }
+    let tag = qualify(tag);
+    let block = qualify(block_id);
     BLOCK_TAGS
-        .get(&tag)
-        .is_some_and(|blocks| blocks.contains(&block))
+        .get(tag.as_ref())
+        .is_some_and(|blocks| blocks.contains(block.as_ref()))
 }
 
 /// All members of a block tag, if it exists.
@@ -164,12 +165,10 @@ mod tests {
         // Unknown tags and blocks are simply absent.
         assert!(!block_tag_contains("not_a_tag", "minecraft:stone"));
         assert!(block_tag_members("minecraft:not_a_tag").is_none());
-        assert!(
-            all_block_tags_sorted()
-                .iter()
-                .any(|(tag, members)| tag == "minecraft:mineable/pickaxe"
-                    && members.iter().any(|block| block == "minecraft:stone"))
-        );
+        assert!(all_block_tags_sorted()
+            .iter()
+            .any(|(tag, members)| tag == "minecraft:mineable/pickaxe"
+                && members.iter().any(|block| block == "minecraft:stone")));
 
         // Spot checks against vanilla data used by canSurvive rules.
         assert!(block_tag_contains(
