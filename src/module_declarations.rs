@@ -806,3 +806,6 @@ mod world_version;
 mod worldgen;
 mod worldgen_comparison;
 mod worldgen_resources;
+
+#[cfg(test)]
+mod client_only_assets_tests;
