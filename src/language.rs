@@ -13,7 +13,6 @@ use std::sync::OnceLock;
 const EN_US_JSON: &str = include_str!("../vanilla-data/assets/minecraft/lang/en_us.json");
 
 /// The vendored `deprecated.json` (`DeprecatedTranslationsInfo`) applied on top of `en_us`.
-#[cfg(all(test, vibecraft_has_decompiled_sources))]
 pub const DEPRECATED_JSON: &str = include_str!("../vanilla-data/assets/minecraft/lang/deprecated.json");
 
 /// The raw vendored `en_us.json` text.
@@ -25,8 +24,39 @@ pub fn en_us() -> &'static HashMap<String, String> {
     static LANGUAGE: OnceLock<HashMap<String, String>> = OnceLock::new();
     LANGUAGE.get_or_init(|| {
         // The vendored file is validated by `embedded_en_us_resolves_without_the_decompilation`.
-        serde_json::from_str(EN_US_JSON).unwrap_or_default()
+        let mut translations: HashMap<String, String> =
+            serde_json::from_str(EN_US_JSON).unwrap_or_default();
+        apply_deprecated(&mut translations, DEPRECATED_JSON);
+        translations
     })
+}
+
+/// `DeprecatedTranslationsInfo.applyToMap`: drops every `removed` key, then moves each `renamed`
+/// entry to its new key (a rename whose source is missing instead deletes the target key).
+/// Unparseable input leaves the map untouched (Java falls back to `EMPTY` on read failure).
+fn apply_deprecated(translations: &mut HashMap<String, String>, deprecated_json: &str) {
+    let Ok(info) = serde_json::from_str::<serde_json::Value>(deprecated_json) else {
+        return;
+    };
+    let removed = info["removed"].as_array().into_iter().flatten().filter_map(|k| k.as_str());
+    let renamed = info["renamed"]
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter_map(|(from, to)| Some((from.as_str(), to.as_str()?)));
+    for key in removed {
+        translations.remove(key);
+    }
+    for (from, to) in renamed {
+        match translations.remove(from) {
+            Some(value) => {
+                translations.insert(to.to_string(), value);
+            }
+            None => {
+                translations.remove(to);
+            }
+        }
+    }
 }
 
 /// `Language.getOrDefault(key)`: the translation, or the key itself when missing.
@@ -122,6 +152,48 @@ mod tests {
         assert_eq!(format_template("50%", &args()), "50%");
         assert_eq!(format_template("%d", &args()), "%d");
         assert_eq!(format_template("%3$s", &args()), "%3$s");
+    }
+
+    #[test]
+    fn deprecated_json_is_applied_to_the_live_language() {
+        let raw: HashMap<String, String> = serde_json::from_str(EN_US_JSON).unwrap();
+        let info: serde_json::Value = serde_json::from_str(DEPRECATED_JSON).unwrap();
+        let removed = info["removed"].as_array().unwrap();
+        let removed_present = removed.iter().filter(|k| raw.contains_key(k.as_str().unwrap())).count();
+        assert!(removed_present > 0, "fixture should exercise removal");
+        let targets: Vec<&str> = info["renamed"]
+            .as_object()
+            .unwrap()
+            .values()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        for key in removed {
+            let key = key.as_str().unwrap();
+            // A renamed value may legitimately re-create a removed key (removal runs first).
+            if !targets.contains(&key) {
+                assert!(!en_us().contains_key(key), "{key}");
+            }
+        }
+        for (from, to) in info["renamed"].as_object().unwrap() {
+            if let Some(value) = raw.get(from) {
+                assert_eq!(en_us().get(to.as_str().unwrap()), Some(value), "{from}");
+            }
+        }
+    }
+
+    #[test]
+    fn apply_deprecated_matches_java_order_and_missing_rename() {
+        let mut map = HashMap::from([
+            ("a".to_string(), "1".to_string()),
+            ("old".to_string(), "2".to_string()),
+            ("stale".to_string(), "3".to_string()),
+        ]);
+        apply_deprecated(
+            &mut map,
+            r#"{"removed":["a"],"renamed":{"old":"new","gone":"stale"}}"#,
+        );
+        assert_eq!(map.get("new").map(String::as_str), Some("2"));
+        assert!(!map.contains_key("a") && !map.contains_key("old") && !map.contains_key("stale"));
     }
 
     #[test]

@@ -9692,9 +9692,9 @@ Generated on 2026-05-24 from `decompiled-server-26.1.2/data` and `decompiled-ser
 
 ### `decompiled-server-26.1.2/assets`
 
-- [ ] Audit vanilla asset resource `decompiled-server-26.1.2/assets/.mcassetsroot` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla asset resource `decompiled-server-26.1.2/assets/.mcassetsroot` for VibeCraft loading/generation/parity coverage.
 
 ### `decompiled-server-26.1.2/assets/minecraft/lang`
 
-- [ ] Audit vanilla asset resource `decompiled-server-26.1.2/assets/minecraft/lang/deprecated.json` for VibeCraft loading/generation/parity coverage.
-- [ ] Audit vanilla asset resource `decompiled-server-26.1.2/assets/minecraft/lang/en_us.json` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla asset resource `decompiled-server-26.1.2/assets/minecraft/lang/deprecated.json` for VibeCraft loading/generation/parity coverage.
+- [x] Audit vanilla asset resource `decompiled-server-26.1.2/assets/minecraft/lang/en_us.json` for VibeCraft loading/generation/parity coverage.
