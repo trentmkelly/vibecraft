@@ -214,6 +214,8 @@ pub struct GeneratedChunkCache {
     /// Experience block entities award (furnace results) until the world ticker
     /// spawns the orbs.
     pub experience_awards: Arc<crate::live_block_entities::experience::ExperienceAwards>,
+    /// `Level.random`, shared by the random-tick pass and bone meal.
+    pub level_random: Arc<LevelRandomSource>,
 }
 
 fn lock_mutex<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {

@@ -22,11 +22,71 @@ use super::block_placement_live::{
     LiveBlockWorld, LiveCascade, TickTarget,
 };
 use super::fire_live::FireEnvironment;
+use super::random_tick_live::{LiveRandomTickWorld, RandomTickEnvironment};
 use super::*;
+use crate::block_behavior::BlockStateModel;
 use crate::block_scheduled_ticks::BlockTickOutcome;
 use crate::block_states::block_state_entry;
-use crate::block_behavior::BlockStateModel;
+use crate::block_survival::SurvivalWorld;
+use crate::block_update::BlockPos;
+use crate::random_source::LegacyRandom;
 use crate::random_tick::LevelRandom;
+
+/// `Level.random`: the level's `RandomSource` (`LegacyRandomSource`), shared
+/// by the random-tick pass and every other world-level consumer such as bone
+/// meal, so their draws interleave in one sequence like Java's.
+pub struct LevelRandomSource(Mutex<LegacyRandom>);
+
+impl Default for LevelRandomSource {
+    /// Unseeded in Java (`RandomSource.create()`), so seeded from the clock.
+    fn default() -> Self {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_nanos());
+        Self::seeded((nanos >> 3) as i64 ^ 0x5DEE_CE66D)
+    }
+}
+
+impl LevelRandomSource {
+    pub fn seeded(seed: i64) -> Self {
+        Self(Mutex::new(LegacyRandom::new(seed)))
+    }
+
+    /// Locks the shared random for a run of draws.
+    pub fn lock(&self) -> std::sync::MutexGuard<'_, LegacyRandom> {
+        lock_status_mutex(&self.0)
+    }
+}
+
+/// The game rules the server tick thread consumes each tick.
+pub(super) struct TickGameRules {
+    /// `GameRules.ADVANCE_TIME`.
+    pub advance_time: bool,
+    /// `GameRules.ADVANCE_WEATHER`.
+    pub advance_weather: bool,
+    /// `GameRules.RANDOM_TICK_SPEED`.
+    pub random_tick_speed: i32,
+    /// `GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER`.
+    pub fire_spread_radius: i32,
+    /// `GameRules.SPREAD_VINES`.
+    pub spread_vines: bool,
+}
+
+impl TickGameRules {
+    pub fn read(rules: &crate::game_rules::LiveGameRules) -> Self {
+        let int = |name: &str, default: i32| match rules.get(name) {
+            Some(crate::game_rules::GameRuleValue::Int(value)) => value,
+            _ => default,
+        };
+        Self {
+            advance_time: rules.bool("advance_time"),
+            advance_weather: rules.bool("advance_weather"),
+            random_tick_speed: int("random_tick_speed", 0),
+            fire_spread_radius: int("fire_spread_radius_around_player", 128),
+            spread_vines: rules.bool("spread_vines"),
+        }
+    }
+}
 
 /// The level's scheduled-tick queues plus the game time they are keyed to
 /// (Java `ServerLevel.blockTicks` / `fluidTicks` and `getGameTime()`).
@@ -63,6 +123,8 @@ pub(super) struct ServerWorldTick<'a> {
     pub max_chained_neighbor_updates: i32,
     /// Java `GameRules.RANDOM_TICK_SPEED`.
     pub random_tick_speed: i32,
+    /// Java `GameRules.SPREAD_VINES`.
+    pub spread_vines: bool,
     /// Weather/difficulty/game-rule inputs of `FireBlock.tick`.
     pub fire: FireEnvironment,
     pub bus: &'a WorldPacketBus,
@@ -125,14 +187,10 @@ pub(super) fn tick_server_world(
     world.bus.publish_frames(&frames)
 }
 
-/// Java `BlockBehaviour.randomTick` for the block types with a port. `None`
-/// means the state has no random-tick behavior implemented yet.
-///
-/// TODO(random-tick-behaviors): crops/saplings/grass spread/fire-on-lava/
-/// vine growth/ice melt and the rest of the `randomTick` overrides are not
-/// ported; only states the authoritative table flags as randomly ticking AND
-/// listed here do anything.
-fn random_tick_outcome(state: &BlockStateModel) -> Option<BlockTickOutcome> {
+/// Java `LeavesBlock.randomTick`, the one `randomTick` that ends in a
+/// `dropResources` + `removeBlock` outcome instead of block-state writes. Every
+/// other ported override lives in [`crate::random_tick_behaviors`].
+fn leaves_random_tick_outcome(state: &BlockStateModel) -> Option<BlockTickOutcome> {
     let entry = block_state_entry(&state.registry_id)?;
     match entry.block_type {
         // LeavesBlock.randomTick: `if (decaying(state)) { dropResources;
@@ -158,7 +216,10 @@ fn random_tick_outcome(state: &BlockStateModel) -> Option<BlockTickOutcome> {
 /// does not track which sessions load which chunk, so every cached chunk
 /// ticks (same limitation as the block-entity ticker).
 /// TODO(precipitation-tick): the `random.nextInt(48) == 0`
-/// `tickPrecipitation` roll (snow/ice/cauldron fill) is not ported.
+/// `tickPrecipitation` roll consumes its RNG (and advances `randValue`) in
+/// Java order, but the snow/ice/cauldron effect itself is not ported.
+/// TODO(random-tick-sections): Java skips sections without a randomly ticking
+/// state (`LevelChunkSection.isRandomlyTicking`); every section draws here.
 fn run_random_ticks<W: io::Write>(
     writer: &mut W,
     random: &mut LevelRandom,
@@ -174,48 +235,28 @@ fn run_random_ticks<W: io::Write>(
         .map(|(pos, chunk)| (*pos, Arc::clone(chunk)))
         .collect();
     chunks.sort_by_key(|(pos, _)| (pos.x, pos.z));
-    let live_world = LiveBlockWorld {
-        layout: world.layout,
-        seed: world.seed,
-        cache: world.cache,
-    };
+    let mut level_random = world.cache.level_random.lock();
     let mut changed = Vec::new();
     for (chunk_pos, chunk) in &chunks {
         let (min_x, min_z) = (chunk_pos.x * 16, chunk_pos.z * 16);
+        for _ in 0..world.random_tick_speed {
+            if level_random.next_i32_bound(48) == 0 {
+                // tickPrecipitation(getBlockRandomPos(minX, 0, minZ, 15))
+                let _precipitation_pos = random.block_random_pos(min_x, 0, min_z, 15);
+            }
+        }
         for section in &chunk.sections {
             let min_y = i32::from(section.y) * 16;
             for _ in 0..world.random_tick_speed {
                 let pos = random.block_random_pos(min_x, min_y, min_z, 15);
-                let Some(entry) = chunk.get_block_state_model(pos.x, pos.y, pos.z) else {
-                    continue;
-                };
-                let mut state = BlockStateModel::new(entry.name);
-                for (key, value) in entry.properties {
-                    state = state.with_property(&key, value);
-                }
-                let randomly_ticking = crate::block_properties::state_physics_by_name(
-                    &crate::fluid::block_state_model_name(&state),
-                )
-                .is_some_and(|physics| physics.is_randomly_ticking);
-                if !randomly_ticking {
-                    continue;
-                }
-                if let Some(outcome) = random_tick_outcome(&state) {
-                    apply_block_tick_outcome(
-                        writer,
-                        CompressionState::disabled(),
-                        block_ticks,
-                        &TickTarget {
-                            pos,
-                            state: &state,
-                            game_time: world.game_time,
-                        },
-                        outcome,
-                        &live_world,
-                        world.world_items,
-                        &mut changed,
-                    )?;
-                }
+                tick_random_position(
+                    writer,
+                    &mut level_random,
+                    block_ticks,
+                    pos,
+                    world,
+                    &mut changed,
+                )?;
             }
         }
     }
@@ -233,4 +274,56 @@ fn run_random_ticks<W: io::Write>(
         run_live_shape_cascade(writer, CompressionState::disabled(), &mut cascade, changed)?;
     }
     Ok(())
+}
+
+/// Java `blockState.randomTick(level, pos, level.random)` for one picked
+/// position, when its state `isRandomlyTicking`.
+fn tick_random_position<W: io::Write>(
+    writer: &mut W,
+    level_random: &mut LegacyRandom,
+    block_ticks: &mut LiveBlockTicks,
+    pos: BlockPos,
+    world: &ServerWorldTick<'_>,
+    changed: &mut Vec<BlockPos>,
+) -> io::Result<()> {
+    let live_world = LiveBlockWorld {
+        layout: world.layout,
+        seed: world.seed,
+        cache: world.cache,
+    };
+    // Read the live state: earlier ticks of this pass may have changed it.
+    let state = live_world.state_at(pos);
+    let randomly_ticking = crate::block_properties::state_physics_by_name(&state.state_name())
+        .is_some_and(|physics| physics.is_randomly_ticking);
+    if !randomly_ticking {
+        return Ok(());
+    }
+    if let Some(outcome) = leaves_random_tick_outcome(&state) {
+        return apply_block_tick_outcome(
+            writer,
+            CompressionState::disabled(),
+            block_ticks,
+            &TickTarget {
+                pos,
+                state: &state,
+                game_time: world.game_time,
+            },
+            outcome,
+            &live_world,
+            world.world_items,
+            changed,
+        );
+    }
+    let mut tick_world = LiveRandomTickWorld::new(
+        live_world,
+        writer,
+        CompressionState::disabled(),
+        RandomTickEnvironment {
+            raining: world.fire.raining,
+            spread_vines: world.spread_vines,
+        },
+    );
+    crate::random_tick_behaviors::random_tick(&mut tick_world, &state, pos, level_random);
+    changed.append(&mut tick_world.changed);
+    tick_world.error.map_or(Ok(()), Err)
 }

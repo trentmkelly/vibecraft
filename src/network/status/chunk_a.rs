@@ -510,6 +510,7 @@ impl StatusServerRuntime {
                     advance_weather,
                     random_tick_speed,
                     fire_spread_radius,
+                    spread_vines,
                 } = TickGameRules::read(&lock_status_mutex(&game_rules_t));
                 let game_time = {
                     let mut clock = lock_status_mutex(&clock_t);
@@ -537,6 +538,7 @@ impl StatusServerRuntime {
                         world_items: &world_items_t,
                         max_chained_neighbor_updates,
                         random_tick_speed,
+                        spread_vines,
                         fire: FireEnvironment {
                             raining,
                             difficulty_id,
@@ -582,33 +584,6 @@ impl StatusServerRuntime {
         save_server_weather_state(&self.world_root, &lock_status_mutex(&self.weather));
         save_world_item_entities(&self.world_root, &lock_status_mutex(&self.world_items));
         save_live_game_rules(&self.world_root, &self.game_rules);
-    }
-}
-
-/// The game rules the server tick thread consumes each tick.
-struct TickGameRules {
-    /// `GameRules.ADVANCE_TIME`.
-    advance_time: bool,
-    /// `GameRules.ADVANCE_WEATHER`.
-    advance_weather: bool,
-    /// `GameRules.RANDOM_TICK_SPEED`.
-    random_tick_speed: i32,
-    /// `GameRules.FIRE_SPREAD_RADIUS_AROUND_PLAYER`.
-    fire_spread_radius: i32,
-}
-
-impl TickGameRules {
-    fn read(rules: &crate::game_rules::LiveGameRules) -> Self {
-        let int = |name: &str, default: i32| match rules.get(name) {
-            Some(crate::game_rules::GameRuleValue::Int(value)) => value,
-            _ => default,
-        };
-        Self {
-            advance_time: rules.bool("advance_time"),
-            advance_weather: rules.bool("advance_weather"),
-            random_tick_speed: int("random_tick_speed", 0),
-            fire_spread_radius: int("fire_spread_radius_around_player", 128),
-        }
     }
 }
 

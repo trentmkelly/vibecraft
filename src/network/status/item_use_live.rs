@@ -4,7 +4,8 @@
 //!
 //! `FlintAndSteelItem` is the first member wired here; the remaining family
 //! (axe strip, hoe till, shovel path, bone meal, ...) still sits on
-//! `TODO(item-use-block-and-entity-behaviors)` in `item_family_behavior.rs`.
+//! `TODO(item-use-block-and-entity-behaviors)` in `item_family_behavior.rs`
+//! (bone meal on the plant blocks it supports is wired below).
 
 use std::io::{self, Write};
 
@@ -17,6 +18,7 @@ use super::chunk_b::{
     UseItemOnContext,
 };
 use super::chunk_d_2::{pseudo_rand_f32, write_item_entity_spawn_packets};
+use super::random_tick_live::{LiveRandomTickWorld, RandomTickEnvironment};
 use super::*;
 use crate::block_survival::SurvivalWorld;
 use crate::block_update::BlockPos;
@@ -219,6 +221,101 @@ pub(super) fn use_honeycomb<W: Write>(
 
     consume_placed_block_item(stream, compression, state, held_slot)
 }
+
+/// Java `BoneMealItem.useOn` -> `growCrop`: apply bone meal to a
+/// `BonemealableBlock` (`isValidBonemealTarget`, `isBonemealSuccess`,
+/// `performBonemeal` with the shared `Level.random`), consume one item and
+/// send level event 1505 (growth particles).
+///
+/// TODO(bonemeal-water-plants): the `growWaterPlant` fallback (seagrass and
+/// coral spread over sturdy faces under water) is not ported, nor are the
+/// feature-placing targets listed on
+/// [`crate::random_tick_behaviors::bonemeal_block`].
+/// TODO(level-event-broadcast): the level event only reaches the acting
+/// player; other nearby players need the world bus to receive particles.
+pub(super) fn use_bone_meal<W: Write>(
+    stream: &mut W,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    context: &mut UseItemOnContext<'_, '_>,
+    packet: &crate::network::play::ServerboundUseItemOnPacket,
+    held_slot: usize,
+) -> io::Result<()> {
+    let clicked_pos = BlockPos {
+        x: packet.block_hit.x,
+        y: packet.block_hit.y,
+        z: packet.block_hit.z,
+    };
+    let world = LiveBlockWorld {
+        layout: context.world_layout,
+        seed: context.world_seed,
+        cache: context.chunk_cache,
+    };
+    let (outcome, changed, error) = {
+        let mut level_random = context.chunk_cache.level_random.lock();
+        // Bone meal reaches only block-state growth, which reads neither the
+        // rain nor the `spread_vines` inputs of the random-tick pass.
+        let mut tick_world = LiveRandomTickWorld::new(
+            world,
+            &mut *stream,
+            compression,
+            RandomTickEnvironment {
+                raining: false,
+                spread_vines: false,
+            },
+        );
+        let outcome = crate::random_tick_behaviors::bonemeal_block(
+            &mut tick_world,
+            clicked_pos,
+            &mut level_random,
+        );
+        (outcome, tick_world.changed, tick_world.error)
+    };
+    if let Some(err) = error {
+        return Err(err);
+    }
+    write_block_change_ack(stream, compression, packet.sequence)?;
+    if outcome == crate::random_tick_behaviors::BonemealOutcome::NotApplicable {
+        return Ok(());
+    }
+
+    write_framed_packet_with_compression(
+        stream,
+        compression,
+        crate::network::play::CLIENTBOUND_LEVEL_EVENT_PACKET_ID,
+        |payload| {
+            crate::network::play::ClientboundLevelEventPacket {
+                event_type: BONE_MEAL_GROWTH_LEVEL_EVENT,
+                x: clicked_pos.x,
+                y: clicked_pos.y,
+                z: clicked_pos.z,
+                data: BONE_MEAL_PARTICLE_COUNT,
+                global_event: false,
+            }
+            .write(payload)
+        },
+    )?;
+    if !changed.is_empty() {
+        let mut cascade = LiveCascade {
+            layout: context.world_layout,
+            seed: context.world_seed,
+            cache: context.chunk_cache,
+            fluid_ticks: context.live_fluid_ticks,
+            block_ticks: context.live_block_ticks,
+            game_time: context.game_time,
+            random_roll: ((context.game_time as i32) ^ clicked_pos.x ^ clicked_pos.z)
+                .rem_euclid(25),
+            max_chained_neighbor_updates: context.max_chained_neighbor_updates,
+        };
+        run_live_shape_cascade(stream, compression, &mut cascade, changed)?;
+    }
+    consume_placed_block_item(stream, compression, state, held_slot)
+}
+
+/// `LevelEvent.PARTICLES_AND_SOUND_PLANT_GROWTH`.
+const BONE_MEAL_GROWTH_LEVEL_EVENT: i32 = 1505;
+/// The particle count `BoneMealItem.useOn` passes as the event data.
+const BONE_MEAL_PARTICLE_COUNT: i32 = 15;
 
 fn spawn_tool_drop<W: Write>(
     stream: &mut W,
@@ -693,5 +790,95 @@ mod tests {
         assert_eq!(placed.property("lit"), Some("true"));
         assert_eq!(placed.property("powered"), Some("false"));
         assert_eq!(held, ItemStack::new("minecraft:honeycomb", 2));
+    }
+
+    /// Runs `use_bone_meal` against a one-block world; returns the clicked
+    /// block afterwards, the held stack and the bytes sent to the player.
+    fn run_bone_meal_use(
+        test_name: &str,
+        clicked_state: &str,
+        mode: GameMode,
+    ) -> (crate::block_behavior::BlockStateModel, ItemStack, Vec<u8>) {
+        let root = temp_world_root(test_name);
+        let layout = WorldLayout::new(&root);
+        let cache = GeneratedChunkCache::default();
+        cache.level_random.lock().set_seed(7);
+        let packet = use_packet(0, 64, 0, Direction3d::Up);
+        let clicked = BlockPos { x: 0, y: 64, z: 0 };
+        cache.set_block(layout.root(), 42, clicked, clicked_state);
+
+        let mut session = PlaySessionState {
+            game_mode: mode,
+            ..Default::default()
+        };
+        session
+            .inventory_menu
+            .player_inventory_mut()
+            .set(0, ItemStack::new("minecraft:bone_meal", 2));
+
+        let mut fluid_ticks = LiveFluidTicks::new();
+        let mut block_ticks = LiveBlockTicks::new();
+        let world_items = Arc::new(Mutex::new(crate::item_entity::WorldItemEntities::new()));
+        let player_access = Arc::new(Mutex::new(crate::player_access::PlayerAccess::default()));
+        let recipe_manager = crate::recipe_system::RecipeManagerModel::default();
+        let mut context = UseItemOnContext {
+            world_layout: &layout,
+            world_seed: 42,
+            chunk_cache: &cache,
+            world_items: &world_items,
+            recipe_manager: &recipe_manager,
+            live_fluid_ticks: &mut fluid_ticks,
+            live_block_ticks: &mut block_ticks,
+            game_time: 0,
+            max_chained_neighbor_updates: 512,
+            player_access: &player_access,
+            profile_uuid: "test-uuid",
+            spawn_protection_radius: 0,
+        };
+        let mut output = Vec::new();
+        use_bone_meal(
+            &mut output,
+            CompressionState::disabled(),
+            &mut session,
+            &mut context,
+            &packet,
+            0,
+        )
+        .unwrap();
+
+        let placed = LiveBlockWorld {
+            layout: &layout,
+            seed: 42,
+            cache: &cache,
+        }
+        .state_at(clicked);
+        let held = session.inventory_menu.player_inventory().get(0).clone();
+        (placed, held, output)
+    }
+
+    #[test]
+    fn bone_meal_grows_wheat_consumes_one_item_and_sends_the_growth_event() {
+        let (placed, held, output) =
+            run_bone_meal_use("bone-meal-wheat", "minecraft:wheat[age=0]", GameMode::Survival);
+        let age: i32 = placed.property("age").unwrap().parse().unwrap();
+        assert!((2..=5).contains(&age), "bone meal adds 2..=5 stages, got {age}");
+        assert_eq!(held, ItemStack::new("minecraft:bone_meal", 1));
+        // The block update, the ack, the level event (id 46) and the slot sync.
+        assert!(!output.is_empty());
+    }
+
+    #[test]
+    fn bone_meal_is_free_in_creative_and_ignores_mature_crops() {
+        let (placed, held, _) =
+            run_bone_meal_use("bone-meal-creative", "minecraft:wheat[age=0]", GameMode::Creative);
+        assert_ne!(placed.property("age"), Some("0"));
+        assert_eq!(held, ItemStack::new("minecraft:bone_meal", 2));
+
+        let (mature, held, output) =
+            run_bone_meal_use("bone-meal-mature", "minecraft:wheat[age=7]", GameMode::Survival);
+        assert_eq!(mature.property("age"), Some("7"));
+        assert_eq!(held, ItemStack::new("minecraft:bone_meal", 2));
+        // Only the block-change ack is sent for an invalid target.
+        assert!(!output.is_empty());
     }
 }

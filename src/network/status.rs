@@ -276,6 +276,7 @@ mod chunk_a;
 pub use chunk_a::*;
 
 mod fire_live;
+mod random_tick_live;
 pub use fire_live::FireEnvironment;
 mod world_tick;
 #[cfg(test)]

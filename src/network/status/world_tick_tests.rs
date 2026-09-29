@@ -48,6 +48,7 @@ impl Harness {
                 world_items: &self.items,
                 max_chained_neighbor_updates: 1_000_000,
                 random_tick_speed,
+                spread_vines: true,
                 fire: FireEnvironment {
                     raining: false,
                     difficulty_id: 2,
@@ -150,4 +151,43 @@ fn zero_random_tick_speed_skips_random_ticks() {
         world.tick(game_time, 0);
     }
     assert_eq!(world.block(pos), "minecraft:oak_leaves");
+}
+
+/// The random-tick pass runs the ported plant behaviors: nether wart ages
+/// (`NetherWartBlock.randomTick`, one in ten per pick, capped at age 3) and
+/// the changes are broadcast to subscribed sessions.
+#[test]
+fn random_tick_pass_grows_nether_wart_and_broadcasts_it() {
+    let mut world = Harness::new("nether-wart");
+    world.cache.level_random.lock().set_seed(99);
+    let wart = "minecraft:nether_wart[age=0]";
+    let mut positions = Vec::new();
+    // A full section, so every pick of the section lands on a wart.
+    for y in 192..208 {
+        for z in 0..16 {
+            for x in 0..16 {
+                let pos = BlockPos { x, y, z };
+                world.cache.set_block(world.layout.root(), 42, pos, wart);
+                positions.push(pos);
+            }
+        }
+    }
+    let subscriber = world.bus.subscribe(1);
+    for game_time in 1..=60 {
+        world.tick(game_time, 3);
+    }
+    let ages: Vec<i32> = positions
+        .iter()
+        .map(|pos| {
+            read_live_block_model_at(&world.cache, &world.layout, 42, *pos)
+                .property("age")
+                .unwrap()
+                .parse()
+                .unwrap()
+        })
+        .collect();
+    assert!(ages.iter().any(|age| *age > 0), "no wart was random ticked");
+    assert!(ages.iter().all(|age| *age <= 3), "nether wart ages past 3");
+    let mut out = Vec::new();
+    assert!(subscriber.drain_into(&mut out, CompressionState::disabled()).unwrap() >= 1);
 }
