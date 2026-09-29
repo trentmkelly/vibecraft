@@ -163,6 +163,7 @@ pub(super) fn assert_vegetation_patch_helpers() {
     ));
     assert_eq!(super::super::vegetation_patch_depth(1, 2, 0, 0.5, 0.25), 2);
     assert_vegetation_ground_placement(&vegetation_config);
+    assert_vegetation_ground_already_placed(&vegetation_config);
     assert_vegetation_patch_plan(&vegetation_config);
 }
 
@@ -198,6 +199,22 @@ fn assert_vegetation_ground_placement(
             pos: pos(5, 63, 5),
             state: "minecraft:moss_block",
         }])
+    );
+}
+
+/// Java `placeGround` returns true (surface entry, no blocks) when the ground already matches.
+fn assert_vegetation_ground_already_placed(
+    vegetation_config: &super::super::VegetationPatchConfigurationModel,
+) {
+    assert_eq!(
+        super::super::vegetation_patch_place_ground(
+            vegetation_config,
+            pos(5, 63, 5),
+            &["minecraft:moss_block", "minecraft:dirt"],
+            2,
+            0,
+        ),
+        Some(Vec::new())
     );
 }
 

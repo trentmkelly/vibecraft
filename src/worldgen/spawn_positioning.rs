@@ -90,18 +90,28 @@ fn climate_spawn_radial_search(
     let mut radius = radius_increment;
     let search_origin = best.location;
     while radius <= max_radius {
-        let x = search_origin.x + (angle.sin() * radius) as i32;
-        let z = search_origin.z + (angle.cos() * radius) as i32;
+        let (dx, dz) = climate_spawn_search_offset(angle, radius);
+        let x = search_origin.x + dx;
+        let z = search_origin.z + dz;
         let candidate = climate_spawn_position_and_fitness(target_climates, sampler, x, z);
         if candidate.fitness < best.fitness {
             *best = candidate;
         }
         angle += radius_increment / radius;
-        if angle > std::f32::consts::TAU {
+        // Java compares the float angle against the double `Math.PI * 2`.
+        if f64::from(angle) > std::f64::consts::TAU {
             angle = 0.0;
             radius += radius_increment;
         }
     }
+}
+
+/// Java `(int)(Math.sin(angle) * radius)` / `(int)(Math.cos(angle) * radius)`: `angle` and
+/// `radius` are floats but the trigonometry and multiplication happen in double precision.
+pub(super) fn climate_spawn_search_offset(angle: f32, radius: f32) -> (i32, i32) {
+    let angle = f64::from(angle);
+    let radius = f64::from(radius);
+    ((angle.sin() * radius) as i32, (angle.cos() * radius) as i32)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

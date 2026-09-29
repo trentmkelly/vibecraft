@@ -166,6 +166,24 @@ fn assert_underwater_magma_support() {
         ),
         vec![BlockPos { x: 0, y: 62, z: 0 }]
     );
+    // Java's betweenClosed order is x fastest, then y, then z: the position one block above
+    // the floor is roll index 1 + 3 * (2 + 3 * 1) = 16, not the y-outermost index 22.
+    let above = super::super::UnderwaterMagmaCandidate {
+        pos: BlockPos { x: 0, y: 63, z: 0 },
+        ..valid_magma
+    };
+    let mut rolls = [1.0f32; 27];
+    rolls[16] = 0.0;
+    assert_eq!(
+        super::super::underwater_magma_placement_plan(
+            BlockPos { x: 0, y: 70, z: 0 },
+            Some(62),
+            magma_config,
+            &[valid_magma, above],
+            &rolls,
+        ),
+        vec![BlockPos { x: 0, y: 63, z: 0 }]
+    );
     assert!(super::super::underwater_magma_placement_plan(
         BlockPos { x: 0, y: 70, z: 0 },
         None,
@@ -354,17 +372,17 @@ fn assert_pointed_dripstone_support() {
                     direction: HorizontalDirection::East,
                     direction_roll: 0.2,
                     radius2_roll: 0.2,
-                    radius2_direction: HorizontalDirection::South,
+                    radius2_direction: crate::lighting::direction::Direction::South,
                     radius3_roll: 0.2,
-                    radius3_direction: HorizontalDirection::West,
+                    radius3_direction: crate::lighting::direction::Direction::Up,
                 },
                 super::super::PointedDripstoneSpreadRoll {
                     direction: HorizontalDirection::North,
                     direction_roll: 0.9,
                     radius2_roll: 0.0,
-                    radius2_direction: HorizontalDirection::North,
+                    radius2_direction: crate::lighting::direction::Direction::North,
                     radius3_roll: 0.0,
-                    radius3_direction: HorizontalDirection::North,
+                    radius3_direction: crate::lighting::direction::Direction::North,
                 },
             ],
         })
@@ -375,7 +393,7 @@ fn assert_pointed_dripstone_support() {
             BlockPos { x: 4, y: 71, z: 4 },
             BlockPos { x: 5, y: 71, z: 4 },
             BlockPos { x: 5, y: 71, z: 5 },
-            BlockPos { x: 4, y: 71, z: 5 },
+            BlockPos { x: 5, y: 72, z: 5 },
         ]
     );
     assert_eq!(

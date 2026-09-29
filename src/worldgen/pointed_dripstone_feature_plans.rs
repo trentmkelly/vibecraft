@@ -150,12 +150,22 @@ pub fn pointed_dripstone_patch_positions(
         if roll.radius2_roll > config.chance_of_spread_radius2 {
             continue;
         }
-        let pos2 = offset_horizontal(pos1, roll.radius2_direction, 1);
+        let pos2 = offset_random_direction(pos1, roll.radius2_direction);
         positions.push(pos2);
         if roll.radius3_roll > config.chance_of_spread_radius3 {
             continue;
         }
-        positions.push(offset_horizontal(pos2, roll.radius3_direction, 1));
+        positions.push(offset_random_direction(pos2, roll.radius3_direction));
     }
     positions
+}
+
+/// Java `pos.relative(Direction.getRandom(random))`: the radius-2/3 spread steps pick from all
+/// six directions (including up and down), unlike the first step which uses `Plane.HORIZONTAL`.
+fn offset_random_direction(pos: BlockPos, direction: crate::lighting::direction::Direction) -> BlockPos {
+    BlockPos {
+        x: pos.x + direction.step_x(),
+        y: pos.y + direction.step_y(),
+        z: pos.z + direction.step_z(),
+    }
 }

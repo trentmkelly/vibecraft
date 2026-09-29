@@ -50,7 +50,10 @@ pub fn vegetation_patch_place_ground(
             .copied()
             .unwrap_or("minecraft:air");
         if existing == state {
-            continue;
+            // Java skips the placement WITHOUT advancing `belowPos`, so every remaining
+            // iteration re-reads the same block, finds it equal again, and the method
+            // finally returns true with whatever was placed so far.
+            return Some(blocks);
         }
         if !config.replaceable.contains(&existing) {
             return (!blocks.is_empty()).then_some(blocks);
@@ -71,6 +74,7 @@ pub fn vegetation_patch_plan(
 ) -> VegetationPatchPlan {
     let mut ground = Vec::new();
     let mut vegetation_origins = Vec::new();
+    let mut vegetation_roll_index = 0;
     for (index, column) in columns.iter().enumerate() {
         if let Some(mut column_blocks) = vegetation_patch_place_ground(
             config,
@@ -79,18 +83,22 @@ pub fn vegetation_patch_plan(
             column.depth,
             index as i32,
         ) {
-            if !column_blocks.is_empty() {
-                ground.append(&mut column_blocks);
-                if config.vegetation_chance > 0.0
-                    && vegetation_rolls.get(index).copied().unwrap_or(1.0)
-                        < config.vegetation_chance
-                {
-                    vegetation_origins.push(offset_vertical(
-                        column.surface_pos,
-                        config.surface.opposite(),
-                        1,
-                    ));
-                }
+            // Java adds the column to `surface` whenever `placeGround` returns true, even if
+            // nothing was placed because the block was already the ground state. Vegetation
+            // rolls are then consumed once per surface entry (the Java `HashSet` iteration
+            // order is hash-based and is not modelled; columns are visited in scan order).
+            ground.append(&mut column_blocks);
+            let roll = vegetation_rolls
+                .get(vegetation_roll_index)
+                .copied()
+                .unwrap_or(1.0);
+            vegetation_roll_index += 1;
+            if config.vegetation_chance > 0.0 && roll < config.vegetation_chance {
+                vegetation_origins.push(offset_vertical(
+                    column.surface_pos,
+                    config.surface.opposite(),
+                    1,
+                ));
             }
         }
     }
