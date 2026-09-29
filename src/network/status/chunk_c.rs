@@ -124,7 +124,7 @@ pub fn apply_place_recipe_packet(
 }
 
 pub fn write_inventory_menu_full_sync(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     state: &PlaySessionState,
 ) -> io::Result<()> {
@@ -490,6 +490,8 @@ pub struct MinimalPlayJoinContext<'a> {
     pub properties: &'a ServerProperties,
     pub world_seed: i64,
     pub profile: &'a NameAndId,
+    /// Authenticated `GameProfile.properties` (empty offline), sent in `ADD_PLAYER`.
+    pub profile_properties: &'a [crate::player_online_auth::ProfileProperty],
     pub play_state: &'a PlaySessionState,
     pub recipe_manager: &'a RecipeManagerModel,
     pub world_root: &'a Path,
@@ -505,7 +507,7 @@ pub struct MinimalPlayJoinContext<'a> {
 }
 
 pub fn write_minimal_play_join(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     context: MinimalPlayJoinContext<'_>,
 ) -> io::Result<()> {
@@ -537,7 +539,7 @@ pub fn write_minimal_play_join(
 /// live wire order matches the vanilla join capture) and for the resend when
 /// their permissions change.
 pub(super) fn write_join_commands_packet(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     sync: &mut CommandTreeSync,
 ) -> io::Result<()> {
@@ -551,7 +553,7 @@ pub(super) fn write_join_commands_packet(
 }
 
 fn write_join_login_and_profile_packets(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     context: &MinimalPlayJoinContext<'_>,
 ) -> io::Result<()> {
@@ -593,6 +595,7 @@ fn write_join_login_and_profile_packets(
             write_player_info_initializing_packet(
                 payload,
                 context.profile,
+                context.profile_properties,
                 context.play_state.game_mode,
             )
         },
@@ -601,7 +604,7 @@ fn write_join_login_and_profile_packets(
 }
 
 fn write_join_player_state_packets(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     context: &MinimalPlayJoinContext<'_>,
 ) -> io::Result<()> {
@@ -699,7 +702,7 @@ fn write_join_player_state_packets(
 }
 
 fn write_join_inventory_packets(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     play_state: &PlaySessionState,
 ) -> io::Result<()> {
@@ -732,7 +735,7 @@ fn write_join_inventory_packets(
 }
 
 fn write_join_world_state_packets(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     context: &MinimalPlayJoinContext<'_>,
     center: ChunkPos,
@@ -891,7 +894,7 @@ pub fn seed_chunk_window(
 ///
 /// Returns the count of chunks actually flushed this tick.
 pub fn drain_chunk_sender(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     chunk_sender: &mut PlayerChunkSender,
     chunk_pipeline: &ChunkPipeline,
@@ -910,7 +913,7 @@ pub fn drain_chunk_sender(
 /// Flush a [`ReadyChunkBatch`] to the wire with the Java-mandated framing
 /// (`ChunkBatchStart` → N × `LevelChunkWithLight` → `ChunkBatchFinished`).
 pub fn write_chunk_batch_to_stream(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     batch: &ReadyChunkBatch,
     live_fluid_unpack: Option<&SharedWorldTicks>,
@@ -976,7 +979,7 @@ pub struct ChunkMovementContext<'a> {
 /// the window are scheduled for generation and queued for the next paced
 /// batch.
 pub fn apply_chunk_movement(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     context: ChunkMovementContext<'_>,
 ) -> io::Result<()> {
@@ -1092,7 +1095,7 @@ pub struct PlayChunkBatchRequest<'a> {
 
 #[allow(dead_code)]
 pub fn write_play_chunk_batch(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     request: PlayChunkBatchRequest<'_>,
 ) -> io::Result<()> {

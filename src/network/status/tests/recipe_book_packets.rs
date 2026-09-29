@@ -156,6 +156,7 @@ pub fn live_join_sends_update_recipes_after_held_slot_like_java() {
             properties: &properties,
             world_seed: 0,
             profile: &profile,
+            profile_properties: &[],
             play_state: &state,
             recipe_manager: &recipe_manager,
             world_root: &world_root,

@@ -8,7 +8,7 @@ pub mod configuration;
 pub mod connection;
 pub mod cookie;
 pub mod dispatch;
-pub mod encrypted_relay;
+pub mod transport;
 pub mod encryption;
 pub mod friendly_byte_buf;
 pub mod handler_names;

@@ -22,7 +22,7 @@ fn registry_error(message: String) -> io::Error {
 
 /// Runs `SynchronizeRegistriesTask` on the configuration connection.
 pub(super) fn run_synchronize_registries_task(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     rate_limiter: &mut PacketRateLimiter,
     active_login: &ActiveLoginGuard,
@@ -82,7 +82,7 @@ pub(super) fn run_synchronize_registries_task(
 }
 
 fn write_registry_data_packet(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     packet: &ClientboundRegistryDataPacket,
 ) -> io::Result<()> {

@@ -16,6 +16,12 @@ use crate::player_online_auth::{
 };
 
 const DEFAULT_SESSION_HOST: &str = "https://sessionserver.mojang.com";
+/// authlib `YggdrasilEnvironment` system property overriding the session server host.
+const SESSION_HOST_PROPERTY: &str = "minecraft.api.session.host";
+/// Environment-variable spelling of [`SESSION_HOST_PROPERTY`] (Rust has no JVM `-D`
+/// system properties, so the launch flag `-Dminecraft.api.session.host=<url>` and this
+/// variable are both honoured).
+const SESSION_HOST_ENV: &str = "MINECRAFT_API_SESSION_HOST";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// [`SessionService`] backed by the live Yggdrasil session server.
@@ -25,9 +31,15 @@ pub struct YggdrasilSessionService {
 }
 
 impl YggdrasilSessionService {
-    /// Session service for the official Mojang session host.
+    /// Session service for the configured session host: authlib's
+    /// `minecraft.api.session.host` override when present (see
+    /// [`session_host_override`]), otherwise the official Mojang session host.
     pub fn new() -> Self {
-        Self::with_base_url(DEFAULT_SESSION_HOST)
+        let host = session_host_override(
+            std::env::args().skip(1),
+            std::env::var(SESSION_HOST_ENV).ok(),
+        );
+        Self::with_base_url(host.as_deref().unwrap_or(DEFAULT_SESSION_HOST))
     }
 
     /// Session service for an alternate host (authlib's `minecraft.api.session.host`).
@@ -42,6 +54,20 @@ impl YggdrasilSessionService {
             base_url: base_url.trim_end_matches('/').to_string(),
         }
     }
+}
+
+/// Resolves authlib's `minecraft.api.session.host` override: a `-D<property>=<url>`
+/// launch argument wins over the environment variable; empty values are ignored
+/// (authlib treats a blank property as unset).
+pub fn session_host_override(
+    args: impl IntoIterator<Item = String>,
+    env_value: Option<String>,
+) -> Option<String> {
+    let flag = format!("-D{SESSION_HOST_PROPERTY}=");
+    args.into_iter()
+        .find_map(|arg| arg.strip_prefix(&flag).map(str::to_string))
+        .or(env_value)
+        .filter(|host| !host.trim().is_empty())
 }
 
 impl SessionService for YggdrasilSessionService {
@@ -143,6 +169,27 @@ mod tests {
         assert_eq!(result.properties.len(), 2);
         assert_eq!(result.properties[0].signature.as_deref(), Some("sig"));
         assert_eq!(result.properties[1].signature, None);
+    }
+
+    #[test]
+    fn session_host_override_prefers_launch_flag_then_env_and_ignores_blank() {
+        let args = |list: &[&str]| list.iter().map(|arg| arg.to_string()).collect::<Vec<_>>();
+        assert_eq!(session_host_override(args(&[]), None), None);
+        assert_eq!(
+            session_host_override(args(&["nogui"]), Some("http://env".to_string())),
+            Some("http://env".to_string())
+        );
+        assert_eq!(
+            session_host_override(
+                args(&["-Dminecraft.api.session.host=http://flag"]),
+                Some("http://env".to_string())
+            ),
+            Some("http://flag".to_string())
+        );
+        assert_eq!(
+            session_host_override(args(&["-Dminecraft.api.session.host="]), None),
+            None
+        );
     }
 
     #[test]

@@ -273,7 +273,8 @@ fn lifecycle_tick_dies_exactly_once() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let mut client = std::net::TcpStream::connect(addr).unwrap();
-    let (mut server, _) = listener.accept().unwrap();
+    let (server, _) = listener.accept().unwrap();
+    let mut server = ClientStream::new(server);
     let mut state = dead_player();
     tick_player_lifecycle(&mut server, CompressionState::disabled(), &mut state, &fixture.context())
         .unwrap();
@@ -296,7 +297,8 @@ fn living_player_is_left_alone() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let mut client = std::net::TcpStream::connect(addr).unwrap();
-    let (mut server, _) = listener.accept().unwrap();
+    let (server, _) = listener.accept().unwrap();
+    let mut server = ClientStream::new(server);
     let mut state = PlaySessionState::default();
     tick_player_lifecycle(&mut server, CompressionState::disabled(), &mut state, &fixture.context())
         .unwrap();
@@ -338,7 +340,7 @@ fn kill_command_kills_even_creative_players_with_the_generic_kill_message() {
 fn apply_kill_command_only_kills_the_targeted_executing_player() {
     let fixture = Fixture::new();
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let mut stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let mut stream = ClientStream::new(std::net::TcpStream::connect(listener.local_addr().unwrap()).unwrap());
     let mut command_state = crate::command::ServerCommandState::default();
 
     let mut state = PlaySessionState::default();

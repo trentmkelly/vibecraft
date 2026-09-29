@@ -9,7 +9,7 @@ use crate::command::{CommandError, CommandResult};
 /// Java `ServerPlayer.commandSource.acceptsSuccess` is `GameRules.SEND_COMMAND_FEEDBACK`, so
 /// success messages are dropped when it is off; `acceptsFailure` is always true.
 pub(super) fn write_command_result_feedback(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     result: Result<CommandResult, CommandError>,
     command_state: &ServerCommandState,

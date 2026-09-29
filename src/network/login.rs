@@ -257,16 +257,26 @@ impl ClientboundLoginFinishedPacket {
     pub fn write<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_uuid(writer, uuid_from_hyphenated(&self.profile.uuid)?)?;
         write_string(writer, &self.profile.name, 16)?;
-        write_var_i32(writer, self.properties.len() as i32)?;
-        for property in &self.properties {
-            write_string(writer, &property.name, 64)?;
-            write_string(writer, &property.value, 32767)?;
-            write_optional(writer, property.signature.as_ref(), |writer, signature| {
-                write_string(writer, signature, 1024)
-            })?;
-        }
-        Ok(())
+        write_profile_properties(writer, &self.properties)
     }
+}
+
+/// `ByteBufCodecs.GAME_PROFILE_PROPERTIES`: the `PropertyMap` list of
+/// `(name <= 64, value <= 32767, optional signature <= 1024)` shared by
+/// `ClientboundLoginFinishedPacket` and the `ADD_PLAYER` player-info entry.
+pub fn write_profile_properties<W: Write>(
+    writer: &mut W,
+    properties: &[crate::player_online_auth::ProfileProperty],
+) -> io::Result<()> {
+    write_var_i32(writer, properties.len() as i32)?;
+    for property in properties {
+        write_string(writer, &property.name, 64)?;
+        write_string(writer, &property.value, 32767)?;
+        write_optional(writer, property.signature.as_ref(), |writer, signature| {
+            write_string(writer, signature, 1024)
+        })?;
+    }
+    Ok(())
 }
 
 impl ServerboundLoginAcknowledgedPacket {

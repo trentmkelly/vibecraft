@@ -34,7 +34,8 @@ fn use_item_on_crafting_table_opens_live_crafting_menu_with_initial_content() {
     let mut live_block_ticks = LiveBlockTicks::new();
 
     let handle = std::thread::spawn(move || {
-        let (mut stream, _) = listener.accept().unwrap();
+        let (accepted, _) = listener.accept().unwrap();
+        let mut stream = ClientStream::new(accepted);
         let mut state = PlaySessionState {
             x: 0.5,
             y: 64.0,

@@ -1,3 +1,4 @@
+use crate::network::transport::ClientStream;
 use super::{
     bug_report_server_links_packet, build_player_status, encode_base64, escape_json_string,
     function_permission_level_from_properties, handle_legacy_status_connection,
@@ -191,7 +192,8 @@ pub fn transfer_intent_disabled_sends_vanilla_transfers_disabled_disconnect() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let handle = std::thread::spawn(move || {
-        let (mut stream, _) = listener.accept().unwrap();
+        let (accepted, _) = listener.accept().unwrap();
+        let mut stream = ClientStream::new(accepted);
         write_transfers_disabled_disconnect(&mut stream).unwrap();
     });
 
@@ -213,12 +215,12 @@ pub fn transfer_intent_disabled_sends_vanilla_transfers_disabled_disconnect() {
 
 /// A connected loopback (server_end, client_end) pair for exercising packet
 /// writers against a real socket.
-fn loopback_pair() -> (std::net::TcpStream, std::net::TcpStream) {
+fn loopback_pair() -> (ClientStream, std::net::TcpStream) {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let client = std::net::TcpStream::connect(addr).unwrap();
     let (server, _) = listener.accept().unwrap();
-    (server, client)
+    (ClientStream::new(server), client)
 }
 
 #[test]
@@ -376,12 +378,12 @@ pub fn build_player_status_hidden_returns_count_only() {
 /// Open a real loopback TCP connection and return the client end, so registry
 /// sessions (which hold a cloned `TcpStream`) can be exercised without a socket
 /// mock. The accepted server end is dropped — only the handle matters here.
-fn loopback_stream() -> std::net::TcpStream {
+fn loopback_stream() -> ClientStream {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let client = std::net::TcpStream::connect(addr).unwrap();
     let _server = listener.accept().unwrap();
-    client
+    ClientStream::new(client)
 }
 
 #[test]

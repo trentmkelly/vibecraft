@@ -426,7 +426,7 @@ pub fn write_item_entity_spawn_packets<W: Write>(
 ///   2. `ClientboundAddEntityPacket`          — spawns the item entity at eye height.
 ///   3. `ClientboundSetEntityDataPacket`      — sets the item stack metadata (index 8).
 pub fn handle_drop_item(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
     world_items: &Arc<Mutex<WorldItemEntities>>,

@@ -9,7 +9,6 @@
 use std::sync::atomic::AtomicUsize;
 
 use super::*;
-use crate::network::encrypted_relay::enable_encryption;
 use crate::network::login::{
     ClientboundHelloPacket, ClientboundLoginDisconnectPacket, ServerboundKeyPacket,
     CLIENTBOUND_HELLO_PACKET_ID, SERVERBOUND_KEY_PACKET_ID,
@@ -25,12 +24,9 @@ const MAX_AUTHENTICATION_WAIT: Duration = Duration::from_secs(30);
 
 /// Result of [`negotiate_online_login`].
 pub(super) enum OnlineLoginOutcome {
-    /// The session server verified the player. `stream` is the decrypted view of
-    /// the connection that all further traffic must use.
-    Authenticated {
-        result: ProfileResult,
-        stream: TcpStream,
-    },
+    /// The session server verified the player. The connection is already encrypted
+    /// (`Connection.setEncryptionKey`), so all further traffic uses the same stream.
+    Authenticated(ProfileResult),
     /// A disconnect was already sent; the connection must be closed.
     Closed,
 }
@@ -40,7 +36,7 @@ pub(super) enum OnlineLoginOutcome {
 /// `remote_ip` is only forwarded to the session server when `prevent-proxy-connections`
 /// is set (`getAddress()` in the Java authenticator thread).
 pub(super) fn negotiate_online_login<S>(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     username: &str,
     remote_ip: &str,
     properties: &ServerProperties,
@@ -80,9 +76,8 @@ where
         .map_err(|_| protocol_error())?;
     let server_hash = minecraft_server_hash("", key_pair.public_key_der(), &shared_secret);
 
-    let mut encrypted = enable_encryption(stream, shared_secret)?;
-    encrypted.set_read_timeout(stream.read_timeout()?)?;
-    encrypted.set_write_timeout(stream.write_timeout()?)?;
+    // `Connection.setEncryptionKey`: CipherDecoder/CipherEncoder join the pipeline.
+    stream.set_encryption_key(shared_secret);
 
     let authenticator = OnlineAuthenticator::new(OnlineAuthOptions {
         online_mode: true,
@@ -97,21 +92,17 @@ where
         remote_ip.to_string(),
     )?;
     match decision {
-        AuthenticationDecision::Authenticated(result) => Ok(OnlineLoginOutcome::Authenticated {
-            result,
-            stream: encrypted,
-        }),
+        AuthenticationDecision::Authenticated(result) => {
+            Ok(OnlineLoginOutcome::Authenticated(result))
+        }
         AuthenticationDecision::StartOfflineMode(profile) => {
-            Ok(OnlineLoginOutcome::Authenticated {
-                result: ProfileResult {
-                    profile,
-                    properties: Vec::new(),
-                },
-                stream: encrypted,
-            })
+            Ok(OnlineLoginOutcome::Authenticated(ProfileResult {
+                profile,
+                properties: Vec::new(),
+            }))
         }
         AuthenticationDecision::Disconnect(translation_key) => {
-            write_login_translation_disconnect(&mut encrypted, translation_key)?;
+            write_login_translation_disconnect(stream, translation_key)?;
             Ok(OnlineLoginOutcome::Closed)
         }
     }
@@ -146,7 +137,7 @@ where
 }
 
 fn read_key_packet(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     rate_limiter: &mut PacketRateLimiter,
 ) -> io::Result<ServerboundKeyPacket> {
     let packet = read_packet_with_rate_limit(stream, CompressionState::disabled(), rate_limiter)?;
@@ -160,7 +151,7 @@ fn read_key_packet(
     ServerboundKeyPacket::read(&mut input)
 }
 
-fn write_login_translation_disconnect(stream: &mut TcpStream, key: &str) -> io::Result<()> {
+fn write_login_translation_disconnect(stream: &mut ClientStream, key: &str) -> io::Result<()> {
     write_framed_packet(stream, CLIENTBOUND_LOGIN_DISCONNECT_PACKET_ID, |payload| {
         ClientboundLoginDisconnectPacket {
             reason: ComponentJson(format!("{{\"translate\":\"{key}\"}}")),

@@ -11,7 +11,7 @@ pub struct PlayChunkDeltaRequest<'a> {
 }
 
 pub fn write_play_chunk_delta(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     mut request: PlayChunkDeltaRequest<'_>,
 ) -> io::Result<()> {
@@ -56,7 +56,7 @@ fn log_chunk_batch_start(request: &PlayChunkDeltaRequest<'_>) {
 }
 
 fn write_chunk_cache_center_if_needed(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     update_cache_center: bool,
     center: ChunkPos,
@@ -76,7 +76,7 @@ fn write_chunk_cache_center_if_needed(
 }
 
 fn write_play_chunk_delta_chunks(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     request: &mut PlayChunkDeltaRequest<'_>,
     batch_started: Instant,

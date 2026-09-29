@@ -230,7 +230,7 @@ pub(super) fn write_inventory_content_sync<W: Write>(
 }
 
 pub fn process_item_pickups(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
     player_uuid: &str,
@@ -487,7 +487,7 @@ fn write_respawn_game_events<W: Write>(
 /// old one, send `NO_RESPAWN_BLOCK_AVAILABLE` when the spawn block was missing, then the
 /// respawn packet, teleport, default spawn, difficulty, experience, effects and inventory.
 pub(super) fn handle_play_respawn_request(
-    stream: &mut TcpStream,
+    stream: &mut ClientStream,
     compression: CompressionState,
     state: &mut PlaySessionState,
     context: &respawn_live::RespawnContext<'_>,

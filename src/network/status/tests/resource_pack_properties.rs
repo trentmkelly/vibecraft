@@ -65,7 +65,7 @@ pub fn configuration_resource_pack_wait_finishes_on_terminal_status_like_java() 
     let registry = super::ActiveLoginRegistry::default();
     let alex = crate::player_access::NameAndId::create_offline("Alex");
     let (guard, _) = registry
-        .register_replacing(&alex.uuid, "Alex", &client)
+        .register_replacing(&alex.uuid, "Alex", &super::ClientStream::new(client.try_clone().unwrap()))
         .unwrap();
     write_resource_pack_response(&mut client, ResourcePackAction::Accepted);
     write_resource_pack_response(&mut client, ResourcePackAction::Downloaded);

@@ -851,7 +851,7 @@ pub struct ActiveLoginRegistry {
 
 pub struct ActiveLoginSession {
     pub token: u64,
-    pub stream: TcpStream,
+    pub stream: ClientStream,
     /// Player profile name captured at login, used to build the status player
     /// sample (Java `NameAndId.name`).
     pub name: String,
@@ -963,8 +963,8 @@ impl ActiveLoginRegistry {
         &self,
         uuid: &str,
         name: &str,
-        stream: &TcpStream,
-    ) -> io::Result<(ActiveLoginGuard, Option<TcpStream>)> {
+        stream: &ClientStream,
+    ) -> io::Result<(ActiveLoginGuard, Option<ClientStream>)> {
         let token = self.next_token.fetch_add(1, Ordering::Relaxed);
         let stream = stream.try_clone()?;
         let mut sessions = self
