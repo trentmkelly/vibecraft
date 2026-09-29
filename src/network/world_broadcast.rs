@@ -15,6 +15,7 @@ use std::io::{self, Write};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::network::compression::CompressionState;
+pub use presence::{ExplosionHit, PlayerPresence};
 use crate::network::varint::read_var_i32;
 
 /// One connection's pending packets plus its disconnect latch.
@@ -28,6 +29,10 @@ struct Inbox {
     /// Java `ServerGamePacketListenerImpl.nextChatIndex`: the per-connection
     /// `globalIndex` stamped on each `ClientboundPlayerChatPacket`.
     next_chat_index: i32,
+    /// The session's last published [`PlayerPresence`].
+    presence: Option<PlayerPresence>,
+    /// Explosion damage queued by the world tick for this session to apply.
+    explosion_hits: Vec<ExplosionHit>,
 }
 
 /// Per-connection inboxes keyed by the connection's registry token.
@@ -206,5 +211,6 @@ fn split_plain_frames(mut frames: &[u8]) -> io::Result<Vec<&[u8]>> {
     Ok(payloads)
 }
 
+mod presence;
 #[cfg(test)]
 mod tests;

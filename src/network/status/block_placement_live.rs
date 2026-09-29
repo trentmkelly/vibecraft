@@ -91,6 +91,13 @@ pub(super) fn place_block_item_live<W: Write>(
         }
     }
 
+    // Java TntBlock.onPlace: TNT placed beside power is lit at once.
+    for (pos, placed) in &placements {
+        if placed.registry_id == "minecraft:tnt" {
+            super::tnt_interaction_live::tnt_on_place(stream, compression, context, *pos)?;
+        }
+    }
+
     // Java FallingBlock.onPlace: a freshly placed gravity block schedules its
     // 2-tick fall check immediately.
     for (pos, placed) in &placements {
@@ -503,6 +510,7 @@ pub(super) fn process_live_block_ticks<W: Write>(
     block_ticks: &mut LiveBlockTicks,
     fluid_ticks: &mut LiveFluidTicks,
     fire: super::fire_live::FireEnvironment,
+    fire_players: &[[f64; 3]],
     game_time: i64,
     layout: &WorldLayout,
     seed: i64,
@@ -540,6 +548,8 @@ pub(super) fn process_live_block_ticks<W: Write>(
                 block_ticks,
                 game_time,
                 fire,
+                world_items,
+                fire_players,
                 state,
                 tick.pos,
             )?);
@@ -685,6 +695,7 @@ fn spawn_scheduled_tick_drops<W: Write>(
             pickup_delay: DEFAULT_PICKUP_DELAY,
             age: 0,
             target_uuid: None,
+            health: crate::item_entity::ITEM_DEFAULT_HEALTH,
         };
         write_item_entity_spawn_packets(writer, compression, &item, item_pid)?;
         lock_status_mutex(world_items).entities.push(item);

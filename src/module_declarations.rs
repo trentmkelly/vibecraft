@@ -566,7 +566,12 @@ mod equipment_trim;
 mod eula;
 mod experience_system;
 mod fire;
+mod entity_collision;
+mod entity_fluid;
 mod fire_block;
+mod primed_tnt;
+mod server_entity_sync;
+mod server_explosion;
 #[cfg(test)]
 mod fire_block_tests;
 mod fast_buffered_input_stream;

@@ -54,6 +54,7 @@ impl Harness {
                     difficulty_id: 2,
                     spread_radius: -1,
                 },
+                explosion_rules: crate::server_explosion::ExplosionRules::default(),
                 bus: &self.bus,
             },
         )

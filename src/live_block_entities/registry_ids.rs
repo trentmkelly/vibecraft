@@ -23,3 +23,15 @@ pub fn block_protocol_id(block: &str) -> Option<i32> {
 pub fn sound_event_protocol_id(event: &str) -> Option<i32> {
     protocol_id("minecraft:sound_event", event)
 }
+
+/// `BuiltInRegistries.ENTITY_TYPE.getId(type)`, as written by
+/// `ClientboundAddEntityPacket`.
+pub fn entity_type_protocol_id(entity: &str) -> Option<i32> {
+    protocol_id("minecraft:entity_type", entity)
+}
+
+/// `BuiltInRegistries.PARTICLE_TYPE.getId(type)`, as written by
+/// `ParticleTypes.STREAM_CODEC`.
+pub fn particle_type_protocol_id(particle: &str) -> Option<i32> {
+    protocol_id("minecraft:particle_type", particle)
+}

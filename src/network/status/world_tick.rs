@@ -21,8 +21,11 @@ use super::block_placement_live::{
     apply_block_tick_outcome, process_live_block_ticks, run_live_shape_cascade, tick_falling_blocks,
     LiveBlockWorld, LiveCascade, TickTarget,
 };
-use super::fire_live::FireEnvironment;
 use super::random_tick_live::{LiveRandomTickWorld, RandomTickEnvironment};
+use super::explosion_live::{DirectedPackets, ExplosionEnv, ExplosionSinks};
+use super::fire_live::{fire_spread_players, FireEnvironment};
+use super::tnt_live::tick_primed_tnts;
+use crate::server_explosion::ExplosionRules;
 use super::*;
 use crate::block_behavior::BlockStateModel;
 use crate::block_scheduled_ticks::BlockTickOutcome;
@@ -70,6 +73,8 @@ pub(super) struct TickGameRules {
     pub fire_spread_radius: i32,
     /// `GameRules.SPREAD_VINES`.
     pub spread_vines: bool,
+    /// Game rules of `ServerLevel.explode` / `TntBlock`.
+    pub explosion_rules: ExplosionRules,
 }
 
 impl TickGameRules {
@@ -84,6 +89,7 @@ impl TickGameRules {
             random_tick_speed: int("random_tick_speed", 0),
             fire_spread_radius: int("fire_spread_radius_around_player", 128),
             spread_vines: rules.bool("spread_vines"),
+            explosion_rules: ExplosionRules::read(rules),
         }
     }
 }
@@ -127,6 +133,8 @@ pub(super) struct ServerWorldTick<'a> {
     pub spread_vines: bool,
     /// Weather/difficulty/game-rule inputs of `FireBlock.tick`.
     pub fire: FireEnvironment,
+    /// Explosion-related game rules (`ServerLevel.explode`, `TntBlock`).
+    pub explosion_rules: ExplosionRules,
     pub bus: &'a WorldPacketBus,
 }
 
@@ -140,6 +148,13 @@ pub(super) fn tick_server_world(
     // Writers capture plain (uncompressed) frames; the bus re-frames them per
     // subscriber, as `tick_live_world_systems` did for block ticks before.
     let mut frames = Vec::new();
+    let mut directed = DirectedPackets::default();
+    // Only a finite `fire_spread_radius_around_player` needs the positions.
+    let fire_players = if world.fire.spread_radius == -1 {
+        Vec::new()
+    } else {
+        fire_spread_players(world.bus)
+    };
     {
         let mut guard = lock_status_mutex(ticks);
         guard.game_time = world.game_time;
@@ -150,6 +165,7 @@ pub(super) fn tick_server_world(
             block,
             fluid,
             world.fire,
+            &fire_players,
             world.game_time,
             world.layout,
             world.seed,
@@ -171,8 +187,8 @@ pub(super) fn tick_server_world(
             layout: world.layout,
             seed: world.seed,
             cache: world.cache,
-            fluid_ticks: fluid,
-            block_ticks: block,
+            fluid_ticks: &mut *fluid,
+            block_ticks: &mut *block,
             game_time: world.game_time,
             random_roll: (world.game_time as i32).rem_euclid(40),
             max_chained_neighbor_updates: world.max_chained_neighbor_updates,
@@ -183,8 +199,29 @@ pub(super) fn tick_server_world(
             &mut cascade,
             world.world_items,
         )?;
+        // `PrimedTnt.tick` and the explosions it triggers.
+        tick_primed_tnts(
+            &mut frames,
+            &ExplosionEnv {
+                layout: world.layout,
+                seed: world.seed,
+                cache: world.cache,
+                world_items: world.world_items,
+                bus: world.bus,
+                rules: world.explosion_rules,
+                game_time: world.game_time,
+                max_chained_neighbor_updates: world.max_chained_neighbor_updates,
+            },
+            &mut ExplosionSinks {
+                block,
+                fluid,
+                packets: &mut directed,
+            },
+        )?;
     }
-    world.bus.publish_frames(&frames)
+    world.bus.publish_frames(&frames)?;
+    directed.publish(world.bus);
+    Ok(())
 }
 
 /// Java `LeavesBlock.randomTick`, the one `randomTick` that ends in a

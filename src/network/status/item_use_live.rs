@@ -342,6 +342,7 @@ fn spawn_tool_drop<W: Write>(
         pickup_delay: DEFAULT_PICKUP_DELAY,
         age: 0,
         target_uuid: None,
+        health: crate::item_entity::ITEM_DEFAULT_HEALTH,
     };
     write_item_entity_spawn_packets(stream, compression, &item, item_pid)?;
     lock_status_mutex(context.world_items).entities.push(item);
@@ -365,7 +366,7 @@ fn drop_position_from_face(pos: BlockPos, face: crate::block_update::Direction) 
 /// Java `ItemStack.hurtAndBreak(1, player, hand.asEquipmentSlot())` for the
 /// held stack, followed by the slot resync Java's dirty-slot broadcaster
 /// performs.
-fn hurt_and_break_held_item<W: Write>(
+pub(super) fn hurt_and_break_held_item<W: Write>(
     stream: &mut W,
     compression: CompressionState,
     state: &mut PlaySessionState,

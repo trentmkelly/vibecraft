@@ -195,6 +195,7 @@ fn crop_block_loot_table(key: &str, random_sequence: &str) -> Option<LootTable> 
 
 fn special_block_loot_table(key: &str, random_sequence: &str) -> Option<LootTable> {
     Some(match key {
+        "tnt" => tnt_table(random_sequence),
         "glowstone" => count_drop_table(
             "glowstone_dust",
             vec![
@@ -260,6 +261,33 @@ fn self_drop_table(item: &str, sequence: &str) -> LootTable {
             format!("minecraft:{item}"),
             1,
         ))],
+        functions: Vec::new(),
+    }
+}
+
+/// `data/minecraft/loot_table/blocks/tnt.json`: TNT drops itself unless it is
+/// `unstable` (which primes instead when broken). Explosions never evaluate
+/// it (`TntBlock.dropFromExplosion` is false).
+fn tnt_table(sequence: &str) -> LootTable {
+    LootTable {
+        param_set: LootParamSet::Block,
+        random_sequence: Some(sequence.to_string()),
+        pools: vec![LootPool {
+            entries: vec![LootEntry::Item {
+                item: "minecraft:tnt".to_string(),
+                weight: 1,
+                quality: 0,
+                conditions: vec![LootCondition::BlockStateProperty {
+                    property: "unstable".to_string(),
+                    value: "false".to_string(),
+                }],
+                functions: Vec::new(),
+            }],
+            conditions: vec![LootCondition::SurvivesExplosion],
+            functions: Vec::new(),
+            rolls: NumberProvider::Constant(1.0),
+            bonus_rolls: NumberProvider::Constant(0.0),
+        }],
         functions: Vec::new(),
     }
 }

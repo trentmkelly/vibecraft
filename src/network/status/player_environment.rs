@@ -57,11 +57,11 @@ const ON_POS_OFFSET: f64 = 0.2;
 /// `SweetBerryBushBlock.entityInside`: minimum horizontal movement that hurts (`0.003F`).
 const BERRY_MOVEMENT_THRESHOLD: f64 = 0.003_f32 as f64;
 /// Standing / sneaking pose dimensions (`EntityType.PLAYER`, `Pose.CROUCHING`).
-const STANDING_HEIGHT: f64 = 1.8;
-const CROUCHING_HEIGHT: f64 = 1.5;
-const STANDING_EYE_HEIGHT: f64 = 1.62;
-const CROUCHING_EYE_HEIGHT: f64 = 1.27;
-const PLAYER_WIDTH_F: f64 = 0.6;
+pub(super) const STANDING_HEIGHT: f64 = 1.8;
+pub(super) const CROUCHING_HEIGHT: f64 = 1.5;
+pub(super) const STANDING_EYE_HEIGHT: f64 = 1.62;
+pub(super) const CROUCHING_EYE_HEIGHT: f64 = 1.27;
+pub(super) const PLAYER_WIDTH_F: f64 = 0.6;
 
 /// Fire / freeze bookkeeping Java keeps on `Entity`.
 #[derive(Debug, Clone, Default, PartialEq)]

@@ -38,7 +38,7 @@ pub mod hopper;
 pub mod lifecycle;
 pub mod open_effects;
 pub mod openers;
-mod registry_ids;
+pub mod registry_ids;
 pub mod stack;
 #[cfg(test)]
 mod hopper_tests;

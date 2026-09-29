@@ -338,8 +338,24 @@ pub use play_session_chunk_delta::*;
 mod chunk_b_2;
 pub use chunk_b_2::*;
 
+mod explosion_live;
+#[cfg(test)]
+mod explosion_live_tests;
+#[cfg(test)]
+mod fire_live_tests;
+#[cfg(test)]
+mod explosion_packets_tests;
 mod player_damage;
 mod player_death;
+mod player_explosion_live;
+#[cfg(test)]
+mod player_explosion_live_tests;
+mod tnt_interaction_live;
+#[cfg(test)]
+mod tnt_interaction_live_tests;
+mod tnt_live;
+#[cfg(test)]
+mod tnt_live_tests;
 mod player_environment;
 mod respawn_live;
 pub(crate) mod xp_orb_live;

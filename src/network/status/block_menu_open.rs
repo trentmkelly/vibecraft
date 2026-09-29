@@ -252,6 +252,41 @@ pub(in crate::network::status) fn write_open_block_menu<W: Write>(
     )
 }
 
+/// Java `ServerPlayerGameMode.useItemOn` -> `BlockState.useWithoutItem` for the
+/// blocks that open a menu (chests, furnaces, ...). Returns whether one opened.
+pub(super) fn try_open_block_menu(
+    stream: &mut ClientStream,
+    compression: CompressionState,
+    state: &mut PlaySessionState,
+    context: &UseItemOnContext<'_, '_>,
+    packet: &ServerboundUseItemOnPacket,
+    clicked_state: &crate::block_behavior::BlockStateModel,
+) -> io::Result<bool> {
+    let clicked_pos = crate::block_update::BlockPos {
+        x: packet.block_hit.x,
+        y: packet.block_hit.y,
+        z: packet.block_hit.z,
+    };
+    let Some(menu) = block_menu_open_for_state(clicked_state) else {
+        return Ok(false);
+    };
+    let container_id = next_open_container_id(state);
+    let mut active_menu = ActiveBlockMenu::open(
+        container_id,
+        clicked_pos,
+        menu.live_kind,
+        context.world_layout,
+        context.world_seed,
+        context.chunk_cache,
+        context.recipe_manager.recipe_map(),
+    );
+    write_open_block_menu(stream, compression, container_id, menu, packet.sequence)?;
+    active_menu.start_open(&context.chunk_cache.container_openers, state);
+    active_menu.write_full_content(stream, compression, state)?;
+    state.active_block_menu = Some(active_menu);
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

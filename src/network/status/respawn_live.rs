@@ -183,6 +183,7 @@ fn drop_stack_from_view<W: Write>(
         pickup_delay: DROP_PICKUP_DELAY,
         age: 0,
         target_uuid: None,
+        health: crate::item_entity::ITEM_DEFAULT_HEALTH,
     };
     write_item_entity_spawn_packets(writer, compression, &item, item_pid)?;
     lock_status_mutex(context.world_items).entities.push(item);

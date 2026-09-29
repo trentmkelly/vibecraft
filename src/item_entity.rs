@@ -21,6 +21,9 @@ pub const INFINITE_LIFETIME_AGE: i32 = -32768;
 /// `Block.popResource()` for all block drops.
 pub const DEFAULT_PICKUP_DELAY: i32 = 10;
 
+/// Starting `ItemEntity.health` (`private int health = 5`).
+pub const ITEM_DEFAULT_HEALTH: i32 = 5;
+
 /// A live falling block (Java `FallingBlockEntity`): spawned when a gravity
 /// block's support disappears, lands as the block again (or breaks).
 #[derive(Debug, Clone, PartialEq)]
@@ -65,6 +68,9 @@ pub struct DroppedItem {
     /// When set, only the identified player may pick up this item.
     /// Java: `ItemEntity.target` UUID field.
     pub target_uuid: Option<String>,
+    /// `ItemEntity.health`: damage (e.g. explosions) wears it down; the item
+    /// is discarded at 0.
+    pub health: i32,
 }
 
 impl DroppedItem {
@@ -89,6 +95,12 @@ pub struct WorldItemEntities {
     /// the play tick next to item entities; this struct doubles as the shared
     /// world-entity registry because it owns the entity-id counter.
     pub falling_blocks: Vec<FallingBlockEntity>,
+    /// Live primed TNT (Java `PrimedTnt`), simulated by the shared world tick.
+    pub primed_tnts: Vec<crate::primed_tnt::PrimedTntEntity>,
+    /// The level's explosion-related game rules as of the last world tick.
+    /// Session threads (`TntBlock.prime` from a click or a block break) read
+    /// them here, where Java reads `ServerLevel.getGameRules()`.
+    pub explosion_rules: crate::server_explosion::ExplosionRules,
     /// Live experience orbs (Java `ExperienceOrb`); see `xp_orb_entity.rs`.
     pub xp_orbs: Vec<crate::xp_orb_entity::XpOrbEntity>,
     /// When the orbs were last stepped; sessions share the store, so the store keeps the
@@ -106,6 +118,8 @@ impl WorldItemEntities {
         Self {
             entities: Vec::new(),
             falling_blocks: Vec::new(),
+            primed_tnts: Vec::new(),
+            explosion_rules: crate::server_explosion::ExplosionRules::default(),
             xp_orbs: Vec::new(),
             xp_orb_last_step: None,
             next_entity_id: 1,
@@ -117,6 +131,8 @@ impl WorldItemEntities {
     pub fn restore(entities: Vec<DroppedItem>, next_entity_id: i32) -> Self {
         Self {
             falling_blocks: Vec::new(),
+            primed_tnts: Vec::new(),
+            explosion_rules: crate::server_explosion::ExplosionRules::default(),
             xp_orbs: Vec::new(),
             xp_orb_last_step: None,
             entities,
@@ -335,6 +351,7 @@ mod tests {
             pickup_delay,
             age,
             target_uuid: None,
+            health: crate::item_entity::ITEM_DEFAULT_HEALTH,
         }
     }
 
@@ -412,6 +429,7 @@ mod tests {
     fn target_uuid_restricts_pickup_to_named_player() {
         let item = DroppedItem {
             target_uuid: Some("player-a".to_string()),
+            health: crate::item_entity::ITEM_DEFAULT_HEALTH,
             ..make_item(1, 0, 0)
         };
         assert!(item.can_be_picked_up_by("player-a"));
@@ -514,6 +532,7 @@ mod tests {
                 pickup_delay: 0,
                 age: 0,
                 target_uuid: None,
+                health: crate::item_entity::ITEM_DEFAULT_HEALTH,
             },
             DroppedItem {
                 entity_id: 2,
@@ -528,6 +547,7 @@ mod tests {
                 pickup_delay: 0,
                 age: 0,
                 target_uuid: None,
+                health: crate::item_entity::ITEM_DEFAULT_HEALTH,
             },
         ];
         let result = tick(&mut items);
@@ -563,6 +583,7 @@ mod tests {
                 pickup_delay: 2,
                 age: 0,
                 target_uuid: None,
+                health: crate::item_entity::ITEM_DEFAULT_HEALTH,
             },
             DroppedItem {
                 entity_id: 2,
@@ -577,6 +598,7 @@ mod tests {
                 pickup_delay: 2,
                 age: 0,
                 target_uuid: None,
+                health: crate::item_entity::ITEM_DEFAULT_HEALTH,
             },
         ];
         let result = tick(&mut items);
@@ -609,6 +631,7 @@ mod tests {
                 pickup_delay: 0,
                 age: 0,
                 target_uuid: None,
+                health: crate::item_entity::ITEM_DEFAULT_HEALTH,
             },
             DroppedItem {
                 entity_id: 2,
@@ -623,6 +646,7 @@ mod tests {
                 pickup_delay: 0,
                 age: 0,
                 target_uuid: None,
+                health: crate::item_entity::ITEM_DEFAULT_HEALTH,
             },
         ];
         let result = tick(&mut items);
@@ -648,6 +672,7 @@ mod tests {
                 pickup_delay: 0,
                 age: 0,
                 target_uuid: None,
+                health: crate::item_entity::ITEM_DEFAULT_HEALTH,
             },
             DroppedItem {
                 entity_id: 2,
@@ -662,6 +687,7 @@ mod tests {
                 pickup_delay: 0,
                 age: 0,
                 target_uuid: None,
+                health: crate::item_entity::ITEM_DEFAULT_HEALTH,
             },
         ];
         let result = tick(&mut items);
