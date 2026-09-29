@@ -18,7 +18,9 @@ use super::*;
 mod conditions;
 mod fields;
 mod functions;
+mod item_functions;
 mod numbers;
+mod predicates;
 
 use conditions::decode_conditions;
 use fields::{as_bool, as_list, as_object, identifier, int_field, list, required, type_name, Object};
@@ -213,10 +215,14 @@ fn decode_singleton(kind: &str, object: &Object, value: &Value) -> Result<LootEn
                 conditions,
                 functions,
             },
-            inline => {
-                decode_table(inline)?;
-                unmodeled_entry(kind, value)
-            }
+            // The inline arm of the same `Codec.either(KEY_CODEC, DIRECT_CODEC)`.
+            inline => LootEntry::InlineTable {
+                table: Box::new(decode_table(inline)?),
+                weight,
+                quality,
+                conditions,
+                functions,
+            },
         },
         _ => {
             as_object(required(object, "slot_source")?, "slot_source")?;

@@ -153,19 +153,47 @@ pub fn available_enchantment_results(value: i32, item_id: &str) -> Vec<(&'static
     results
 }
 
-/// `WeightedRandom.getRandomItem` over `(id, level, weight)` candidates: draw
-/// `nextInt(totalWeight)` and walk the list subtracting weights. Returns the index.
+/// The `RandomSource` draws `EnchantmentHelper.selectEnchantment` makes, so the same
+/// selection runs on the enchanting table's seeded `LegacyRandom` and on a loot
+/// context's shared `RandomSource`.
+pub trait EnchantingRandom {
+    /// `RandomSource.nextInt(bound)`.
+    fn next_int(&mut self, bound: i32) -> i32;
+    /// `RandomSource.nextFloat()`.
+    fn next_float(&mut self) -> f32;
+}
+
+impl EnchantingRandom for crate::random_source::LegacyRandom {
+    fn next_int(&mut self, bound: i32) -> i32 {
+        self.next_i32_bound(bound)
+    }
+
+    fn next_float(&mut self) -> f32 {
+        self.next_f32()
+    }
+}
+
+/// An `EnchantmentInstance` candidate of a selection with its `WeightedEntry` weight.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnchantmentCandidate {
+    pub id: String,
+    pub level: i32,
+    pub weight: i32,
+}
+
+/// `WeightedRandom.getRandomItem` over the candidates: draw `nextInt(totalWeight)` and
+/// walk the list subtracting weights. Returns the index.
 fn weighted_pick(
-    random: &mut crate::random_source::LegacyRandom,
-    items: &[(&'static str, i32, i32)],
+    random: &mut impl EnchantingRandom,
+    items: &[EnchantmentCandidate],
 ) -> Option<usize> {
-    let total: i32 = items.iter().map(|(_, _, w)| *w).sum();
+    let total: i32 = items.iter().map(|candidate| candidate.weight).sum();
     if total <= 0 {
         return None;
     }
-    let mut selection = random.next_i32_bound(total);
-    for (index, (_, _, weight)) in items.iter().enumerate() {
-        selection -= *weight;
+    let mut selection = random.next_int(total);
+    for (index, candidate) in items.iter().enumerate() {
+        selection -= candidate.weight;
         if selection < 0 {
             return Some(index);
         }
@@ -173,47 +201,83 @@ fn weighted_pick(
     None
 }
 
-/// `EnchantmentHelper.selectEnchantment`: the seeded list of `(id, level)` the enchanting
-/// table applies for a base `cost`, given the item's `enchantability`. Mirrors the Java
-/// call sequence exactly (so the verified Java-compatible `LegacyRandom` reproduces it).
-pub fn select_enchantment(
-    random: &mut crate::random_source::LegacyRandom,
-    item_id: &str,
+/// `EnchantmentHelper.selectEnchantment`: the `(id, level)` list picked for a base
+/// `cost`, given the item's `enchantability`. `available` is
+/// `getAvailableEnchantmentResults` (the candidates for the adjusted cost, in source
+/// order) and `compatible` is `Enchantment.areCompatible`. Mirrors the Java call
+/// sequence exactly, so a Java-compatible `random` reproduces it.
+pub fn select_enchantments(
+    random: &mut impl EnchantingRandom,
     mut cost: i32,
     enchantability: i32,
-) -> Vec<(&'static str, i32)> {
-    let mut results: Vec<(&'static str, i32)> = Vec::new();
+    available: impl FnOnce(i32) -> Vec<EnchantmentCandidate>,
+    compatible: impl Fn(&str, &str) -> bool,
+) -> Vec<(String, i32)> {
+    let mut results: Vec<(String, i32)> = Vec::new();
     if enchantability <= 0 {
         return results;
     }
     cost += 1
-        + random.next_i32_bound(enchantability / 4 + 1)
-        + random.next_i32_bound(enchantability / 4 + 1);
-    let random_span = (random.next_f32() + random.next_f32() - 1.0) * 0.15;
+        + random.next_int(enchantability / 4 + 1)
+        + random.next_int(enchantability / 4 + 1);
+    let random_span = (random.next_float() + random.next_float() - 1.0) * 0.15;
     cost = ((cost as f32 + cost as f32 * random_span).round() as i32).max(1);
 
-    let mut candidates = available_enchantment_results(cost, item_id);
+    let mut candidates = available(cost);
     if candidates.is_empty() {
         return results;
     }
     if let Some(i) = weighted_pick(random, &candidates) {
-        results.push((candidates[i].0, candidates[i].1));
+        results.push((candidates[i].id.clone(), candidates[i].level));
     }
-    while random.next_i32_bound(50) <= cost {
-        if let Some((last_id, _)) = results.last() {
+    while random.next_int(50) <= cost {
+        if let Some((last, _)) = results.last() {
             // filterCompatibleEnchantments: keep only those compatible with the last
-            // pick (which also drops the last pick itself, since are_compatible(x, x)
-            // is false).
-            let last = *last_id;
-            candidates.retain(|(id, _, _)| enchants_compatible_ids(last, id));
+            // pick (which also drops the last pick itself, since an enchantment is
+            // never compatible with itself).
+            candidates.retain(|candidate| compatible(last, &candidate.id));
         }
         if candidates.is_empty() {
             break;
         }
         if let Some(i) = weighted_pick(random, &candidates) {
-            results.push((candidates[i].0, candidates[i].1));
+            results.push((candidates[i].id.clone(), candidates[i].level));
         }
         cost /= 2;
     }
     results
+}
+
+/// `EnchantmentHelper.selectEnchantment` for the enchanting table: the seeded list of
+/// `(id, level)` applied for a base `cost`, given the item's `enchantability`.
+pub fn select_enchantment(
+    random: &mut crate::random_source::LegacyRandom,
+    item_id: &str,
+    cost: i32,
+    enchantability: i32,
+) -> Vec<(&'static str, i32)> {
+    select_enchantments(
+        random,
+        cost,
+        enchantability,
+        |value| {
+            available_enchantment_results(value, item_id)
+                .into_iter()
+                .map(|(id, level, weight)| EnchantmentCandidate {
+                    id: id.to_string(),
+                    level,
+                    weight,
+                })
+                .collect()
+        },
+        enchants_compatible_ids,
+    )
+    .into_iter()
+    .filter_map(|(id, level)| {
+        IN_ENCHANTING_TABLE
+            .iter()
+            .find(|candidate| **candidate == id)
+            .map(|id| (*id, level))
+    })
+    .collect()
 }

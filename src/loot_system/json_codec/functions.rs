@@ -10,9 +10,14 @@
 use serde_json::Value;
 
 use super::conditions::decode_conditions;
+use super::item_functions::{
+    decode_copy_components, decode_copy_state, decode_enchant_randomly, decode_enchant_with_levels,
+    decode_furnace_smelt, decode_set_components, decode_set_damage, decode_set_enchantments,
+    decode_set_instrument, decode_set_name, decode_set_stew_effect,
+};
 use super::fields::{
     as_float, as_int, as_list, as_object, bool_or, identifier, int_field, int_range, list,
-    required, type_name, validate_fields, validate_kind, Field, Kind, Object,
+    required, type_name, validate_fields, Field, Kind, Object,
 };
 use super::numbers::decode_number;
 use crate::loot_system::{LootBonusFormula, LootCondition, LootFunction};
@@ -91,8 +96,26 @@ fn decode_function_body(
             count: decode_number(required(object, "count")?)?,
             limit: int_field(object, "limit", 0)?,
         }),
-        // `furnace_smelt` is deliberately not modeled: the runtime's `SmeltItem` is a
-        // fire-gated approximation, not `SmeltItemFunction` (any smelting recipe).
+        "furnace_smelt" => decode_furnace_smelt(object),
+        "set_damage" => decode_set_damage(object),
+        "set_enchantments" => decode_set_enchantments(object),
+        "enchant_with_levels" => decode_enchant_with_levels(object),
+        "enchant_randomly" => decode_enchant_randomly(object),
+        "copy_state" => decode_copy_state(object),
+        "copy_components" => decode_copy_components(object),
+        "set_instrument" => decode_set_instrument(object),
+        "set_stew_effect" => decode_set_stew_effect(object),
+        "set_ominous_bottle_amplifier" => Ok(LootFunction::SetOminousBottleAmplifier(
+            decode_number(required(object, "amplifier")?)?,
+        )),
+        "set_name" => match decode_set_name(object)? {
+            Some(function) => Ok(function),
+            None => unmodeled(),
+        },
+        "set_components" => match decode_set_components(object)? {
+            Some(function) => Ok(function),
+            None => unmodeled(),
+        },
         "discard" => Ok(LootFunction::Discard),
         "reference" => Ok(LootFunction::Reference(identifier(
             required(object, "name")?,
@@ -119,21 +142,8 @@ use Kind::{Any, Bool, Function, Id, IdSet, Int, List, ListMode, Long, Number, Ob
 fn function_schema(kind: &str) -> Option<&'static [Field]> {
     Some(match kind {
         "limit_count" => &[("limit", Kind::Range, true)],
-        "furnace_smelt" => &[("use_input_count", Bool, false)],
-        "enchant_with_levels" => &[
-            ("levels", Number, true),
-            ("options", IdSet, false),
-            ("include_additional_cost_component", Bool, false),
-        ],
-        "enchant_randomly" => &[
-            ("options", IdSet, false),
-            ("only_compatible", Bool, false),
-            ("include_additional_cost_component", Bool, false),
-        ],
-        "set_enchantments" => &[("enchantments", Obj, false), ("add", Bool, false)],
         "set_custom_data" => &[("tag", Any, true)],
         "set_components" => &[("components", Obj, true)],
-        "set_damage" => &[("damage", Number, true), ("add", Bool, false)],
         "set_attributes" => &[("modifiers", List, true), ("replace", Bool, false)],
         "set_name" => &[
             ("name", Any, false),
@@ -147,7 +157,6 @@ fn function_schema(kind: &str) -> Option<&'static [Field]> {
             ("search_radius", Int, false),
             ("skip_existing_chunks", Bool, false),
         ],
-        "set_stew_effect" => &[("effects", List, false)],
         "copy_name" => &[("source", Str, true)],
         "set_contents" => &[("component", Id, true), ("entries", List, true)],
         "modify_contents" => &[("component", Id, true), ("modifier", Function, true)],
@@ -168,16 +177,9 @@ fn function_schema(kind: &str) -> Option<&'static [Field]> {
         ],
         "fill_player_head" => &[("entity", Target, true)],
         "copy_custom_data" => &[("source", Any, true), ("ops", List, true)],
-        "copy_state" => &[("block", Id, true), ("properties", List, true)],
         "set_banner_pattern" => &[("patterns", List, true), ("append", Bool, true)],
         "set_random_dyes" => &[("number_of_dyes", Number, true)],
         "set_random_potion" => &[("options", IdSet, false)],
-        "set_instrument" => &[("options", IdSet, true)],
-        "copy_components" => &[
-            ("source", Str, true),
-            ("include", List, false),
-            ("exclude", List, false),
-        ],
         "set_fireworks" => &[("explosions", Obj, false), ("flight_duration", Int, false)],
         "set_firework_explosion" => &[
             ("shape", Str, false),
@@ -195,7 +197,6 @@ fn function_schema(kind: &str) -> Option<&'static [Field]> {
             &[("pages", List, true), ("mode", ListMode, true)]
         }
         "toggle_tooltips" => &[("toggles", Obj, true)],
-        "set_ominous_bottle_amplifier" => &[("amplifier", Number, true)],
         "set_custom_model_data" => &[
             ("floats", Obj, false),
             ("flags", Obj, false),
@@ -219,14 +220,6 @@ fn validate_unmodeled_function(kind: &str, object: &Object) -> Result<(), String
         "set_attributes" => as_list(required(object, "modifiers")?, "modifiers")?
             .iter()
             .try_for_each(validate_attribute_modifier),
-        "set_stew_effect" => list(object, "effects")?.iter().try_for_each(|effect| {
-            let effect = as_object(effect, "effect")?;
-            validate_fields(effect, &[("type", Id, true), ("duration", Number, true)])
-        }),
-        "set_enchantments" => validate_enchantment_levels(object),
-        "copy_state" => as_list(required(object, "properties")?, "properties")?
-            .iter()
-            .try_for_each(|property| validate_kind(property, Str, "properties")),
         _ => Ok(()),
     }
 }
@@ -275,16 +268,4 @@ fn validate_attribute_modifier(modifier: &Value) -> Result<(), String> {
             ("slot", Any, true),
         ],
     )
-}
-
-/// `enchantments` maps enchantment ids to level number providers.
-fn validate_enchantment_levels(object: &Object) -> Result<(), String> {
-    let Some(enchantments) = object.get("enchantments") else {
-        return Ok(());
-    };
-    for (enchantment, level) in as_object(enchantments, "enchantments")? {
-        identifier(&Value::String(enchantment.clone()), "enchantment")?;
-        validate_kind(level, Number, "enchantments")?;
-    }
-    Ok(())
 }

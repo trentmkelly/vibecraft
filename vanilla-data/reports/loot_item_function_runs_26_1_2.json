@@ -1,0 +1,1214 @@
+{
+  "chests/abandoned_mineshaft": {
+    "1": [
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:riptide:2",
+      "minecraft:iron_ingot x5",
+      "minecraft:glow_berries x5",
+      "minecraft:detector_rail x3",
+      "minecraft:rail x7",
+      "minecraft:rail x7"
+    ],
+    "2": [
+      "minecraft:golden_apple x1",
+      "minecraft:glow_berries x3",
+      "minecraft:coal x3",
+      "minecraft:rail x8",
+      "minecraft:torch x15",
+      "minecraft:torch x8"
+    ],
+    "3": [
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:power:1",
+      "minecraft:bread x1",
+      "minecraft:bread x2",
+      "minecraft:melon_seeds x3",
+      "minecraft:torch x6",
+      "minecraft:detector_rail x1",
+      "minecraft:activator_rail x2"
+    ],
+    "12345": [
+      "minecraft:name_tag x1",
+      "minecraft:beetroot_seeds x2",
+      "minecraft:pumpkin_seeds x3",
+      "minecraft:glow_berries x3",
+      "minecraft:rail x8",
+      "minecraft:rail x6",
+      "minecraft:torch x15"
+    ],
+    "987654321": [
+      "minecraft:name_tag x1",
+      "minecraft:bread x3",
+      "minecraft:diamond x1",
+      "minecraft:melon_seeds x4",
+      "minecraft:rail x6",
+      "minecraft:rail x6",
+      "minecraft:activator_rail x4"
+    ]
+  },
+  "chests/ancient_city": {
+    "1": [
+      "minecraft:sculk_catalyst x1",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:swift_sneak:2",
+      "minecraft:music_disc_13 x1",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:swift_sneak:2",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:density:3",
+      "minecraft:soul_torch x13",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:piercing:4",
+      "minecraft:enchanted_golden_apple x1"
+    ],
+    "2": [
+      "minecraft:experience_bottle x3",
+      "minecraft:bone x10",
+      "minecraft:coal x12",
+      "minecraft:compass x1",
+      "minecraft:diamond_leggings x1|enchantments=minecraft:mending:1,minecraft:protection:4|damage=0",
+      "minecraft:glow_berries x12",
+      "minecraft:iron_leggings x1|enchantments=minecraft:protection:3|damage=0",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:swift_sneak:2",
+      "minecraft:book x10"
+    ],
+    "3": [
+      "minecraft:bone x1",
+      "minecraft:sculk x4",
+      "minecraft:coal x15",
+      "minecraft:potion x1",
+      "minecraft:potion x1",
+      "minecraft:leather x1",
+      "minecraft:bone x3",
+      "minecraft:coal x7"
+    ],
+    "12345": [
+      "minecraft:music_disc_cat x1",
+      "minecraft:coal x14",
+      "minecraft:coal x10",
+      "minecraft:coal x8",
+      "minecraft:leather x5",
+      "minecraft:candle x4"
+    ],
+    "987654321": [
+      "minecraft:bone x9",
+      "minecraft:iron_leggings x1|enchantments=minecraft:protection:3,minecraft:unbreaking:3|damage=0",
+      "minecraft:experience_bottle x1",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:swift_sneak:1",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:respiration:2",
+      "minecraft:diamond_horse_armor x1",
+      "minecraft:compass x1"
+    ]
+  },
+  "chests/ancient_city_ice_box": {
+    "1": [
+      "minecraft:golden_carrot x8",
+      "minecraft:snowball x6",
+      "minecraft:packed_ice x6",
+      "minecraft:golden_carrot x9",
+      "minecraft:golden_carrot x10",
+      "minecraft:snowball x4",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:packed_ice x3"
+    ],
+    "2": [
+      "minecraft:snowball x2",
+      "minecraft:golden_carrot x10",
+      "minecraft:snowball x3",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:100",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:100",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:100",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:100",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:100",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:100",
+      "minecraft:baked_potato x5",
+      "minecraft:packed_ice x6",
+      "minecraft:snowball x4",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:140",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:140",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:140",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:140",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:140",
+      "minecraft:packed_ice x6"
+    ],
+    "3": [
+      "minecraft:baked_potato x1",
+      "minecraft:snowball x5",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:packed_ice x2",
+      "minecraft:golden_carrot x8",
+      "minecraft:golden_carrot x2",
+      "minecraft:golden_carrot x7",
+      "minecraft:packed_ice x3",
+      "minecraft:golden_carrot x2"
+    ],
+    "12345": [
+      "minecraft:packed_ice x3",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:night_vision:140",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:night_vision:140",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:night_vision:140",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:night_vision:140",
+      "minecraft:snowball x2",
+      "minecraft:snowball x4",
+      "minecraft:snowball x4",
+      "minecraft:golden_carrot x3",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:120",
+      "minecraft:snowball x5"
+    ],
+    "987654321": [
+      "minecraft:packed_ice x5",
+      "minecraft:snowball x5",
+      "minecraft:baked_potato x10",
+      "minecraft:baked_potato x9",
+      "minecraft:snowball x2",
+      "minecraft:snowball x5",
+      "minecraft:snowball x2"
+    ]
+  },
+  "chests/bastion_bridge": {
+    "1": [
+      "minecraft:lodestone x1",
+      "minecraft:crossbow x1|enchantments=minecraft:piercing:1|damage=342",
+      "minecraft:golden_boots x1|enchantments=minecraft:feather_falling:3|damage=0",
+      "minecraft:iron_nugget x6",
+      "minecraft:iron_nugget x4",
+      "minecraft:iron_nugget x4"
+    ],
+    "2": [
+      "minecraft:lodestone x1",
+      "minecraft:iron_ingot x6",
+      "minecraft:golden_chestplate x1|enchantments=minecraft:binding_curse:1|damage=0",
+      "minecraft:leather x1",
+      "minecraft:arrow x9"
+    ],
+    "3": [
+      "minecraft:lodestone x1",
+      "minecraft:golden_axe x1|enchantments=minecraft:fortune:2|damage=0",
+      "minecraft:crying_obsidian x3",
+      "minecraft:gold_nugget x6",
+      "minecraft:leather x1"
+    ],
+    "12345": [
+      "minecraft:lodestone x1",
+      "minecraft:golden_sword x1|damage=0",
+      "minecraft:iron_nugget x2",
+      "minecraft:gold_nugget x2"
+    ],
+    "987654321": [
+      "minecraft:lodestone x1",
+      "minecraft:golden_leggings x1|enchantments=minecraft:mending:1|damage=0",
+      "minecraft:iron_nugget x3",
+      "minecraft:gold_nugget x6",
+      "minecraft:iron_nugget x4",
+      "minecraft:string x2",
+      "minecraft:snout_armor_trim_smithing_template x1"
+    ]
+  },
+  "chests/bastion_hoglin_stable": {
+    "1": [
+      "minecraft:golden_carrot x16",
+      "minecraft:leather x3",
+      "minecraft:gold_nugget x2",
+      "minecraft:arrow x14",
+      "minecraft:netherite_upgrade_smithing_template x1"
+    ],
+    "2": [
+      "minecraft:diamond_shovel x1|enchantments=minecraft:unbreaking:2|damage=1029",
+      "minecraft:arrow x13",
+      "minecraft:gilded_blackstone x5",
+      "minecraft:porkchop x5"
+    ],
+    "3": [
+      "minecraft:netherite_scrap x1",
+      "minecraft:gold_nugget x6",
+      "minecraft:golden_axe x1|enchantments=minecraft:sharpness:5|damage=0",
+      "minecraft:porkchop x2",
+      "minecraft:crimson_roots x5"
+    ],
+    "12345": [
+      "minecraft:ancient_debris x2",
+      "minecraft:cooked_porkchop x5",
+      "minecraft:string x7",
+      "minecraft:string x3",
+      "minecraft:crimson_roots x5"
+    ],
+    "987654321": [
+      "minecraft:ancient_debris x1",
+      "minecraft:gold_nugget x8",
+      "minecraft:crimson_fungus x7",
+      "minecraft:leather x3",
+      "minecraft:glowstone x4"
+    ]
+  },
+  "chests/bastion_other": {
+    "1": [
+      "minecraft:golden_apple x1",
+      "minecraft:crossbow x1|damage=0",
+      "minecraft:gold_block x1",
+      "minecraft:cooked_porkchop x1",
+      "minecraft:arrow x12",
+      "minecraft:string x5",
+      "minecraft:netherite_upgrade_smithing_template x1"
+    ],
+    "2": [
+      "minecraft:spectral_arrow x16",
+      "minecraft:iron_sword x1|enchantments=minecraft:mending:1|damage=224",
+      "minecraft:gold_ingot x1",
+      "minecraft:gilded_blackstone x4",
+      "minecraft:iron_chain x4",
+      "minecraft:arrow x5"
+    ],
+    "3": [
+      "minecraft:golden_apple x1",
+      "minecraft:iron_sword x1|enchantments=minecraft:smite:4|damage=210",
+      "minecraft:iron_block x1",
+      "minecraft:iron_nugget x3",
+      "minecraft:arrow x7",
+      "minecraft:arrow x6",
+      "minecraft:iron_chain x8"
+    ],
+    "12345": [
+      "minecraft:golden_apple x1",
+      "minecraft:iron_sword x1|enchantments=minecraft:vanishing_curse:1|damage=38",
+      "minecraft:golden_helmet x1|damage=0",
+      "minecraft:gilded_blackstone x3",
+      "minecraft:iron_chain x8",
+      "minecraft:gilded_blackstone x3"
+    ],
+    "987654321": [
+      "minecraft:piglin_banner_pattern x1",
+      "minecraft:gold_block x1",
+      "minecraft:crying_obsidian x2",
+      "minecraft:gilded_blackstone x5",
+      "minecraft:obsidian x6",
+      "minecraft:bone_block x5"
+    ]
+  },
+  "chests/bastion_treasure": {
+    "1": [
+      "minecraft:netherite_scrap x1",
+      "minecraft:diamond_helmet x1|enchantments=minecraft:binding_curse:1|damage=42",
+      "minecraft:diamond_leggings x1|enchantments=minecraft:unbreaking:2|damage=95",
+      "minecraft:gold_block x2",
+      "minecraft:gilded_blackstone x14",
+      "minecraft:spectral_arrow x14",
+      "minecraft:gilded_blackstone x5",
+      "minecraft:netherite_upgrade_smithing_template x1"
+    ],
+    "2": [
+      "minecraft:netherite_ingot x1",
+      "minecraft:diamond_helmet x1|damage=0",
+      "minecraft:diamond_chestplate x1|damage=0",
+      "minecraft:quartz x21",
+      "minecraft:quartz x8",
+      "minecraft:gilded_blackstone x10",
+      "minecraft:netherite_upgrade_smithing_template x1"
+    ],
+    "3": [
+      "minecraft:diamond_chestplate x1|enchantments=minecraft:binding_curse:1|damage=46",
+      "minecraft:diamond_chestplate x1|enchantments=minecraft:protection:4|damage=98",
+      "minecraft:diamond_chestplate x1|enchantments=minecraft:thorns:1|damage=81",
+      "minecraft:crying_obsidian x4",
+      "minecraft:quartz x14",
+      "minecraft:quartz x10",
+      "minecraft:netherite_upgrade_smithing_template x1"
+    ],
+    "12345": [
+      "minecraft:diamond_sword x1|damage=0",
+      "minecraft:diamond_boots x1|enchantments=minecraft:protection:4|damage=5",
+      "minecraft:netherite_ingot x1",
+      "minecraft:spectral_arrow x25",
+      "minecraft:quartz x13",
+      "minecraft:quartz x15",
+      "minecraft:netherite_upgrade_smithing_template x1"
+    ],
+    "987654321": [
+      "minecraft:ancient_debris x1",
+      "minecraft:diamond_boots x1|damage=0",
+      "minecraft:ancient_debris x2",
+      "minecraft:spectral_arrow x21",
+      "minecraft:iron_ingot x5",
+      "minecraft:magma_cream x5",
+      "minecraft:netherite_upgrade_smithing_template x1"
+    ]
+  },
+  "chests/desert_pyramid": {
+    "1": [
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:thorns:1",
+      "minecraft:emerald x2",
+      "minecraft:string x6",
+      "minecraft:rotten_flesh x6",
+      "minecraft:gunpowder x2",
+      "minecraft:gunpowder x2"
+    ],
+    "2": [
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:protection:1",
+      "minecraft:iron_horse_armor x1",
+      "minecraft:bone x4",
+      "minecraft:gunpowder x7",
+      "minecraft:gunpowder x8",
+      "minecraft:string x2",
+      "minecraft:gunpowder x1"
+    ],
+    "3": [
+      "minecraft:rotten_flesh x3",
+      "minecraft:gold_ingot x2",
+      "minecraft:leather x5",
+      "minecraft:golden_apple x1",
+      "minecraft:bone x7",
+      "minecraft:string x3",
+      "minecraft:rotten_flesh x1",
+      "minecraft:string x4",
+      "minecraft:dune_armor_trim_smithing_template x2"
+    ],
+    "12345": [
+      "minecraft:gold_ingot x5",
+      "minecraft:copper_horse_armor x1",
+      "minecraft:string x3",
+      "minecraft:bone x2",
+      "minecraft:string x3",
+      "minecraft:sand x4"
+    ],
+    "987654321": [
+      "minecraft:iron_horse_armor x1",
+      "minecraft:copper_horse_armor x1",
+      "minecraft:iron_ingot x4",
+      "minecraft:gold_ingot x3",
+      "minecraft:gunpowder x1",
+      "minecraft:string x6",
+      "minecraft:rotten_flesh x1",
+      "minecraft:gunpowder x1"
+    ]
+  },
+  "chests/end_city_treasure": {
+    "1": [
+      "minecraft:gold_ingot x3",
+      "minecraft:iron_ingot x8"
+    ],
+    "2": [
+      "minecraft:iron_boots x1|enchantments=minecraft:mending:1|damage=0",
+      "minecraft:iron_leggings x1|enchantments=minecraft:binding_curse:1,minecraft:mending:1|damage=0",
+      "minecraft:iron_leggings x1|enchantments=minecraft:binding_curse:1,minecraft:mending:1,minecraft:protection:4|damage=0",
+      "minecraft:emerald x4",
+      "minecraft:diamond_leggings x1|enchantments=minecraft:fire_protection:3,minecraft:mending:1,minecraft:unbreaking:3|damage=0"
+    ],
+    "3": [
+      "minecraft:gold_ingot x2",
+      "minecraft:diamond_leggings x1|enchantments=minecraft:vanishing_curse:1|damage=0",
+      "minecraft:diamond x7",
+      "minecraft:diamond_leggings x1|enchantments=minecraft:protection:3,minecraft:unbreaking:3|damage=0",
+      "minecraft:diamond_boots x1|enchantments=minecraft:mending:1,minecraft:protection:4|damage=0",
+      "minecraft:iron_ingot x6"
+    ],
+    "12345": [
+      "minecraft:iron_ingot x5",
+      "minecraft:iron_pickaxe x1|enchantments=minecraft:mending:1,minecraft:unbreaking:3|damage=0",
+      "minecraft:iron_sword x1|enchantments=minecraft:bane_of_arthropods:4,minecraft:sweeping_edge:3|damage=0"
+    ],
+    "987654321": [
+      "minecraft:iron_sword x1|enchantments=minecraft:knockback:2,minecraft:smite:5,minecraft:unbreaking:3|damage=0",
+      "minecraft:iron_chestplate x1|enchantments=minecraft:projectile_protection:4|damage=0",
+      "minecraft:iron_ingot x5"
+    ]
+  },
+  "chests/jungle_temple": {
+    "1": [
+      "minecraft:gold_ingot x3",
+      "minecraft:iron_ingot x5"
+    ],
+    "2": [
+      "minecraft:rotten_flesh x3",
+      "minecraft:bone x4",
+      "minecraft:leather x2",
+      "minecraft:leather x3",
+      "minecraft:rotten_flesh x7",
+      "minecraft:wild_armor_trim_smithing_template x2"
+    ],
+    "3": [
+      "minecraft:gold_ingot x2",
+      "minecraft:bone x4",
+      "minecraft:gold_ingot x5",
+      "minecraft:gold_ingot x3",
+      "minecraft:gold_ingot x5",
+      "minecraft:iron_ingot x3"
+    ],
+    "12345": [
+      "minecraft:iron_ingot x2",
+      "minecraft:iron_horse_armor x1",
+      "minecraft:diamond x2"
+    ],
+    "987654321": [
+      "minecraft:rotten_flesh x6",
+      "minecraft:rotten_flesh x6",
+      "minecraft:bone x5",
+      "minecraft:wild_armor_trim_smithing_template x2"
+    ]
+  },
+  "chests/pillager_outpost": {
+    "1": [
+      "minecraft:crossbow x1|damage=0",
+      "minecraft:potato x3",
+      "minecraft:carrot x4",
+      "minecraft:dark_oak_log x3",
+      "minecraft:dark_oak_log x3",
+      "minecraft:dark_oak_log x3",
+      "minecraft:arrow x3",
+      "minecraft:arrow x2",
+      "minecraft:goat_horn x1|instrument=minecraft:feel_goat_horn",
+      "minecraft:sentry_armor_trim_smithing_template x2"
+    ],
+    "2": [
+      "minecraft:crossbow x1|damage=0",
+      "minecraft:carrot x4",
+      "minecraft:wheat x3",
+      "minecraft:dark_oak_log x2",
+      "minecraft:tripwire_hook x3",
+      "minecraft:iron_ingot x2",
+      "minecraft:experience_bottle x1",
+      "minecraft:sentry_armor_trim_smithing_template x2"
+    ],
+    "3": [
+      "minecraft:crossbow x1|damage=0",
+      "minecraft:carrot x4",
+      "minecraft:wheat x3",
+      "minecraft:carrot x4",
+      "minecraft:dark_oak_log x3",
+      "minecraft:dark_oak_log x3",
+      "minecraft:iron_ingot x2",
+      "minecraft:experience_bottle x1",
+      "minecraft:sentry_armor_trim_smithing_template x2"
+    ],
+    "12345": [
+      "minecraft:carrot x3",
+      "minecraft:potato x2",
+      "minecraft:wheat x3",
+      "minecraft:dark_oak_log x2",
+      "minecraft:dark_oak_log x2",
+      "minecraft:experience_bottle x1",
+      "minecraft:string x3",
+      "minecraft:experience_bottle x1",
+      "minecraft:sentry_armor_trim_smithing_template x2"
+    ],
+    "987654321": [
+      "minecraft:carrot x5",
+      "minecraft:wheat x5",
+      "minecraft:potato x3",
+      "minecraft:dark_oak_log x2",
+      "minecraft:dark_oak_log x3",
+      "minecraft:dark_oak_log x2",
+      "minecraft:experience_bottle x1",
+      "minecraft:string x5",
+      "minecraft:goat_horn x1|instrument=minecraft:sing_goat_horn"
+    ]
+  },
+  "chests/ruined_portal": {
+    "1": [
+      "minecraft:obsidian x1",
+      "minecraft:golden_helmet x1|enchantments=minecraft:vanishing_curse:1|damage=0",
+      "minecraft:golden_chestplate x1|enchantments=minecraft:unbreaking:2|damage=0",
+      "minecraft:fire_charge x1",
+      "minecraft:lodestone x1"
+    ],
+    "2": [
+      "minecraft:iron_nugget x9",
+      "minecraft:golden_boots x1|enchantments=minecraft:vanishing_curse:1|damage=0",
+      "minecraft:flint_and_steel x1|damage=0",
+      "minecraft:golden_horse_armor x1",
+      "minecraft:iron_nugget x16",
+      "minecraft:flint x4",
+      "minecraft:obsidian x1"
+    ],
+    "3": [
+      "minecraft:obsidian x1",
+      "minecraft:golden_helmet x1|enchantments=minecraft:fire_protection:3|damage=0",
+      "minecraft:obsidian x2",
+      "minecraft:golden_boots x1|enchantments=minecraft:fire_protection:3|damage=0",
+      "minecraft:golden_axe x1|enchantments=minecraft:unbreaking:2|damage=0",
+      "minecraft:golden_leggings x1|enchantments=minecraft:fire_protection:4|damage=0",
+      "minecraft:flint x4",
+      "minecraft:gold_ingot x3"
+    ],
+    "12345": [
+      "minecraft:iron_nugget x10",
+      "minecraft:flint_and_steel x1|damage=0",
+      "minecraft:golden_axe x1|enchantments=minecraft:silk_touch:1|damage=0",
+      "minecraft:iron_nugget x11",
+      "minecraft:golden_chestplate x1|enchantments=minecraft:binding_curse:1|damage=0",
+      "minecraft:lodestone x2"
+    ],
+    "987654321": [
+      "minecraft:golden_shovel x1|enchantments=minecraft:unbreaking:3|damage=0",
+      "minecraft:flint x1",
+      "minecraft:golden_axe x1|enchantments=minecraft:bane_of_arthropods:4|damage=0",
+      "minecraft:fire_charge x1",
+      "minecraft:obsidian x1",
+      "minecraft:lodestone x2"
+    ]
+  },
+  "chests/shipwreck_supply": {
+    "1": [
+      "minecraft:paper x8",
+      "minecraft:moss_block x1",
+      "minecraft:leather_chestplate x1|enchantments=minecraft:unbreaking:2|damage=0",
+      "minecraft:potato x5",
+      "minecraft:rotten_flesh x18",
+      "minecraft:rotten_flesh x8",
+      "minecraft:carrot x8",
+      "minecraft:coal x2",
+      "minecraft:iron_nautilus_armor x1"
+    ],
+    "2": [
+      "minecraft:wheat x12",
+      "minecraft:bamboo x1",
+      "minecraft:leather_leggings x1|enchantments=minecraft:binding_curse:1|damage=0",
+      "minecraft:paper x8",
+      "minecraft:poisonous_potato x6",
+      "minecraft:leather_helmet x1|enchantments=minecraft:blast_protection:3|damage=0",
+      "minecraft:potato x3",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:blindness:140",
+      "minecraft:coast_armor_trim_smithing_template x2"
+    ],
+    "3": [
+      "minecraft:gunpowder x1",
+      "minecraft:poisonous_potato x5",
+      "minecraft:leather_leggings x1|enchantments=minecraft:projectile_protection:3|damage=0",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:jump_boost:180",
+      "minecraft:gunpowder x3",
+      "minecraft:leather_boots x1|enchantments=minecraft:vanishing_curse:1|damage=0",
+      "minecraft:potato x3",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:poison:380"
+    ],
+    "12345": [
+      "minecraft:moss_block x4",
+      "minecraft:suspicious_stew x1|suspicious_stew_effects=minecraft:jump_boost:140",
+      "minecraft:leather_leggings x1|enchantments=minecraft:protection:1|damage=0",
+      "minecraft:coal x3",
+      "minecraft:leather_leggings x1|enchantments=minecraft:vanishing_curse:1|damage=0",
+      "minecraft:iron_nautilus_armor x1"
+    ],
+    "987654321": [
+      "minecraft:bamboo x3",
+      "minecraft:wheat x20",
+      "minecraft:pumpkin x2",
+      "minecraft:paper x3",
+      "minecraft:leather_helmet x1|enchantments=minecraft:thorns:2|damage=0",
+      "minecraft:coast_armor_trim_smithing_template x2"
+    ]
+  },
+  "chests/simple_dungeon": {
+    "1": [
+      "minecraft:golden_apple x1",
+      "minecraft:bucket x1",
+      "minecraft:iron_ingot x1",
+      "minecraft:string x6",
+      "minecraft:gunpowder x6",
+      "minecraft:bone x2"
+    ],
+    "2": [
+      "minecraft:music_disc_cat x1",
+      "minecraft:music_disc_cat x1",
+      "minecraft:gold_ingot x4",
+      "minecraft:bone x1",
+      "minecraft:bone x8",
+      "minecraft:gunpowder x4"
+    ],
+    "3": [
+      "minecraft:golden_horse_armor x1",
+      "minecraft:iron_horse_armor x1",
+      "minecraft:diamond_horse_armor x1",
+      "minecraft:redstone x4",
+      "minecraft:bone x2",
+      "minecraft:bone x6",
+      "minecraft:bone x7"
+    ],
+    "12345": [
+      "minecraft:music_disc_13 x1",
+      "minecraft:golden_apple x1",
+      "minecraft:bucket x1",
+      "minecraft:coal x2",
+      "minecraft:wheat x1",
+      "minecraft:gold_ingot x2",
+      "minecraft:rotten_flesh x4",
+      "minecraft:bone x6",
+      "minecraft:rotten_flesh x2"
+    ],
+    "987654321": [
+      "minecraft:golden_apple x1",
+      "minecraft:golden_horse_armor x1",
+      "minecraft:golden_horse_armor x1",
+      "minecraft:wheat x3",
+      "minecraft:string x1",
+      "minecraft:rotten_flesh x6",
+      "minecraft:gunpowder x1"
+    ]
+  },
+  "chests/stronghold_corridor": {
+    "1": [
+      "minecraft:ender_pearl x1",
+      "minecraft:iron_ingot x4",
+      "minecraft:iron_chestplate x1|damage=0"
+    ],
+    "2": [
+      "minecraft:bread x3",
+      "minecraft:ender_pearl x1",
+      "minecraft:bread x1"
+    ],
+    "3": [
+      "minecraft:ender_pearl x1",
+      "minecraft:iron_pickaxe x1|damage=0",
+      "minecraft:iron_sword x1|damage=0"
+    ],
+    "12345": [
+      "minecraft:ender_pearl x1",
+      "minecraft:bread x1"
+    ],
+    "987654321": [
+      "minecraft:bread x3",
+      "minecraft:bread x1"
+    ]
+  },
+  "chests/stronghold_crossing": {
+    "1": [
+      "minecraft:iron_ingot x3",
+      "minecraft:coal x5",
+      "minecraft:iron_ingot x5"
+    ],
+    "2": [
+      "minecraft:iron_ingot x1",
+      "minecraft:bread x1",
+      "minecraft:iron_ingot x2"
+    ],
+    "3": [
+      "minecraft:iron_ingot x1",
+      "minecraft:apple x1",
+      "minecraft:iron_ingot x5"
+    ],
+    "12345": [
+      "minecraft:apple x1",
+      "minecraft:apple x2"
+    ],
+    "987654321": [
+      "minecraft:apple x3",
+      "minecraft:apple x1"
+    ]
+  },
+  "chests/stronghold_library": {
+    "1": [
+      "minecraft:book x2",
+      "minecraft:book x3",
+      "minecraft:paper x4",
+      "minecraft:paper x6",
+      "minecraft:paper x3",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:fire_protection:3,minecraft:sweeping_edge:3",
+      "minecraft:book x3",
+      "minecraft:paper x7",
+      "minecraft:eye_armor_trim_smithing_template x1"
+    ],
+    "2": [
+      "minecraft:paper x4",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:efficiency:4,minecraft:knockback:2",
+      "minecraft:book x1",
+      "minecraft:paper x4",
+      "minecraft:book x1",
+      "minecraft:book x3",
+      "minecraft:eye_armor_trim_smithing_template x1"
+    ],
+    "3": [
+      "minecraft:book x1",
+      "minecraft:paper x2",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:impaling:4",
+      "minecraft:book x2",
+      "minecraft:paper x6",
+      "minecraft:book x1",
+      "minecraft:paper x3",
+      "minecraft:eye_armor_trim_smithing_template x1"
+    ],
+    "12345": [
+      "minecraft:paper x5",
+      "minecraft:book x2",
+      "minecraft:book x2",
+      "minecraft:paper x3",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:loyalty:3",
+      "minecraft:paper x3",
+      "minecraft:eye_armor_trim_smithing_template x1"
+    ],
+    "987654321": [
+      "minecraft:paper x4",
+      "minecraft:compass x1",
+      "minecraft:book x3",
+      "minecraft:book x3",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:efficiency:3,minecraft:fire_protection:3",
+      "minecraft:book x1",
+      "minecraft:paper x6",
+      "minecraft:eye_armor_trim_smithing_template x1"
+    ]
+  },
+  "chests/trial_chambers/corridor": {
+    "1": [
+      "minecraft:tuff x15"
+    ],
+    "2": [
+      "minecraft:bamboo_planks x6",
+      "minecraft:ender_pearl x1"
+    ],
+    "3": [
+      "minecraft:bamboo_hanging_sign x1",
+      "minecraft:honeycomb x2",
+      "minecraft:stone_pickaxe x1|damage=45"
+    ],
+    "12345": [
+      "minecraft:honeycomb x6",
+      "minecraft:torch x6"
+    ],
+    "987654321": [
+      "minecraft:torch x6",
+      "minecraft:torch x3",
+      "minecraft:bamboo_hanging_sign x3"
+    ]
+  },
+  "chests/trial_chambers/intersection": {
+    "1": [
+      "minecraft:amethyst_shard x15"
+    ],
+    "2": [
+      "minecraft:iron_block x2",
+      "minecraft:iron_block x1"
+    ],
+    "3": [
+      "minecraft:cake x1",
+      "minecraft:cake x1",
+      "minecraft:amethyst_shard x16"
+    ],
+    "12345": [
+      "minecraft:iron_block x2",
+      "minecraft:iron_block x2"
+    ],
+    "987654321": [
+      "minecraft:diamond x2",
+      "minecraft:diamond_axe x1|damage=1376",
+      "minecraft:amethyst_shard x13"
+    ]
+  },
+  "chests/trial_chambers/intersection_barrel": {
+    "1": [
+      "minecraft:baked_potato x8"
+    ],
+    "2": [
+      "minecraft:baked_potato x6",
+      "minecraft:bamboo_planks x14"
+    ],
+    "3": [
+      "minecraft:baked_potato x6",
+      "minecraft:bamboo_planks x6",
+      "minecraft:baked_potato x10"
+    ],
+    "12345": [
+      "minecraft:baked_potato x7",
+      "minecraft:bamboo_planks x6"
+    ],
+    "987654321": [
+      "minecraft:bamboo_planks x10",
+      "minecraft:bamboo_planks x10",
+      "minecraft:baked_potato x10"
+    ]
+  },
+  "chests/trial_chambers/reward_common": {
+    "1": [
+      "minecraft:emerald x3"
+    ],
+    "2": [
+      "minecraft:emerald x2"
+    ],
+    "3": [
+      "minecraft:emerald x4"
+    ],
+    "12345": [
+      "minecraft:arrow x4"
+    ],
+    "987654321": [
+      "minecraft:emerald x3"
+    ]
+  },
+  "chests/trial_chambers/reward_ominous_common": {
+    "1": [
+      "minecraft:emerald x8"
+    ],
+    "2": [
+      "minecraft:diamond x2"
+    ],
+    "3": [
+      "minecraft:ominous_bottle x1|ominous_bottle_amplifier=4"
+    ],
+    "12345": [
+      "minecraft:emerald x6"
+    ],
+    "987654321": [
+      "minecraft:tipped_arrow x8"
+    ]
+  },
+  "chests/trial_chambers/reward_ominous_rare": {
+    "1": [
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:looting:2"
+    ],
+    "2": [
+      "minecraft:diamond_axe x1|enchantments=minecraft:efficiency:2|damage=0"
+    ],
+    "3": [
+      "minecraft:emerald_block x1"
+    ],
+    "12345": [
+      "minecraft:diamond_chestplate x1|enchantments=minecraft:protection:2,minecraft:unbreaking:2|damage=0"
+    ],
+    "987654321": [
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:wind_burst:1"
+    ]
+  },
+  "chests/trial_chambers/reward_rare": {
+    "1": [
+      "minecraft:shield x1|damage=151"
+    ],
+    "2": [
+      "minecraft:iron_axe x1|enchantments=minecraft:efficiency:1|damage=0"
+    ],
+    "3": [
+      "minecraft:crossbow x1|enchantments=minecraft:quick_charge:1|damage=0"
+    ],
+    "12345": [
+      "minecraft:bow x1|enchantments=minecraft:power:2,minecraft:punch:1|damage=0"
+    ],
+    "987654321": [
+      "minecraft:golden_carrot x2"
+    ]
+  },
+  "chests/trial_chambers/supply": {
+    "1": [
+      "minecraft:bone_meal x3",
+      "minecraft:stone_pickaxe x1|damage=93",
+      "minecraft:baked_potato x4"
+    ],
+    "2": [
+      "minecraft:glow_berries x4",
+      "minecraft:arrow x13",
+      "minecraft:glow_berries x8",
+      "minecraft:moss_block x5"
+    ],
+    "3": [
+      "minecraft:tipped_arrow x4",
+      "minecraft:glow_berries x8",
+      "minecraft:arrow x14",
+      "minecraft:stone_pickaxe x1|damage=91",
+      "minecraft:potion x1",
+      "minecraft:potion x1"
+    ],
+    "12345": [
+      "minecraft:baked_potato x2",
+      "minecraft:arrow x5",
+      "minecraft:baked_potato x3",
+      "minecraft:arrow x7"
+    ],
+    "987654321": [
+      "minecraft:potion x1",
+      "minecraft:potion x1",
+      "minecraft:acacia_planks x3",
+      "minecraft:arrow x5",
+      "minecraft:potion x1",
+      "minecraft:potion x1",
+      "minecraft:tipped_arrow x7"
+    ]
+  },
+  "chests/woodland_mansion": {
+    "1": [
+      "minecraft:music_disc_13 x1",
+      "minecraft:bucket x1",
+      "minecraft:melon_seeds x3",
+      "minecraft:string x6",
+      "minecraft:gunpowder x6",
+      "minecraft:bone x2",
+      "minecraft:vex_armor_trim_smithing_template x1"
+    ],
+    "2": [
+      "minecraft:golden_apple x1",
+      "minecraft:music_disc_13 x1",
+      "minecraft:coal x4",
+      "minecraft:bone x1",
+      "minecraft:bone x8",
+      "minecraft:gunpowder x4"
+    ],
+    "3": [
+      "minecraft:diamond_hoe x1|damage=0",
+      "minecraft:chainmail_chestplate x1|damage=0",
+      "minecraft:music_disc_cat x1",
+      "minecraft:resin_clump x2",
+      "minecraft:bone x2",
+      "minecraft:bone x6",
+      "minecraft:bone x7"
+    ],
+    "12345": [
+      "minecraft:diamond_chestplate x1|damage=0",
+      "minecraft:diamond_hoe x1|damage=0",
+      "minecraft:bread x1",
+      "minecraft:pumpkin_seeds x3",
+      "minecraft:melon_seeds x3",
+      "minecraft:bucket x1",
+      "minecraft:string x8",
+      "minecraft:string x8",
+      "minecraft:gunpowder x1"
+    ],
+    "987654321": [
+      "minecraft:music_disc_cat x1",
+      "minecraft:diamond_chestplate x1|damage=0",
+      "minecraft:lead x1",
+      "minecraft:wheat x3",
+      "minecraft:string x1",
+      "minecraft:rotten_flesh x6",
+      "minecraft:gunpowder x1",
+      "minecraft:vex_armor_trim_smithing_template x1"
+    ]
+  },
+  "trade_rebalance:chests/abandoned_mineshaft": {
+    "1": [
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:riptide:2",
+      "minecraft:iron_ingot x5",
+      "minecraft:glow_berries x5",
+      "minecraft:detector_rail x3",
+      "minecraft:rail x7",
+      "minecraft:rail x7"
+    ],
+    "2": [
+      "minecraft:golden_apple x1",
+      "minecraft:glow_berries x3",
+      "minecraft:coal x3",
+      "minecraft:rail x8",
+      "minecraft:torch x15",
+      "minecraft:torch x8",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:efficiency:5"
+    ],
+    "3": [
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:power:1",
+      "minecraft:bread x1",
+      "minecraft:bread x2",
+      "minecraft:melon_seeds x3",
+      "minecraft:torch x6",
+      "minecraft:detector_rail x1",
+      "minecraft:activator_rail x2"
+    ],
+    "12345": [
+      "minecraft:name_tag x1",
+      "minecraft:beetroot_seeds x2",
+      "minecraft:pumpkin_seeds x3",
+      "minecraft:glow_berries x3",
+      "minecraft:rail x8",
+      "minecraft:rail x6",
+      "minecraft:torch x15"
+    ],
+    "987654321": [
+      "minecraft:name_tag x1",
+      "minecraft:bread x3",
+      "minecraft:diamond x1",
+      "minecraft:melon_seeds x4",
+      "minecraft:rail x6",
+      "minecraft:rail x6",
+      "minecraft:activator_rail x4"
+    ]
+  },
+  "trade_rebalance:chests/ancient_city": {
+    "1": [
+      "minecraft:sculk_catalyst x1",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:swift_sneak:2",
+      "minecraft:music_disc_13 x1",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:swift_sneak:2",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:density:3",
+      "minecraft:soul_torch x13",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:piercing:4",
+      "minecraft:enchanted_golden_apple x1"
+    ],
+    "2": [
+      "minecraft:experience_bottle x3",
+      "minecraft:bone x10",
+      "minecraft:coal x12",
+      "minecraft:compass x1",
+      "minecraft:diamond_leggings x1|enchantments=minecraft:mending:1,minecraft:protection:4|damage=0",
+      "minecraft:glow_berries x12",
+      "minecraft:iron_leggings x1|enchantments=minecraft:protection:3|damage=0",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:swift_sneak:2",
+      "minecraft:book x10"
+    ],
+    "3": [
+      "minecraft:bone x1",
+      "minecraft:sculk x4",
+      "minecraft:coal x15",
+      "minecraft:potion x1",
+      "minecraft:potion x1",
+      "minecraft:saddle x1",
+      "minecraft:coal x8",
+      "minecraft:potion x1",
+      "minecraft:potion x1"
+    ],
+    "12345": [
+      "minecraft:music_disc_cat x1",
+      "minecraft:coal x14",
+      "minecraft:coal x10",
+      "minecraft:coal x8",
+      "minecraft:saddle x1",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:vanishing_curse:1"
+    ],
+    "987654321": [
+      "minecraft:bone x9",
+      "minecraft:iron_leggings x1|enchantments=minecraft:protection:3,minecraft:unbreaking:3|damage=0",
+      "minecraft:experience_bottle x1",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:swift_sneak:1",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:respiration:2",
+      "minecraft:diamond_horse_armor x1",
+      "minecraft:compass x1"
+    ]
+  },
+  "trade_rebalance:chests/desert_pyramid": {
+    "1": [
+      "minecraft:gold_ingot x3",
+      "minecraft:golden_apple x1",
+      "minecraft:bone x1",
+      "minecraft:string x6",
+      "minecraft:rotten_flesh x6",
+      "minecraft:gunpowder x2",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:unbreaking:1"
+    ],
+    "2": [
+      "minecraft:iron_ingot x1",
+      "minecraft:rotten_flesh x7",
+      "minecraft:gold_ingot x2",
+      "minecraft:gunpowder x7",
+      "minecraft:gunpowder x8",
+      "minecraft:string x2",
+      "minecraft:gunpowder x1"
+    ],
+    "3": [
+      "minecraft:emerald x1",
+      "minecraft:saddle x1",
+      "minecraft:iron_ingot x5",
+      "minecraft:gunpowder x2",
+      "minecraft:gunpowder x6",
+      "minecraft:string x7",
+      "minecraft:gunpowder x1"
+    ],
+    "12345": [
+      "minecraft:bone x4",
+      "minecraft:rotten_flesh x3",
+      "minecraft:diamond x2",
+      "minecraft:bone x2",
+      "minecraft:string x3",
+      "minecraft:sand x4",
+      "minecraft:bone x6"
+    ],
+    "987654321": [
+      "minecraft:rotten_flesh x6",
+      "minecraft:rotten_flesh x6",
+      "minecraft:iron_horse_armor x1",
+      "minecraft:rotten_flesh x7",
+      "minecraft:gunpowder x3",
+      "minecraft:gunpowder x2",
+      "minecraft:string x7",
+      "minecraft:bone x4",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:unbreaking:1"
+    ]
+  },
+  "trade_rebalance:chests/jungle_temple": {
+    "1": [
+      "minecraft:gold_ingot x3",
+      "minecraft:iron_ingot x5"
+    ],
+    "2": [
+      "minecraft:rotten_flesh x3",
+      "minecraft:bone x4",
+      "minecraft:saddle x1",
+      "minecraft:diamond x1",
+      "minecraft:bamboo x1",
+      "minecraft:wild_armor_trim_smithing_template x2"
+    ],
+    "3": [
+      "minecraft:gold_ingot x2",
+      "minecraft:bone x4",
+      "minecraft:gold_ingot x5",
+      "minecraft:gold_ingot x3",
+      "minecraft:gold_ingot x5",
+      "minecraft:iron_ingot x3"
+    ],
+    "12345": [
+      "minecraft:iron_ingot x2",
+      "minecraft:iron_horse_armor x1",
+      "minecraft:diamond x2"
+    ],
+    "987654321": [
+      "minecraft:rotten_flesh x6",
+      "minecraft:rotten_flesh x6",
+      "minecraft:bone x5",
+      "minecraft:wild_armor_trim_smithing_template x2"
+    ]
+  },
+  "trade_rebalance:chests/pillager_outpost": {
+    "1": [
+      "minecraft:crossbow x1|damage=0",
+      "minecraft:potato x3",
+      "minecraft:carrot x4",
+      "minecraft:dark_oak_log x3",
+      "minecraft:dark_oak_log x3",
+      "minecraft:dark_oak_log x3",
+      "minecraft:arrow x3",
+      "minecraft:arrow x2",
+      "minecraft:goat_horn x1|instrument=minecraft:feel_goat_horn",
+      "minecraft:sentry_armor_trim_smithing_template x2"
+    ],
+    "2": [
+      "minecraft:crossbow x1|damage=0",
+      "minecraft:carrot x4",
+      "minecraft:wheat x3",
+      "minecraft:dark_oak_log x2",
+      "minecraft:tripwire_hook x3",
+      "minecraft:iron_ingot x2",
+      "minecraft:experience_bottle x1",
+      "minecraft:sentry_armor_trim_smithing_template x2",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:quick_charge:3"
+    ],
+    "3": [
+      "minecraft:crossbow x1|damage=0",
+      "minecraft:carrot x4",
+      "minecraft:wheat x3",
+      "minecraft:carrot x4",
+      "minecraft:dark_oak_log x3",
+      "minecraft:dark_oak_log x3",
+      "minecraft:iron_ingot x2",
+      "minecraft:experience_bottle x1",
+      "minecraft:sentry_armor_trim_smithing_template x2"
+    ],
+    "12345": [
+      "minecraft:carrot x3",
+      "minecraft:potato x2",
+      "minecraft:wheat x3",
+      "minecraft:dark_oak_log x2",
+      "minecraft:dark_oak_log x2",
+      "minecraft:experience_bottle x1",
+      "minecraft:string x3",
+      "minecraft:experience_bottle x1",
+      "minecraft:sentry_armor_trim_smithing_template x2",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:quick_charge:3"
+    ],
+    "987654321": [
+      "minecraft:carrot x5",
+      "minecraft:wheat x5",
+      "minecraft:potato x3",
+      "minecraft:dark_oak_log x2",
+      "minecraft:dark_oak_log x3",
+      "minecraft:dark_oak_log x2",
+      "minecraft:experience_bottle x1",
+      "minecraft:string x5",
+      "minecraft:goat_horn x1|instrument=minecraft:sing_goat_horn",
+      "minecraft:enchanted_book x1|stored_enchantments=minecraft:quick_charge:2"
+    ]
+  }
+}

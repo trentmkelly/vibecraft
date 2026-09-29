@@ -79,6 +79,16 @@ impl LootEntry {
                 collect_conditions(conditions, out);
                 collect_functions(functions, out);
             }
+            Self::InlineTable {
+                table,
+                conditions,
+                functions,
+                ..
+            } => {
+                collect_conditions(conditions, out);
+                collect_functions(functions, out);
+                out.extend(table.unmodeled_parts());
+            }
             Self::Alternatives(children) | Self::Sequence(children) | Self::Group(children) => {
                 children.iter().for_each(|c| c.collect_unmodeled(out));
             }
@@ -130,7 +140,9 @@ impl LootFunction {
             | Self::EnchantedCountIncrease {
                 count: provider, ..
             }
-            | Self::SetDamage(provider)
+            | Self::SetDamage {
+                damage: provider, ..
+            }
             | Self::SetOminousBottleAmplifier(provider)
             | Self::AddLootingBonus {
                 per_level: provider,
@@ -143,6 +155,12 @@ impl LootFunction {
             | Self::EnchantWithLevels {
                 levels: provider, ..
             } => provider.collect_unmodeled(out),
+            Self::SetEnchantments { enchantments, .. } => enchantments
+                .iter()
+                .for_each(|(_, provider)| provider.collect_unmodeled(out)),
+            Self::SetStewEffects(effects) => effects
+                .iter()
+                .for_each(|effect| effect.duration.collect_unmodeled(out)),
             Self::ModifyContents(functions) | Self::Sequence(functions) => {
                 collect_functions(functions, out);
             }

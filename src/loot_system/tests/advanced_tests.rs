@@ -271,49 +271,31 @@ fn component_loot_functions_apply_java_item_modifier_surface() {
 
 fn java_item_modifier_context() -> LootContext {
     let mut context = LootContext::new(LootParamSet::AllParams, 21);
-    context.block_on_fire = true;
-    context.smelting_results.insert(
-        "minecraft:raw_iron".to_string(),
-        "minecraft:iron_ingot".to_string(),
-    );
     context
         .entity_properties
         .insert("block_entity_name".to_string(), "Loot Chest".to_string());
     context
         .entity_properties
         .insert("last_damage_player".to_string(), "Steve".to_string());
-    context
-        .block_state_properties
-        .insert("facing".to_string(), "north".to_string());
     context.context_nbt.insert(
         "this_entity".to_string(),
         HashMap::from([("CustomName".to_string(), "Dinnerbone".to_string())]),
     );
     context.function_references.insert(
         "minecraft:set_marker".to_string(),
-        vec![LootFunction::SetComponents(HashMap::from([(
-            "minecraft:marker".to_string(),
-            "referenced".to_string(),
-        )]))],
+        vec![LootFunction::SetComponents(vec![ComponentEdit {
+            component: "minecraft:marker".to_string(),
+            value: Some("referenced".to_string()),
+        }])],
     );
     context
 }
 
 fn java_item_modifier_sequence() -> LootFunction {
     LootFunction::Sequence(vec![
-        LootFunction::SmeltItem,
-        LootFunction::SetDamage(NumberProvider::Constant(0.25)),
         LootFunction::SetNbt(HashMap::from([(
             "minecraft:custom_data".to_string(),
             "1b".to_string(),
-        )])),
-        LootFunction::EnchantWithLevels {
-            levels: NumberProvider::Constant(3.0),
-            options: vec!["minecraft:fortune".to_string()],
-        },
-        LootFunction::SetEnchantments(HashMap::from([(
-            "minecraft:sharpness".to_string(),
-            2,
         )])),
         LootFunction::CopyName {
             source: "block_entity_name".to_string(),
@@ -332,7 +314,6 @@ fn java_item_modifier_sequence() -> LootFunction {
             decoration: "red_x".to_string(),
         },
         LootFunction::FillPlayerHead,
-        LootFunction::CopyState(vec!["facing".to_string()]),
         LootFunction::SetAttributes(vec!["generic.attack_damage:+1".to_string()]),
         LootFunction::SetBannerPatterns(vec!["minecraft:stripe_bottom".to_string()]),
         LootFunction::SetBookContents {
@@ -340,16 +321,17 @@ fn java_item_modifier_sequence() -> LootFunction {
             author: "Alex".to_string(),
             pages: vec!["Page 1".to_string()],
         },
-        LootFunction::SetComponents(HashMap::from([(
-            "minecraft:rarity".to_string(),
-            "rare".to_string(),
-        )])),
-        LootFunction::SetInstrument("minecraft:ponder_goat_horn".to_string()),
+        LootFunction::SetComponents(vec![ComponentEdit {
+            component: "minecraft:rarity".to_string(),
+            value: Some("rare".to_string()),
+        }]),
         LootFunction::SetLore(vec!["Lore".to_string()]),
-        LootFunction::SetName("Named".to_string()),
+        LootFunction::SetName {
+            name: Some("Named".to_string()),
+            target: NameTarget::CustomName,
+        },
         LootFunction::SetPotion("minecraft:healing".to_string()),
         LootFunction::SetRandomPotion(vec!["minecraft:swiftness".to_string()]),
-        LootFunction::SetStewEffects(vec!["minecraft:night_vision:160".to_string()]),
         LootFunction::SetRandomDyes(vec!["minecraft:red".to_string()]),
         LootFunction::SetWrittenBookPages(vec!["Draft".to_string()]),
         LootFunction::SetWritableBookPages(vec!["Writable".to_string()]),
@@ -373,23 +355,18 @@ fn java_item_modifier_sequence() -> LootFunction {
 fn assert_java_item_modifier_components(stack: &LootStack) {
     assert_eq!(stack.item, "minecraft:filled_map");
     let expected = [
-        ("minecraft:damage_fraction", "0.25"),
         ("minecraft:custom_data", "1b"),
-        ("minecraft:enchantments", "minecraft:sharpness:2"),
         ("minecraft:custom_name", "Named"),
         ("minecraft:copied_name", "Dinnerbone"),
         ("minecraft:container", "minecraft:apple:3"),
         ("minecraft:profile", "Steve"),
-        ("minecraft:block_state.facing", "north"),
         ("minecraft:attribute_modifiers", "generic.attack_damage:+1"),
         ("minecraft:banner_patterns", "minecraft:stripe_bottom"),
         ("minecraft:written_book_title", "Cover"),
         ("minecraft:written_book_author", "Sam"),
         ("minecraft:rarity", "rare"),
-        ("minecraft:instrument", "minecraft:ponder_goat_horn"),
         ("minecraft:lore", "Lore"),
         ("minecraft:potion_contents", "minecraft:swiftness"),
-        ("minecraft:suspicious_stew_effects", "minecraft:night_vision:160"),
         ("minecraft:dyed_color", "minecraft:red"),
         ("minecraft:written_book_pages", "Draft"),
         ("minecraft:writable_book_pages", "Writable"),

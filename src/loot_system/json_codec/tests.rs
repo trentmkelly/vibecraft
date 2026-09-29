@@ -178,14 +178,22 @@ fn parts_the_runtime_cannot_evaluate_decode_as_unmodeled_and_flag_the_table() {
         r#"{"pools":[{"rolls":1,"entries":[{"type":"minecraft:item","name":"minecraft:stone",
             "conditions":[{"condition":"minecraft:match_tool","predicate":{"count":1}}]}]}]}"#,
         r#"{"pools":[{"rolls":1,"entries":[{"type":"minecraft:item","name":"minecraft:stone",
-            "functions":[{"function":"minecraft:set_name","name":"x"}]}]}]}"#,
+            "functions":[{"function":"minecraft:set_name","entity":"this","name":{"selector":"@s"}}]}]}]}"#,
         r#"{"pools":[{"rolls":{"type":"minecraft:score","target":"this","score":"s"},"entries":[]}]}"#,
         r#"{"pools":[{"rolls":1,"entries":[{"type":"minecraft:slots","slot_source":{}}]}]}"#,
-        r#"{"pools":[{"rolls":1,"entries":[{"type":"minecraft:loot_table","value":{"pools":[]}}]}]}"#,
+        r#"{"pools":[{"rolls":1,"entries":[{"type":"minecraft:loot_table","value":{"pools":[{"rolls":1,
+            "entries":[{"type":"minecraft:item","name":"minecraft:map","functions":[
+            {"function":"minecraft:exploration_map"}]}]}]}}]}]}"#,
     ] {
         let table = decode(json).unwrap_or_else(|e| panic!("{json}: {e}"));
         assert!(!table.is_fully_modeled(), "{json}");
     }
+    // An inline table is modeled itself; only what it contains can be unmodeled.
+    let inline = decode(
+        r#"{"pools":[{"rolls":1,"entries":[{"type":"minecraft:loot_table","value":{"pools":[]}}]}]}"#,
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert!(inline.is_fully_modeled());
 }
 
 #[test]

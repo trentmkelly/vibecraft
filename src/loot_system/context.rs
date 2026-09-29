@@ -1,9 +1,11 @@
 #![allow(dead_code)]
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 
 use super::*;
 use crate::random_sequences::SharedRandomSequences;
+use crate::recipe_system::RecipeManagerModel;
 
 pub struct LootContext {
     pub param_set: LootParamSet,
@@ -34,14 +36,29 @@ pub struct LootContext {
     pub storage_nbt: HashMap<String, HashMap<String, String>>,
     pub entity_properties: HashMap<String, String>,
     pub block_state_properties: HashMap<String, String>,
-    pub smelting_results: HashMap<String, String>,
+    /// The data-driven `enchantment` registry `enchant_*` functions select from.
+    pub enchantments: Arc<EnchantmentRegistry>,
+    /// `ServerLevel.recipeAccess()`, read by `furnace_smelt`.
+    pub recipes: Option<Arc<RecipeManagerModel>>,
+    /// Resolved registry tags backing `HolderSet` tag references (see
+    /// [`Self::tag_members`]).
+    pub registry_tags: Arc<RegistryTags>,
+    /// Entity context parameters as predicates observe them, by `EntityTarget`.
+    pub entities: HashMap<LootEntityTarget, LootEntity>,
+    /// `LootContextParams.DAMAGE_SOURCE` as `DamageSourcePredicate` observes it.
+    pub damage_source: Option<LootDamageSource>,
+    /// The level `LocationPredicate` queries; without one nothing is loaded.
+    pub level: Option<Arc<dyn LootLevel>>,
+    /// `LootContextParams.BLOCK_ENTITY`'s `collectComponents()` by component id.
+    pub block_entity_components: BTreeMap<String, String>,
+    /// `LootContextParams.TOOL`'s data components by component id.
+    pub tool_components: BTreeMap<String, String>,
     pub condition_references: HashSet<String>,
     pub function_references: HashMap<String, Vec<LootFunction>>,
     pub tables: HashMap<String, LootTable>,
     pub tags: HashMap<String, Vec<String>>,
     pub dynamic_drops: HashMap<String, Vec<LootStack>>,
     pub warnings: Vec<String>,
-    pub(super) max_stack_size: i32,
     visited: Vec<String>,
     /// Java `Builder.withOptionalRandomSeed`: a non-zero seed pins the random source
     /// and takes precedence over the table's `random_sequence`.
@@ -78,14 +95,20 @@ impl LootContext {
             storage_nbt: HashMap::new(),
             entity_properties: HashMap::new(),
             block_state_properties: HashMap::new(),
-            smelting_results: HashMap::new(),
+            enchantments: Arc::new(EnchantmentRegistry::default()),
+            recipes: None,
+            registry_tags: Arc::new(RegistryTags::default()),
+            entities: HashMap::new(),
+            damage_source: None,
+            level: None,
+            block_entity_components: BTreeMap::new(),
+            tool_components: BTreeMap::new(),
             condition_references: HashSet::new(),
             function_references: HashMap::new(),
             tables: HashMap::new(),
             tags: HashMap::new(),
             dynamic_drops: HashMap::new(),
             warnings: Vec::new(),
-            max_stack_size: 64,
             visited: Vec::new(),
             explicit_random: seed != 0,
             random_sequences: None,
@@ -120,14 +143,20 @@ impl LootContext {
             storage_nbt: self.storage_nbt.clone(),
             entity_properties: self.entity_properties.clone(),
             block_state_properties: self.block_state_properties.clone(),
-            smelting_results: self.smelting_results.clone(),
+            enchantments: self.enchantments.clone(),
+            recipes: self.recipes.clone(),
+            registry_tags: self.registry_tags.clone(),
+            entities: self.entities.clone(),
+            damage_source: self.damage_source.clone(),
+            level: self.level.clone(),
+            block_entity_components: self.block_entity_components.clone(),
+            tool_components: self.tool_components.clone(),
             condition_references: self.condition_references.clone(),
             function_references: self.function_references.clone(),
             tables: HashMap::new(),
             tags: self.tags.clone(),
             dynamic_drops: self.dynamic_drops.clone(),
             warnings: Vec::new(),
-            max_stack_size: self.max_stack_size,
             visited: self.visited.clone(),
             explicit_random: self.explicit_random,
             random_sequences: self.random_sequences.clone(),
@@ -245,6 +274,36 @@ impl LootContext {
         self.params.insert(value);
     }
 
+    /// Supplies the entity for `target`: records the snapshot predicates read and the
+    /// matching context parameter.
+    pub fn insert_entity(&mut self, target: LootEntityTarget, entity: LootEntity) {
+        let id = entity.entity_type.clone();
+        self.insert_param(match target {
+            LootEntityTarget::This => LootParamValue::ThisEntity(id),
+            LootEntityTarget::Attacker => LootParamValue::AttackingEntity(id),
+            LootEntityTarget::DirectAttacker => LootParamValue::DirectAttackingEntity(id),
+            LootEntityTarget::AttackingPlayer => LootParamValue::LastDamagePlayer(id),
+            LootEntityTarget::TargetEntity => LootParamValue::TargetEntity(id),
+            LootEntityTarget::InteractingEntity => LootParamValue::InteractingEntity(id),
+        });
+        self.entities.insert(target, entity);
+    }
+
+    /// Supplies `LootContextParams.DAMAGE_SOURCE`.
+    pub fn insert_damage_source(&mut self, source: LootDamageSource) {
+        self.insert_param(LootParamValue::DamageSource(source.damage_type.clone()));
+        self.damage_source = Some(source);
+    }
+
+    /// The members of registry tag `tag` in `registry` (`"enchantment"`,
+    /// `"entity_type"`, ...): the resolved [`RegistryTags`] first, then the flat
+    /// [`Self::tags`] map earlier callers fill by hand.
+    pub fn tag_members(&self, registry: &str, tag: &str) -> Option<&[String]> {
+        self.registry_tags
+            .get(registry, tag)
+            .or_else(|| self.tags.get(tag).map(Vec::as_slice))
+    }
+
     pub fn insert_dynamic_param(&mut self, value: LootDynamicParamValue) {
         match &value {
             LootDynamicParamValue::EnchantmentLevel(level) => self.enchantment_level = *level,
@@ -294,13 +353,23 @@ fn entity_type_for_param_set(param_set: LootParamSet) -> LootContextEntityType {
     }
 }
 
-pub(super) fn split_stacks(stacks: Vec<LootStack>, max_stack_size: i32) -> Vec<LootStack> {
+/// `LootTable.createStackSplitter`: stacks over their item's maximum stack size are
+/// split into full stacks plus a remainder, keeping every component. Empty stacks are
+/// dropped.
+pub(super) fn split_stacks(stacks: Vec<LootStack>) -> Vec<LootStack> {
     let mut result = Vec::new();
     for stack in stacks.into_iter().filter(|stack| !stack.is_empty()) {
+        let max_stack_size = stack.max_stack_size().max(1);
+        if stack.count < max_stack_size {
+            result.push(stack);
+            continue;
+        }
         let mut remaining = stack.count;
         while remaining > 0 {
             let count = remaining.min(max_stack_size);
-            result.push(LootStack::new(stack.item.clone(), count));
+            let mut part = stack.clone();
+            part.count = count;
+            result.push(part);
             remaining -= count;
         }
     }

@@ -232,3 +232,38 @@ fn check_references(
         _ => {}
     }
 }
+
+/// `SmeltItemFunction` looks the stack up in the live recipe manager: any smelting
+/// recipe applies, the result count multiplies by the input count only when
+/// `use_input_count` is set, and items without a recipe are returned unchanged.
+#[test]
+fn furnace_smelt_uses_the_vanilla_smelting_recipes() {
+    use crate::loot_system::{LootContext, LootFunction, LootParamSet, LootStack};
+
+    let (content, _) = vanilla_content();
+    let mut context = LootContext::new(LootParamSet::AllParams, 3);
+    context.recipes = Some(content.recipes.clone());
+    let counted = LootFunction::SmeltItem {
+        use_input_count: true,
+    };
+    let single = LootFunction::SmeltItem {
+        use_input_count: false,
+    };
+    let smelted = counted
+        .apply(LootStack::new("minecraft:raw_iron", 3), &mut context)
+        .expect("stack");
+    assert_eq!(smelted, LootStack::new("minecraft:iron_ingot", 3));
+    let smelted = single
+        .apply(LootStack::new("minecraft:raw_iron", 3), &mut context)
+        .expect("stack");
+    assert_eq!(smelted, LootStack::new("minecraft:iron_ingot", 1));
+    let cooked = counted
+        .apply(LootStack::new("minecraft:chicken", 2), &mut context)
+        .expect("stack");
+    assert_eq!(cooked, LootStack::new("minecraft:cooked_chicken", 2));
+    let unchanged = counted
+        .apply(LootStack::new("minecraft:stick", 2), &mut context)
+        .expect("stack");
+    assert_eq!(unchanged, LootStack::new("minecraft:stick", 2));
+    assert_eq!(context.warnings.len(), 1);
+}
