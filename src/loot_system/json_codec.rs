@@ -31,6 +31,25 @@ pub fn decode_loot_table(raw: &str) -> Result<LootTable, String> {
     decode_table(&value)
 }
 
+/// `NumberProviders.CODEC` for JSON documents that embed a number provider outside a
+/// loot table (villager trades, trade sets). Only validates; the runtime model of the
+/// provider is not needed there.
+pub fn validate_number_provider(value: &Value) -> Result<(), String> {
+    decode_number(value).map(drop)
+}
+
+/// `LootItemCondition.DIRECT_CODEC` for JSON documents that embed a loot condition
+/// (villager trade `merchant_predicate`). Validation only.
+pub fn validate_loot_condition(value: &Value) -> Result<(), String> {
+    conditions::decode_condition(value).map(drop)
+}
+
+/// `LootItemFunctions.ROOT_CODEC` for JSON documents that embed loot functions
+/// (villager trade `given_item_modifiers`). Validation only.
+pub fn validate_loot_function(value: &Value) -> Result<(), String> {
+    functions::decode_function(value).map(drop)
+}
+
 /// `LootTable.DIRECT_CODEC`.
 fn decode_table(value: &Value) -> Result<LootTable, String> {
     let object = as_object(value, "loot table")?;

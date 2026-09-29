@@ -800,7 +800,9 @@ fn json_string_value(value: &serde_json::Value) -> Result<String, String> {
 }
 
 mod json_codec;
-pub use json_codec::decode_loot_table;
+pub use json_codec::{
+    decode_loot_table, validate_loot_condition, validate_loot_function, validate_number_provider,
+};
 mod enchanted;
 mod modeling;
 pub use enchanted::{EnchantmentBound, HolderSet, LevelBasedValue, ToolPredicate};

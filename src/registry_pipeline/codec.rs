@@ -485,6 +485,30 @@ pub fn opt_default(name: &'static str, codec: Codec, default: Json) -> Field {
     })
 }
 
+/// A record component with hand-written decode logic (for `RegistryOps.retrieveElement`
+/// style entries and other components that are not a plain `fieldOf`).
+pub fn custom_field(
+    f: impl Fn(&Map<String, Json>, &CodecContext<'_>, &mut Vec<(String, Tag)>) -> CodecResult<()>
+        + 'static,
+) -> Field {
+    Field::new(f)
+}
+
+/// `codec.lenientOptionalFieldOf(name, default)`: a value that fails to parse is treated
+/// as absent, and the encoder omits the field when the value equals the default.
+pub fn lenient_opt_default(name: &'static str, codec: Codec, default: Json) -> Field {
+    Field::new(move |object, ctx, out| {
+        if let Some(value) = object.get(name) {
+            if let Ok(tag) = codec.parse(value, ctx) {
+                if codec.parse(&default, ctx).ok().as_ref() != Some(&tag) {
+                    out.push((name.to_string(), tag));
+                }
+            }
+        }
+        Ok(())
+    })
+}
+
 /// `codec.fieldOf(name).orElse(default)`: failures and absence fall back to the
 /// default, and the encoder always writes the field.
 pub fn or_else(name: &'static str, codec: Codec, default: Json) -> Field {

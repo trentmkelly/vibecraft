@@ -48,8 +48,13 @@ fn tags_of(
 fn vanilla_registries_load_and_freeze() {
     let registries = super::registries();
     // The 28 synchronised registries plus the `configured_carver`, `placed_feature`
-    // and `structure` registries loaded for reference resolution.
-    assert_eq!(registries.worldgen_layer().len(), 31);
+    // and `structure` registries loaded for reference resolution, and the thirteen
+    // server-side worldgen/data registries (`villager_trade`, `trade_set`,
+    // `structure_set`, `processor_list`,
+    // `template_pool`, `noise_settings`, `noise`, `density_function`,
+    // `multi_noise_biome_source_parameter_list`, `world_preset`,
+    // `flat_level_generator_preset`, `enchantment_provider`, `trial_spawner`).
+    assert_eq!(registries.worldgen_layer().len(), 44);
     assert!(registries.static_layer().len() > 50);
     // Every synchronised element records the vanilla known pack it came from.
     for registry in registries.worldgen_layer() {

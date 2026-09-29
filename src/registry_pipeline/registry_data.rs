@@ -7,6 +7,11 @@
 use crate::registry_pipeline::element_codecs as codecs;
 use crate::registry_pipeline::gametest_codecs as gametest;
 use crate::registry_pipeline::loader::{ElementCodecs, LoadTask};
+use crate::registry_pipeline::{
+    carver_codecs, dimension_codecs, enchantment_provider_codecs, noise_codecs,
+    noise_settings_codecs, structure_codecs, structure_pool_codecs, structure_processor_codecs,
+    trade_codecs, trial_spawner_codecs,
+};
 use crate::resource_registry_data_loader::{RegistryDataLoaderRegistryData, WORLDGEN_REGISTRIES};
 
 /// Resolves the direct (pack-decoding) and network (sync-encoding) codecs of a
@@ -17,16 +22,6 @@ use crate::resource_registry_data_loader::{RegistryDataLoaderRegistryData, WORLD
 /// never receive them, but the server still needs them for worldgen:
 ///
 /// - TODO(registry-pipeline-worldgen-features): `worldgen/configured_feature`
-/// - TODO(registry-pipeline-worldgen-structures): `worldgen/structure_set`,
-///   `worldgen/processor_list`, `worldgen/template_pool`
-/// - TODO(registry-pipeline-worldgen-noise): `worldgen/noise_settings`,
-///   `worldgen/noise`, `worldgen/density_function`,
-///   `worldgen/multi_noise_biome_source_parameter_list`
-/// - TODO(registry-pipeline-worldgen-presets): `worldgen/world_preset`,
-///   `worldgen/flat_level_generator_preset`
-/// - TODO(registry-pipeline-trial-spawner): `trial_spawner_config`
-/// - TODO(registry-pipeline-enchantment-provider): `enchantment_provider`
-/// - TODO(registry-pipeline-trades): `villager_trade`, `trade_set`
 ///
 /// `DIMENSION_REGISTRIES` (`level_stem`) is loaded per world and not part of this
 /// pipeline yet (TODO(registry-pipeline-level-stem)).
@@ -81,9 +76,30 @@ pub fn element_codecs(key: &str) -> Option<ElementCodecs> {
         "minecraft:test_environment" => same(gametest::test_environment()),
         "minecraft:test_instance" => same(gametest::test_instance()),
         "minecraft:enchantment" | "minecraft:dialog" => same(codecs::unported()),
-        "minecraft:worldgen/configured_carver"
-        | "minecraft:worldgen/placed_feature"
-        | "minecraft:worldgen/structure" => same(codecs::worldgen_reference_target()),
+        "minecraft:worldgen/configured_carver" => same(carver_codecs::configured_carver()),
+        "minecraft:worldgen/placed_feature" => same(codecs::worldgen_reference_target()),
+        "minecraft:worldgen/structure" => same(structure_codecs::structure()),
+        "minecraft:worldgen/structure_set" => same(structure_codecs::structure_set()),
+        "minecraft:worldgen/processor_list" => same(structure_processor_codecs::processor_list()),
+        "minecraft:worldgen/template_pool" => same(structure_pool_codecs::template_pool()),
+        "minecraft:worldgen/noise" => same(noise_codecs::noise_parameters()),
+        "minecraft:worldgen/density_function" => same(noise_codecs::density_function()),
+        "minecraft:worldgen/noise_settings" => {
+            same(noise_settings_codecs::noise_generator_settings())
+        }
+        "minecraft:worldgen/multi_noise_biome_source_parameter_list" => {
+            same(dimension_codecs::multi_noise_parameter_list())
+        }
+        "minecraft:worldgen/world_preset" => same(dimension_codecs::world_preset()),
+        "minecraft:worldgen/flat_level_generator_preset" => {
+            same(dimension_codecs::flat_level_generator_preset())
+        }
+        "minecraft:enchantment_provider" => {
+            same(enchantment_provider_codecs::enchantment_provider())
+        }
+        "minecraft:villager_trade" => same(trade_codecs::villager_trade()),
+        "minecraft:trade_set" => same(trade_codecs::trade_set()),
+        "minecraft:trial_spawner" => same(trial_spawner_codecs::trial_spawner_config()),
         "minecraft:jukebox_song" => same(codecs::jukebox_song()),
         "minecraft:instrument" => same(codecs::instrument()),
         "minecraft:world_clock" => same(codecs::world_clock()),

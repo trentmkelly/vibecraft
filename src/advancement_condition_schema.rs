@@ -655,6 +655,12 @@ impl<'a> ConditionCodec<'a> {
         Ok(Value::Object(out))
     }
 
+    /// Decodes and re-encodes one schema node (for codecs of other data types that embed
+    /// shared Java codecs such as `DataComponentExactPredicate.CODEC`).
+    pub(crate) fn decode_node(&self, node: Node, value: &Value) -> Decoded {
+        self.node(node, value)
+    }
+
     fn reject_unknown(object: &Map<String, Value>, allowed: &[&str]) -> Result<(), String> {
         match object.keys().find(|key| !allowed.contains(&key.as_str())) {
             Some(key) => Err(format!("unknown field `{key}`")),

@@ -30,12 +30,15 @@ mod model_tables;
 mod official_transcript;
 mod order_fixtures;
 mod synchronization;
+mod trade_rebalance;
 mod vanilla_data_coverage;
 mod vanilla_content;
 mod vanilla_fields;
 mod vanilla_payloads;
 mod vanilla_tags;
 mod world_packs;
+mod worldgen_codecs;
+mod worldgen_data;
 
 /// The vanilla registries, loaded once for the whole test run.
 pub(super) fn registries() -> &'static Registries {
