@@ -17,7 +17,7 @@ impl PrimaryLevelData {
         self.encode_level_dat(chrono::Utc::now().timestamp_millis(), player_uuid)
     }
 
-    fn to_level_dat_at(&self, epoch_millis: i64) -> Result<Tag, String> {
+    pub(super) fn to_level_dat_at(&self, epoch_millis: i64) -> Result<Tag, String> {
         self.encode_level_dat(epoch_millis, None)
     }
 
@@ -62,17 +62,8 @@ impl PrimaryLevelData {
                 "difficulty_settings".to_string(),
                 self.difficulty_settings.to_nbt(),
             ),
-            ("DayTime".to_string(), Tag::Long(self.day_time)),
             ("Time".to_string(), Tag::Long(self.time)),
             ("LastPlayed".to_string(), Tag::Long(epoch_millis)),
-            (
-                "generatorName".to_string(),
-                Tag::String(self.generator_name.clone()),
-            ),
-            (
-                "generatorSettings".to_string(),
-                self.generator_settings.clone(),
-            ),
             (
                 "allowCommands".to_string(),
                 Tag::Byte(i8::from(self.allow_commands)),
@@ -85,18 +76,10 @@ impl PrimaryLevelData {
                 "WasModded".to_string(),
                 Tag::Byte(i8::from(self.was_modded)),
             ),
-            ("ScheduledEvents".to_string(), self.scheduled_events.clone()),
             (
                 "ServerBrands".to_string(),
                 string_list_tag(unique_server_brands(&self.server_brands).iter()),
             ),
-            (
-                "CustomBossEvents".to_string(),
-                self.custom_boss_events.clone(),
-            ),
-            ("DragonFight".to_string(), self.dragon_fight.clone()),
-            ("scoreboard".to_string(), self.scoreboard.clone()),
-            ("GameRules".to_string(), self.game_rules.clone()),
         ];
         if let Some(uuid) = player_uuid.or(self.singleplayer_uuid) {
             data.push((

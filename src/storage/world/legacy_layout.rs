@@ -38,6 +38,12 @@ const LEGACY_DIMENSION_DATA: [(&str, &str); 3] = [
 ];
 
 impl WorldLayout {
+    /// Folders of every dimension present in the save (see `discover_dimensions`),
+    /// used by the world upgrader, which visits each dimension's regions.
+    pub fn dimension_dirs(&self) -> Vec<PathBuf> {
+        discover_dimensions(&self.root)
+    }
+
     /// Applies `DimensionStorageFileFix` then `PlayerStorageFileFix` to the world
     /// folder, in Java's operation order. Idempotent.
     pub fn migrate_legacy_layout(&self) -> io::Result<()> {
@@ -108,7 +114,7 @@ impl WorldLayout {
 
 /// `FileRelation.DIMENSIONS`: every directory under `dimensions/<namespace>/`,
 /// or the three default dimensions when none exist.
-fn discover_dimensions(root: &Path) -> Vec<PathBuf> {
+pub(super) fn discover_dimensions(root: &Path) -> Vec<PathBuf> {
     let defaults = || {
         LEGACY_DIMENSION_FOLDERS
             .iter()

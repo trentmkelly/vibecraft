@@ -41,22 +41,14 @@ pub struct PrimaryLevelData {
     pub spawn: LevelSpawnData,
     pub game_type: LevelGameType,
     pub difficulty_settings: DifficultySettings,
-    pub day_time: i64,
     pub time: i64,
-    pub generator_name: String,
-    pub generator_settings: Tag,
     pub allow_commands: bool,
     pub initialized: bool,
     pub was_modded: bool,
     pub data_configuration: crate::resources::WorldDataConfiguration,
-    pub scheduled_events: Tag,
     pub server_brands: Vec<String>,
     pub singleplayer_uuid: Option<crate::network::codec::Uuid>,
     pub removed_features: std::collections::BTreeSet<String>,
-    pub custom_boss_events: Tag,
-    pub dragon_fight: Tag,
-    pub scoreboard: Tag,
-    pub game_rules: Tag,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,16 +94,10 @@ impl PrimaryLevelData {
                 .unwrap_or_default(),
             game_type: settings.game_type,
             difficulty_settings: settings.difficulty,
-            day_time: compound_i64(data, "DayTime").unwrap_or_default(),
             time: field("Time")
                 .and_then(Tag::numeric_value)
                 .map(|number| number.boxed_long_value())
                 .unwrap_or_default(),
-            generator_name: compound_string(data, "generatorName")
-                .unwrap_or("default")
-                .to_string(),
-            generator_settings: compound_clone(data, "generatorSettings")
-                .unwrap_or_else(empty_compound_tag),
             allow_commands: settings.allow_commands,
             initialized: field("initialized")
                 .and_then(difficulty_settings::nbt_boolean)
@@ -123,8 +109,6 @@ impl PrimaryLevelData {
                 data,
                 &feature_registry,
             ),
-            scheduled_events: compound_clone(data, "ScheduledEvents")
-                .unwrap_or_else(empty_list_tag),
             server_brands: primary_metadata::unique_server_brands(&compound_string_list(
                 data,
                 "ServerBrands",
@@ -134,11 +118,6 @@ impl PrimaryLevelData {
             removed_features: compound_string_list(data, "removed_features")
                 .into_iter()
                 .collect(),
-            custom_boss_events: compound_clone(data, "CustomBossEvents")
-                .unwrap_or_else(empty_compound_tag),
-            dragon_fight: compound_clone(data, "DragonFight").unwrap_or_else(empty_compound_tag),
-            scoreboard: compound_clone(data, "scoreboard").unwrap_or_else(empty_compound_tag),
-            game_rules: compound_clone(data, "GameRules").unwrap_or_else(empty_compound_tag),
         })
     }
 }

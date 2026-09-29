@@ -594,7 +594,7 @@ mod tests {
         dir
     }
 
-    fn minimal_level_data(game_rules: Tag) -> PrimaryLevelData {
+    fn minimal_level_data() -> PrimaryLevelData {
         PrimaryLevelData {
             data_version: crate::storage::datafix::TARGET_DATA_VERSION,
             level_data_version: 19133,
@@ -618,10 +618,7 @@ mod tests {
                 hardcore: false,
                 locked: true,
             },
-            day_time: 0,
             time: 0,
-            generator_name: "default".to_string(),
-            generator_settings: Tag::Compound(vec![]),
             allow_commands: false,
             initialized: true,
             was_modded: false,
@@ -632,14 +629,9 @@ mod tests {
                 ),
                 enabled_features: crate::registry::feature_flags::default_flags_26_1_2(),
             },
-            scheduled_events: Tag::List(vec![]),
             server_brands: Vec::new(),
             singleplayer_uuid: None,
             removed_features: Default::default(),
-            custom_boss_events: Tag::Compound(vec![]),
-            dragon_fight: Tag::Compound(vec![]),
-            scoreboard: Tag::Compound(vec![]),
-            game_rules,
         }
     }
 
@@ -933,7 +925,7 @@ management-server-allowed-origins=https://admin.example\n",
         let (fresh, init) = super::load_initial_data_configuration(&layout, &properties).unwrap();
         assert!(init);
         assert_eq!(fresh.data_packs.enabled, ["vanilla", "file/initial"]);
-        let mut level = minimal_level_data(Tag::Compound(vec![]));
+        let mut level = minimal_level_data();
         level.data_configuration = crate::resources::WorldDataConfiguration {
             data_packs: crate::resources::DataPackConfig::new(
                 ["vanilla", "file/saved"],

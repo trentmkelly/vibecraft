@@ -104,7 +104,7 @@ pub const DATAFIX_STRATEGY: &[DataFixStrategyFamily] = &[
     },
     DataFixStrategyFamily {
         family: "scoreboards_and_options",
-        covered_surfaces: &["data/scoreboard.dat", "options.txt"],
+        covered_surfaces: &["data/minecraft/scoreboard.dat", "options.txt"],
         action: DataFixStrategyAction::ExternalDfuRequired,
     },
     DataFixStrategyFamily {
@@ -270,33 +270,27 @@ pub fn run_world_upgrade(
         chunk_count: 0,
         entity_chunk_count: 0,
     };
-    if options.erase_cache {
-        erase_known_cache_dirs(layout)
-            .map_err(|err| format!("Failed to erase world cache: {err}"))?;
-    }
     if options.force_upgrade {
-        report.chunk_count = rewrite_region_directory(&layout.region_dir(), rewrite_level_chunk)
-            .map_err(|err| format!("Failed to rewrite chunk regions: {err}"))?;
-        report.entity_chunk_count =
-            rewrite_region_directory(&layout.entities_dir(), rewrite_entity_chunk)
-                .map_err(|err| format!("Failed to rewrite entity regions: {err}"))?;
+        let erase_cache = options.erase_cache;
+        // Java WorldUpgrader.upgradeLevels visits every dimension's region and
+        // entities storage.
+        for dimension in layout.dimension_dirs() {
+            report.chunk_count +=
+                rewrite_region_directory(&dimension.join("region"), |pos, tag| {
+                    rewrite_level_chunk(pos, tag, erase_cache)
+                })
+                .map_err(|err| format!("Failed to rewrite chunk regions: {err}"))?;
+            report.entity_chunk_count +=
+                rewrite_region_directory(&dimension.join("entities"), rewrite_entity_chunk)
+                    .map_err(|err| format!("Failed to rewrite entity regions: {err}"))?;
+        }
     }
     Ok(report)
 }
 
-fn erase_known_cache_dirs(layout: &WorldLayout) -> io::Result<()> {
-    for relative in ["cache", "data/caches"] {
-        let path = layout.root().join(relative);
-        if path.exists() {
-            fs::remove_dir_all(path)?;
-        }
-    }
-    Ok(())
-}
-
 fn rewrite_region_directory(
     dir: &Path,
-    rewrite: fn(ChunkPos, Tag) -> Result<Tag, String>,
+    rewrite: impl Fn(ChunkPos, Tag) -> Result<Tag, String>,
 ) -> io::Result<usize> {
     if !dir.is_dir() {
         return Ok(0);
@@ -335,9 +329,37 @@ fn rewrite_region_directory(
     Ok(rewritten)
 }
 
-fn rewrite_level_chunk(pos: ChunkPos, tag: Tag) -> Result<Tag, String> {
+fn rewrite_level_chunk(pos: ChunkPos, tag: Tag, erase_cache: bool) -> Result<Tag, String> {
     let chunk = LevelChunk::from_nbt(pos, &tag)?;
-    Ok(chunk.to_nbt(TARGET_DATA_VERSION))
+    let mut rewritten = chunk.to_nbt(TARGET_DATA_VERSION);
+    if erase_cache {
+        erase_chunk_cache(&mut rewritten);
+    }
+    Ok(rewritten)
+}
+
+/// Java: `WorldUpgrader.verifyChunkPosAndEraseCache` — with `--eraseCache` the
+/// derived chunk data (`Heightmaps`, `isLightOn`, and per-section `BlockLight`
+/// / `SkyLight`) is removed so the server recomputes it. No cache directories
+/// are touched.
+fn erase_chunk_cache(chunk: &mut Tag) {
+    let Tag::Compound(entries) = chunk else {
+        return;
+    };
+    entries.retain(|(key, _)| key != "Heightmaps" && key != "isLightOn");
+    for (key, value) in entries.iter_mut() {
+        if key != "sections" {
+            continue;
+        }
+        let Tag::List(sections) = value else {
+            continue;
+        };
+        for section in sections.iter_mut() {
+            if let Tag::Compound(fields) = section {
+                fields.retain(|(name, _)| name != "BlockLight" && name != "SkyLight");
+            }
+        }
+    }
 }
 
 fn rewrite_entity_chunk(pos: ChunkPos, tag: Tag) -> Result<Tag, String> {
@@ -576,8 +598,6 @@ mod tests {
             .unwrap()
             .write_chunk_nbt(pos, "", &chunk.to_nbt(TARGET_DATA_VERSION))
             .unwrap();
-        fs::create_dir_all(layout.root().join("cache")).unwrap();
-        fs::write(layout.root().join("cache").join("stale.bin"), b"stale").unwrap();
 
         let report = run_world_upgrade(
             &layout,
@@ -592,7 +612,6 @@ mod tests {
 
         assert_eq!(report.chunk_count, 1);
         assert_eq!(report.entity_chunk_count, 1);
-        assert!(!layout.root().join("cache").exists());
         assert_eq!(
             LevelChunk::from_nbt(
                 pos,
@@ -631,7 +650,7 @@ mod tests {
     }
 
     #[test]
-    fn erase_cache_removes_only_cache_directories_without_world_content_loss() {
+    fn erase_cache_without_force_upgrade_touches_no_world_content() {
         let mut path = std::env::temp_dir();
         path.push(format!("vibecraft-erase-cache-{}", std::process::id()));
         let _ = fs::remove_dir_all(&path);
@@ -656,19 +675,9 @@ mod tests {
             )
             .unwrap();
 
-        fs::create_dir_all(layout.root().join("cache")).unwrap();
-        fs::write(layout.root().join("cache").join("biome.bin"), b"cache").unwrap();
-        fs::create_dir_all(layout.root().join("data").join("caches")).unwrap();
-        fs::write(
-            layout.root().join("data").join("caches").join("noise.bin"),
-            b"cache",
-        )
-        .unwrap();
-        fs::write(
-            layout.root().join("data").join("scoreboard.dat"),
-            b"content",
-        )
-        .unwrap();
+        let scoreboard = layout.saved_data_file("scoreboard");
+        fs::create_dir_all(scoreboard.parent().unwrap()).unwrap();
+        fs::write(&scoreboard, b"content").unwrap();
 
         let report = run_world_upgrade(
             &layout,
@@ -683,17 +692,13 @@ mod tests {
 
         assert_eq!(report.chunk_count, 0);
         assert_eq!(report.entity_chunk_count, 0);
-        assert!(!layout.root().join("cache").exists());
-        assert!(!layout.root().join("data").join("caches").exists());
         assert_eq!(layout.load_level_dat().unwrap(), level);
         assert!(layout
             .playerdata_dir()
             .join("00000000-0000-0000-0000-000000000006.dat")
             .is_file());
-        assert_eq!(
-            fs::read(layout.root().join("data").join("scoreboard.dat")).unwrap(),
-            b"content"
-        );
+        assert_eq!(fs::read(&scoreboard).unwrap(), b"content");
+        assert!(scoreboard.ends_with("data/minecraft/scoreboard.dat"));
         assert_eq!(
             crate::storage::region::RegionFile::open(&layout.region_dir(), pos.region())
                 .unwrap()
@@ -705,5 +710,32 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn erase_chunk_cache_strips_heightmaps_and_light_like_java() {
+        // Java: WorldUpgrader.verifyChunkPosAndEraseCache.
+        let section = Tag::Compound(vec![
+            ("Y".to_string(), Tag::Byte(0)),
+            ("BlockLight".to_string(), Tag::ByteArray(vec![1])),
+            ("SkyLight".to_string(), Tag::ByteArray(vec![2])),
+        ]);
+        let mut chunk = Tag::Compound(vec![
+            ("xPos".to_string(), Tag::Int(0)),
+            ("Heightmaps".to_string(), Tag::Compound(Vec::new())),
+            ("isLightOn".to_string(), Tag::Byte(1)),
+            ("sections".to_string(), Tag::List(vec![section])),
+        ]);
+        super::erase_chunk_cache(&mut chunk);
+        assert_eq!(
+            chunk,
+            Tag::Compound(vec![
+                ("xPos".to_string(), Tag::Int(0)),
+                (
+                    "sections".to_string(),
+                    Tag::List(vec![Tag::Compound(vec![("Y".to_string(), Tag::Byte(0))])])
+                ),
+            ])
+        );
     }
 }

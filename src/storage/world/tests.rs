@@ -851,13 +851,7 @@ fn primary_level_data_round_trips_vanilla_level_dat_fields() {
             hardcore: true,
             locked: true,
         },
-        day_time: 24000,
         time: 123456,
-        generator_name: "minecraft:noise".to_string(),
-        generator_settings: crate::storage::nbt::Tag::Compound(vec![(
-            "seed".to_string(),
-            crate::storage::nbt::Tag::Long(99),
-        )]),
         allow_commands: true,
         initialized: true,
         was_modded: true,
@@ -868,31 +862,9 @@ fn primary_level_data_round_trips_vanilla_level_dat_fields() {
             ),
             enabled_features: crate::registry::feature_flags::default_flags_26_1_2(),
         },
-        scheduled_events: crate::storage::nbt::Tag::List(vec![crate::storage::nbt::Tag::Compound(
-            vec![(
-                "Name".to_string(),
-                crate::storage::nbt::Tag::String("minecraft:raid".to_string()),
-            )],
-        )]),
         server_brands: vec!["vanilla".to_string(), "vibecraft".to_string()],
         singleplayer_uuid: None,
         removed_features: Default::default(),
-        custom_boss_events: crate::storage::nbt::Tag::Compound(vec![(
-            "minecraft:boss".to_string(),
-            crate::storage::nbt::Tag::Compound(vec![]),
-        )]),
-        dragon_fight: crate::storage::nbt::Tag::Compound(vec![(
-            "DragonKilled".to_string(),
-            crate::storage::nbt::Tag::Byte(1),
-        )]),
-        scoreboard: crate::storage::nbt::Tag::Compound(vec![(
-            "Objectives".to_string(),
-            crate::storage::nbt::Tag::List(vec![]),
-        )]),
-        game_rules: crate::storage::nbt::Tag::Compound(vec![(
-            "doDaylightCycle".to_string(),
-            crate::storage::nbt::Tag::String("true".to_string()),
-        )]),
     };
 
     let encoded = data.to_level_dat().unwrap();
@@ -908,110 +880,77 @@ fn primary_level_data_round_trips_vanilla_level_dat_fields() {
     };
     assert!(values.iter().any(|(name, _)| name == "Version"));
     assert!(values.iter().any(|(name, _)| name == "DataPacks"));
-    assert!(values.iter().any(|(name, _)| name == "ScheduledEvents"));
     assert!(values.iter().any(|(name, _)| name == "ServerBrands"));
-    assert!(values.iter().any(|(name, _)| name == "CustomBossEvents"));
-    assert!(values.iter().any(|(name, _)| name == "DragonFight"));
-    assert!(values.iter().any(|(name, _)| name == "scoreboard"));
-    assert!(values.iter().any(|(name, _)| name == "GameRules"));
+    // 26.1.2 moved these to SavedData files; PrimaryLevelData must not write them.
+    for moved in [
+        "DayTime",
+        "generatorName",
+        "generatorSettings",
+        "ScheduledEvents",
+        "CustomBossEvents",
+        "DragonFight",
+        "scoreboard",
+        "GameRules",
+        "WorldGenSettings",
+    ] {
+        assert!(!values.iter().any(|(name, _)| name == moved), "{moved}");
+    }
 
     let decoded = super::PrimaryLevelData::from_level_dat(&encoded).unwrap();
     assert_eq!(decoded, data);
 }
 
-#[test]
-fn default_level_dat_round_trip_matches_vanilla_generated_field_shape() {
-    let data = super::PrimaryLevelData {
-        data_version: crate::storage::datafix::TARGET_DATA_VERSION,
-        level_data_version: 19133,
-        version: super::LevelVersionInfo {
-            id: crate::storage::datafix::TARGET_DATA_VERSION,
-            name: "26.1.2".to_string(),
-            series: "main".to_string(),
-            snapshot: false,
-        },
-        level_name: "New World".to_string(),
-        spawn: super::LevelSpawnData {
-            x: 0,
-            y: 64,
-            z: 0,
-            yaw: 0.0,
-            ..Default::default()
-        },
-        game_type: super::LevelGameType::Survival,
-        difficulty_settings: crate::storage::world::DifficultySettings {
-            difficulty: super::LevelDifficulty::Normal,
-            hardcore: false,
-            locked: true,
-        },
-        day_time: 0,
-        time: 0,
-        generator_name: "minecraft:normal".to_string(),
-        generator_settings: crate::storage::nbt::Tag::Compound(vec![]),
-        allow_commands: false,
-        initialized: true,
-        was_modded: false,
-        data_configuration: crate::resources::WorldDataConfiguration {
-            data_packs: super::DataPackSelection::new(
-                vec!["vanilla".to_string()],
-                Vec::<String>::new(),
-            ),
-            enabled_features: crate::registry::feature_flags::default_flags_26_1_2(),
-        },
-        scheduled_events: crate::storage::nbt::Tag::List(vec![]),
-        server_brands: vec!["vanilla".to_string()],
-        singleplayer_uuid: None,
-        removed_features: Default::default(),
-        custom_boss_events: crate::storage::nbt::Tag::Compound(vec![]),
-        dragon_fight: crate::storage::nbt::Tag::Compound(vec![]),
-        scoreboard: crate::storage::nbt::Tag::Compound(vec![]),
-        game_rules: crate::storage::nbt::Tag::Compound(vec![]),
-    };
-
-    let encoded = data.to_level_dat().unwrap();
-    let crate::storage::nbt::Tag::Compound(root) = &encoded else {
-        panic!("expected level.dat root compound");
-    };
-    let Some(crate::storage::nbt::Tag::Compound(values)) = root
-        .iter()
-        .find(|(name, _)| name == "Data")
-        .map(|(_, value)| value)
-    else {
-        panic!("expected Data compound");
-    };
-
-    let expected_fields = [
-        "DataVersion",
-        "version",
-        "Version",
-        "LevelName",
-        "spawn",
-        "GameType",
-        "difficulty_settings",
-        "DayTime",
-        "Time",
-        "generatorName",
-        "generatorSettings",
-        "allowCommands",
-        "initialized",
-        "WasModded",
-        "DataPacks",
-        "ScheduledEvents",
-        "ServerBrands",
-        "CustomBossEvents",
-        "DragonFight",
-        "scoreboard",
-        "GameRules",
-    ];
-    for field in expected_fields {
-        assert!(
-            values.iter().any(|(name, _)| name == field),
-            "missing vanilla level.dat field {field}"
-        );
+/// Recursively sorts compound entries so tags compare independent of the
+/// (hash-map ordered) key order Java's `CompoundTag` writes.
+fn canonical(tag: &crate::storage::nbt::Tag) -> crate::storage::nbt::Tag {
+    use crate::storage::nbt::Tag;
+    match tag {
+        Tag::Compound(entries) => {
+            let mut entries: Vec<_> = entries
+                .iter()
+                .map(|(name, value)| (name.clone(), canonical(value)))
+                .collect();
+            entries.sort_by(|left, right| left.0.cmp(&right.0));
+            Tag::Compound(entries)
+        }
+        Tag::List(values) => Tag::List(values.iter().map(canonical).collect()),
+        other => other.clone(),
     }
+}
 
-    let decoded = super::PrimaryLevelData::from_level_dat(&encoded).unwrap();
-    assert_eq!(decoded, data);
+/// `level.dat` produced by the real 26.1.2 dedicated server (`server.jar`,
+/// default properties, `level-seed=12345`, no players). Regenerate by starting
+/// the jar in an empty directory with `eula=true` and copying `world/level.dat`.
+const VANILLA_LEVEL_DAT: &[u8] = include_bytes!("fixtures/vanilla_26_1_2_level.dat");
+
+#[test]
+fn level_dat_round_trips_byte_for_byte_field_set_of_vanilla_26_1_2_world() {
+    let (_name, vanilla) =
+        crate::storage::nbt::read_gzip_named_tag(VANILLA_LEVEL_DAT).expect("vanilla level.dat");
+    let data = super::PrimaryLevelData::from_level_dat(&vanilla).unwrap();
+    assert_eq!(data.level_name, "world");
+    assert_eq!(data.time, 1199);
+    assert_eq!(data.server_brands, vec!["vanilla".to_string()]);
+    assert!(data.initialized && !data.was_modded && !data.allow_commands);
+
+    let crate::storage::nbt::Tag::Compound(root) = &vanilla else {
+        panic!("root compound");
+    };
+    let Some(crate::storage::nbt::Tag::Compound(fields)) =
+        root.iter().find(|(n, _)| n == "Data").map(|(_, v)| v)
+    else {
+        panic!("Data compound");
+    };
+    let Some(crate::storage::nbt::Tag::Long(last_played)) =
+        fields.iter().find(|(n, _)| n == "LastPlayed").map(|(_, v)| v)
+    else {
+        panic!("LastPlayed long");
+    };
+
+    // Re-encoding with the fixture's own LastPlayed must reproduce the vanilla
+    // tree exactly: same keys, same NBT types, same values.
+    let encoded = data.to_level_dat_at(*last_played).unwrap();
+    assert_eq!(canonical(&encoded), canonical(&vanilla));
 }
 
 #[test]
