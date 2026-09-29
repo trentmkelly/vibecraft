@@ -1,5 +1,6 @@
 pub mod chunk;
 pub mod datafix;
+pub mod datafix_upgrade;
 pub mod entities;
 pub mod nbt;
 pub mod poi;

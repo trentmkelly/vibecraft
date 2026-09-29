@@ -292,18 +292,31 @@ impl<'a> SnbtGrammarParser<'a> {
         }
     }
 
+    /// Java's `sequence('b' | 'B', binary_numeral)` alternative after a leading
+    /// `0`: it has no cut, so when no binary digit follows the `b` (for example
+    /// `0b` meaning byte zero) the parser backtracks and reads the `0` as decimal.
+    fn try_consume_binary_numeral(&mut self) -> Option<String> {
+        if !matches!(self.peek(), Some('b' | 'B')) {
+            return None;
+        }
+        let before_b = self.cursor;
+        self.next();
+        let digits = self.consume_run(is_binary_digit_or_underscore);
+        if digits.is_empty() {
+            self.cursor = before_b;
+            return None;
+        }
+        Some(digits)
+    }
+
     fn try_parse_integer_literal(&mut self) -> Result<IntegerLiteral, String> {
         let sign = self.consume_sign();
         let (base, digits) = if self.consume('0') {
             if matches!(self.peek(), Some('x' | 'X')) {
                 self.next();
                 (Base::Hex, self.consume_run(is_hex_digit_or_underscore))
-            } else if matches!(self.peek(), Some('b' | 'B')) {
-                self.next();
-                (
-                    Base::Binary,
-                    self.consume_run(is_binary_digit_or_underscore),
-                )
+            } else if let Some(binary) = self.try_consume_binary_numeral() {
+                (Base::Binary, binary)
             } else {
                 let more_digits = self.consume_run(is_decimal_digit_or_underscore);
                 if !more_digits.is_empty() {
@@ -786,6 +799,9 @@ mod tests {
         }
 
         assert_eq!(parse_snbt("0b1010").unwrap(), Tag::Int(10));
+        // `0b` without binary digits is byte zero, not an empty binary literal.
+        assert_eq!(parse_snbt("0b").unwrap(), Tag::Byte(0));
+        assert_eq!(parse_snbt("0B").unwrap(), Tag::Byte(0));
         assert_eq!(parse_snbt("0xFFub").unwrap(), Tag::Byte(-1));
         assert_eq!(parse_snbt("0xFFFFus").unwrap(), Tag::Short(-1));
         assert_eq!(parse_snbt("0xFFFF_FFFFi").unwrap(), Tag::Int(-1));

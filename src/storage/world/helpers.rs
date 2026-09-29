@@ -3,9 +3,11 @@ use std::path::{Component, Path};
 
 use crate::storage::nbt::{read_gzip_named_tag, read_named_tag, Tag};
 
+use crate::datafix::references::TypeReference;
 use crate::storage::datafix::{
     require_current_tag_data_version, require_current_world_data_version, TARGET_DATA_VERSION,
 };
+use crate::storage::datafix_upgrade::upgrade_saved_tag;
 
 pub(super) fn lock_file_exclusive_nonblocking(
     file: &File,
@@ -336,10 +338,18 @@ pub(super) fn tag_with_data_version(tag: &Tag) -> Tag {
     tag
 }
 
-pub(super) fn checked_saved_tag(surface: &str, tag: Tag) -> std::io::Result<Tag> {
-    require_current_tag_data_version(surface, &tag)
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
-    Ok(tag)
+/// Checks the `DataVersion` of a saved tag and upgrades it with the DataFixer when
+/// `reference` names its `DataFixTypes`; other tags must already be current.
+pub(super) fn checked_saved_tag(
+    surface: &str,
+    reference: Option<TypeReference>,
+    tag: Tag,
+) -> std::io::Result<Tag> {
+    let checked = match reference {
+        Some(reference) => upgrade_saved_tag(surface, reference, tag),
+        None => require_current_tag_data_version(surface, &tag).map(|()| tag),
+    };
+    checked.map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))
 }
 
 pub(super) fn json_with_data_version(surface: &str, json: &str) -> std::io::Result<String> {

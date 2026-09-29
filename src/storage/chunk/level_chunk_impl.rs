@@ -518,7 +518,8 @@ impl LevelChunk {
     }
 
     pub fn from_nbt(expected_pos: ChunkPos, tag: &Tag) -> Result<Self, String> {
-        require_current_tag_data_version("chunk", tag)?;
+        let upgraded = upgraded_saved_tag("chunk", references::CHUNK, tag)?;
+        let tag = upgraded.as_ref();
         let root = compound(tag)?;
         let pos = ChunkPos {
             x: int_field(root, "xPos")?,

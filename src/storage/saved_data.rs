@@ -6,6 +6,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::storage::datafix::{require_current_tag_data_version, TARGET_DATA_VERSION};
+use crate::storage::datafix_upgrade::{saved_data_fix_type, upgrade_saved_tag};
 use crate::storage::nbt::{read_gzip_named_tag, read_named_tag, write_gzip_named_tag, Tag};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -154,8 +155,12 @@ impl SavedDataStorage {
             return Ok(None);
         }
         let (_name, tag) = read_saved_data_file(&path)?;
-        require_current_tag_data_version(&id.to_string(), &tag)
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+        let surface = id.to_string();
+        let tag = match saved_data_fix_type(&id.path) {
+            Some(reference) => upgrade_saved_tag(&surface, reference, tag),
+            None => require_current_tag_data_version(&surface, &tag).map(|()| tag),
+        }
+        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
         Ok(match tag {
             Tag::Compound(mut values) => values
                 .drain(..)

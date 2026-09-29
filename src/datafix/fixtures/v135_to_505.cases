@@ -1,0 +1,26 @@
+# EntityRidingToPassengersFix (v135) also normalises the whole player
+CHUNK	99	135	{Level:{Entities:[{id:"Zombie",Riding:{id:"Pig"}}]}}	{Level:{Entities:[{Passengers:[{Riding:{id:"Pig"},id:"Zombie"}],id:"Pig"}]}}
+CHUNK	99	135	{Level:{Entities:[{id:"Zombie",CustomName:"Bob",Riding:{id:"Pig",CustomName:"Oink"}}]}}	{Level:{Entities:[{CustomName:"Oink",Passengers:[{CustomName:"Bob",Riding:{CustomName:"Oink",id:"Pig"},id:"Zombie"}],id:"Pig"}]}}
+PLAYER	99	135	{Inventory:[{id:5s,Count:1b,Damage:0s}],EnderItems:[],Dimension:0}	{Dimension:0,EnderItems:[],Inventory:[{Count:1b,Damage:0s,id:"minecraft:planks"}]}
+ENTITY_CHUNK	99	135	{Entities:[{id:"Zombie",Riding:{id:"Pig"}}]}	{Entities:[{Passengers:[{Riding:{id:"Pig"},id:"Zombie"}],id:"Pig"}]}
+# unknown entity ids make the whole entity list opaque
+CHUNK	99	135	{Level:{Entities:[{id:"Zombie",Riding:{id:"Pig"}},{id:"NotARealMob",Riding:{id:"Pig"}}]}}	{Level:{Entities:[{Riding:{id:"Pig"},id:"Zombie"},{Riding:{id:"Pig"},id:"NotARealMob"}]}}
+# EntityTippedArrowFix (v143)
+CHUNK	99	143	{Level:{Entities:[{id:"TippedArrow"},{id:"Arrow",inTile:"stone"},{id:"SpectralArrow"}]}}	{Level:{Entities:[{id:"Arrow"},{id:"Arrow",inTile:"minecraft:stone"},{id:"SpectralArrow"}]}}
+# EntityArmorStandSilentFix (v147)
+CHUNK	99	147	{Level:{Entities:[{id:"ArmorStand",Silent:1b},{id:"ArmorStand",Silent:1b,Marker:1b},{id:"ArmorStand",Silent:0b},{id:"Zombie",Silent:1b}]}}	{Level:{Entities:[{id:"ArmorStand"},{Marker:1b,Silent:1b,id:"ArmorStand"},{Silent:0b,id:"ArmorStand"},{Silent:1b,id:"Zombie"}]}}
+# SignTextStrictJsonFix + WrittenBookPagesStrictJsonFix (v165)
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"Hello",Text2:"\"quoted\"",Text3:"{\"text\":\"json\",\"color\":\"red\"}",Text4:"null",x:1,y:2,z:3}]}}	{Level:{TileEntities:[{Text1:'{"text":"Hello"}',Text2:'{"text":"quoted"}',Text3:'{"color":"red","text":"json"}',Text4:'{"text":""}',id:"Sign",x:1,y:2,z:3}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"",Text2:"[\"a\",\"b\"]",Text3:"{text:unquoted,\"extra\":[1,2.5,true,null]}",Text4:"'single'"}]}}	{Level:{TileEntities:[{Text1:'{"text":""}',Text2:'["a","b"]',Text3:'{"extra":[1,2.5,true,null],"text":"unquoted"}',Text4:'{"text":"\'single\'"}',id:"Sign"}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{broken",Text2:"[1,,2]",Text3:"{a=1;b=>2}",Text4:"\"esc\\u00e9\\n\""}]}}	{Level:{TileEntities:[{Text1:'{"text":"{broken"}',Text2:"[1,null,2]",Text3:'{"a":1,"b":2}',Text4:'{"text":"escé\\n"}',id:"Sign"}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"b\":1,\"a\":2}",Text2:"\"\"",Text3:"[]",Text4:"{}"}]}}	{Level:{TileEntities:[{Text1:'{"a":2,"b":1}',Text2:'{"text":""}',Text3:"[]",Text4:"{}",id:"Sign"}]}}
+PLAYER	99	165	{Inventory:[{id:387s,Count:1b,Damage:0s,tag:{pages:["Page one","{\"text\":\"two\"}","\"three\"",""],title:"T",author:"A"}},{id:386s,Count:1b,Damage:0s,tag:{pages:["not touched"]}}]}	{Inventory:[{Count:1b,Damage:0s,id:"minecraft:written_book",tag:{author:"A",pages:['{"text":"Page one"}','{"text":"two"}','{"text":"three"}','{"text":""}'],title:"T"}},{Count:1b,Damage:0s,id:"minecraft:writable_book",tag:{pages:["not touched"]}}]}
+# AddNewChoices (v501)
+CHUNK	99	501	{Level:{Entities:[{id:"PolarBear"},{id:"Zombie"}]}}	{Level:{Entities:[{id:"PolarBear"},{id:"Zombie"}]}}
+CHUNK	99	501	{Level:{Entities:[{id:"Pig"}],TileEntities:[]}}	{Level:{Entities:[{id:"Pig"}],TileEntities:[]}}
+# cooked_fished renamer + EntityZombieVillagerTypeFix (v502)
+PLAYER	99	502	{Inventory:[{id:"cooked_fished",Count:1b,Damage:0s},{id:"minecraft:cooked_fished",Count:1b,Damage:0s},{id:350s,Count:1b,Damage:0s}]}	{Inventory:[{Count:1b,Damage:0s,id:"minecraft:cooked_fish"},{Count:1b,Damage:0s,id:"minecraft:cooked_fish"},{Count:1b,Damage:0s,id:"minecraft:cooked_fish"}]}
+CHUNK	99	502	{Level:{Entities:[{id:"Zombie",IsVillager:1b,VillagerProfession:3},{id:"Zombie",IsVillager:1b,ZombieType:5},{id:"Zombie",IsVillager:0b},{id:"Zombie"}]}}	{Level:{Entities:[{VillagerProfession:3,ZombieType:3,id:"Zombie"},{ZombieType:5,id:"Zombie"},{IsVillager:0b,id:"Zombie"},{id:"Zombie"}]}}
+# OptionsForceVBOFix (v505)
+OPTIONS	99	505	{useVbo:"false",lang:"EN_us",other:"x"}	{lang:"EN_us",other:"x",useVbo:"true"}
+OPTIONS	99	505	{}	{useVbo:"true"}

@@ -2,7 +2,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::datafix::require_current_tag_data_version;
+use super::datafix_upgrade::upgraded_saved_tag;
+use crate::datafix::references;
 use super::nbt::Tag;
 use super::region::ChunkPos;
 
@@ -78,8 +79,8 @@ impl ChunkEntities {
     }
 
     pub fn from_nbt(expected_pos: ChunkPos, tag: &Tag) -> Result<Self, String> {
-        require_current_tag_data_version("entity chunk", tag)?;
-        let compound = compound(tag)?;
+        let upgraded = upgraded_saved_tag("entity chunk", references::ENTITY_CHUNK, tag)?;
+        let compound = compound(upgraded.as_ref())?;
         let stored_pos = match field(compound, "Position")? {
             Tag::IntArray(values) if values.len() == 2 => ChunkPos {
                 x: values[0],
