@@ -12,13 +12,13 @@ impl LootFunction {
             | Self::EnchantedCountIncrease { .. }
             | Self::SetOminousBottleAmplifier(_) => self.apply_count_function(stack, context),
             Self::SetItem(_)
-            | Self::SetEnchantments(_)
-            | Self::SetDamage(_)
+            | Self::SetEnchantments { .. }
+            | Self::SetDamage { .. }
             | Self::SetNbt(_)
             | Self::SetComponents(_)
             | Self::EnchantWithLevels { .. }
-            | Self::EnchantRandomly(_)
-            | Self::SmeltItem
+            | Self::EnchantRandomly { .. }
+            | Self::SmeltItem { .. }
             | Self::SetRandomPotion(_)
             | Self::SetRandomDyes(_) => self.apply_item_function(stack, context),
             Self::CopyName { .. }
@@ -27,15 +27,14 @@ impl LootFunction {
             | Self::ModifyContents(_)
             | Self::ExplorationMap { .. }
             | Self::FillPlayerHead
-            | Self::CopyState(_)
+            | Self::CopyState { .. }
+            | Self::CopyComponents { .. }
             | Self::SetAttributes(_) => self.apply_context_component_function(stack, context),
             Self::SetBannerPatterns(_)
             | Self::SetBookContents { .. }
-            | Self::SetInstrument(_)
             | Self::SetLore(_)
-            | Self::SetName(_)
+            | Self::SetName { .. }
             | Self::SetPotion(_)
-            | Self::SetStewEffects(_)
             | Self::SetWrittenBookPages(_)
             | Self::SetWritableBookPages(_)
             | Self::SetBookCover { .. }
@@ -44,6 +43,9 @@ impl LootFunction {
             | Self::SetFireworks { .. }
             | Self::SetCustomModelData(_)
             | Self::SetLootTable(_) => self.apply_text_component_function(stack),
+            Self::SetInstrument(_) | Self::SetStewEffects(_) => {
+                self.apply_random_component_function(stack, context)
+            }
             Self::Reference(_)
             | Self::Discard
             | Self::ApplyExplosionDecay
@@ -114,38 +116,56 @@ impl LootFunction {
     ) -> Option<LootStack> {
         match self {
             Self::SetItem(item) => stack.item.clone_from(item),
-            Self::SetEnchantments(enchantments) => {
-                stack.components.insert(
-                    "minecraft:enchantments".to_string(),
-                    enchantments
-                        .iter()
-                        .map(|(id, level)| format!("{id}:{level}"))
-                        .collect::<Vec<_>>()
-                        .join(","),
-                );
+            Self::SetEnchantments {
+                enchantments,
+                add,
+            } => return Some(item_functions::set_enchantments(stack, context, enchantments, *add)),
+            Self::SetDamage { damage, add } => {
+                return Some(item_functions::set_damage(stack, context, damage, *add));
             }
-            Self::SetDamage(provider) => {
-                stack.components.insert(
-                    "minecraft:damage_fraction".to_string(),
-                    provider.float(context).to_string(),
-                );
-            }
-            Self::SetNbt(values) | Self::SetComponents(values) => {
+            Self::SetNbt(values) => {
                 stack.components.extend(values.clone());
             }
-            Self::EnchantWithLevels { levels, options } => {
-                let level = levels.int(context).max(1);
-                apply_enchantment_component(&mut stack, context, level, options);
-            }
-            Self::EnchantRandomly(options) => {
-                apply_enchantment_component(&mut stack, context, 1, options);
-            }
-            Self::SmeltItem => {
-                if context.block_on_fire {
-                    if let Some(result) = context.smelting_results.get(&stack.item) {
-                        stack.item.clone_from(result);
+            Self::SetComponents(edits) => {
+                for edit in edits {
+                    match &edit.value {
+                        Some(value) => {
+                            stack.components.insert(edit.component.clone(), value.clone());
+                        }
+                        None => {
+                            stack.components.remove(&edit.component);
+                        }
                     }
                 }
+            }
+            Self::EnchantWithLevels {
+                levels,
+                options,
+                include_additional_cost_component,
+            } => {
+                return Some(item_functions::enchant_with_levels(
+                    stack,
+                    context,
+                    levels,
+                    options.as_ref(),
+                    *include_additional_cost_component,
+                ));
+            }
+            Self::EnchantRandomly {
+                options,
+                only_compatible,
+                include_additional_cost_component,
+            } => {
+                return Some(item_functions::enchant_randomly(
+                    stack,
+                    context,
+                    options.as_ref(),
+                    *only_compatible,
+                    *include_additional_cost_component,
+                ));
+            }
+            Self::SmeltItem { use_input_count } => {
+                return Some(item_functions::smelt_item(stack, context, *use_input_count));
             }
             Self::SetRandomPotion(potions) => {
                 if let Some(potion) = choose_random_text(potions, context) {
@@ -198,8 +218,21 @@ impl LootFunction {
                 decoration,
             } => set_exploration_map_components(&mut stack, destination, decoration),
             Self::FillPlayerHead => fill_player_head_component(&mut stack, context),
-            Self::CopyState(properties) => {
-                copy_block_state_components(&mut stack, context, properties);
+            Self::CopyState { properties, .. } => {
+                return Some(item_functions::copy_block_state(stack, context, properties));
+            }
+            Self::CopyComponents {
+                source,
+                include,
+                exclude,
+            } => {
+                return Some(item_functions::copy_components(
+                    stack,
+                    context,
+                    *source,
+                    include.as_deref(),
+                    exclude.as_deref(),
+                ));
             }
             Self::SetAttributes(attributes) => {
                 stack.components.insert(
@@ -222,31 +255,22 @@ impl LootFunction {
                 author,
                 pages,
             } => set_written_book_components(&mut stack, title, author, pages),
-            Self::SetInstrument(instrument) => {
-                stack
-                    .components
-                    .insert("minecraft:instrument".to_string(), instrument.clone());
-            }
             Self::SetLore(lines) => {
                 insert_joined_component(&mut stack, "minecraft:lore", lines, "\n");
             }
-            Self::SetName(name) => {
-                stack
-                    .components
-                    .insert("minecraft:custom_name".to_string(), name.clone());
+            Self::SetName { name, target } => {
+                // `SetNameFunction.run`: the resolver is the identity for the
+                // component contents the codec accepts as modeled.
+                if let Some(name) = name {
+                    stack
+                        .components
+                        .insert(target.component().to_string(), name.clone());
+                }
             }
             Self::SetPotion(potion) => {
                 stack
                     .components
                     .insert("minecraft:potion_contents".to_string(), potion.clone());
-            }
-            Self::SetStewEffects(effects) => {
-                insert_joined_component(
-                    &mut stack,
-                    "minecraft:suspicious_stew_effects",
-                    effects,
-                    ",",
-                );
             }
             Self::SetWrittenBookPages(pages) => {
                 insert_joined_component(&mut stack, "minecraft:written_book_pages", pages, "\n");
@@ -297,6 +321,19 @@ impl LootFunction {
         Some(stack)
     }
 
+    /// Functions that draw from the context's random source to pick a component value.
+    fn apply_random_component_function(
+        &self,
+        stack: LootStack,
+        context: &mut LootContext,
+    ) -> Option<LootStack> {
+        Some(match self {
+            Self::SetInstrument(options) => item_functions::set_instrument(stack, context, options),
+            Self::SetStewEffects(effects) => item_functions::set_stew_effect(stack, context, effects),
+            _ => unreachable!("non-random component function routed to random handler"),
+        })
+    }
+
     fn apply_control_function(
         &self,
         mut stack: LootStack,
@@ -323,21 +360,6 @@ impl LootFunction {
             Self::Unmodeled { .. } => Some(stack),
             _ => unreachable!("non-control loot function routed to control handler"),
         }
-    }
-}
-
-fn apply_enchantment_component(
-    stack: &mut LootStack,
-    context: &mut LootContext,
-    level: i32,
-    options: &[String],
-) {
-    if !options.is_empty() {
-        let index = context.random.next_i32(options.len() as i32) as usize;
-        stack.components.insert(
-            "minecraft:enchantments".to_string(),
-            format!("{}:{level}", options[index]),
-        );
     }
 }
 
@@ -382,20 +404,6 @@ fn fill_player_head_component(stack: &mut LootStack, context: &LootContext) {
         stack
             .components
             .insert("minecraft:profile".to_string(), player.clone());
-    }
-}
-
-fn copy_block_state_components(
-    stack: &mut LootStack,
-    context: &LootContext,
-    properties: &[String],
-) {
-    for property in properties {
-        if let Some(value) = context.block_state_properties.get(property) {
-            stack
-                .components
-                .insert(format!("minecraft:block_state.{property}"), value.clone());
-        }
     }
 }
 

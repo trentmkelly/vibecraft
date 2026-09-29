@@ -77,7 +77,11 @@ impl LootTable {
         }
 
         context.exit();
-        split_stacks(result, context.max_stack_size)
+        if top_level {
+            split_stacks(result)
+        } else {
+            result
+        }
     }
 
     pub fn fill_container(
@@ -802,8 +806,24 @@ fn json_string_value(value: &serde_json::Value) -> Result<String, String> {
 mod json_codec;
 pub use json_codec::decode_loot_table;
 mod enchanted;
+mod enchantment_registry;
+mod item_functions;
 mod modeling;
+mod predicates;
+mod reference_data;
+mod stack_components;
+mod world_view;
 pub use enchanted::{EnchantmentBound, HolderSet, LevelBasedValue, ToolPredicate};
+pub use enchantment_registry::EnchantmentRegistry;
+pub use item_functions::{ComponentEdit, ComponentSource, NameTarget, StewEffect};
+pub use predicates::{
+    BlockPredicate, DamageSourcePredicate, DoubleBounds, EntityFlagsPredicate, EntityPredicate,
+    IntBounds, LocationPredicate, TypeSpecificPredicate,
+};
+pub use world_view::{
+    canonical_component_value, EntityFlags, LootDamageSource, LootEntity, LootEntityTarget,
+    LootLevel, RegistryTags,
+};
 mod runtime_engine;
 pub use runtime_engine::*;
 mod runtime_functions;

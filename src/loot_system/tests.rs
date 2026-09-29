@@ -999,3 +999,5 @@ fn advancement_reward_loot_grants_xp_and_tables_with_player_context() {
 }
 
 mod advanced_tests;
+mod java_parity;
+mod function_tests;

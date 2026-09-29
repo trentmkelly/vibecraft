@@ -66,6 +66,11 @@ pub(super) fn decode_condition(value: &Value) -> Result<LootCondition, String> {
             required(object, "name")?,
             "name",
         )?)),
+        "entity_properties" => super::predicates::decode_entity_properties(object, value),
+        "damage_source_properties" => {
+            super::predicates::decode_damage_source_properties(object, value)
+        }
+        "location_check" => super::predicates::decode_location_check(object, value),
         "enchantment_active_check" => Ok(LootCondition::EnchantmentActiveCheck {
             active: as_bool(required(object, "active")?, "active")?,
         }),
@@ -132,52 +137,48 @@ fn decode_match_tool(object: &Object, value: &Value) -> Result<LootCondition, St
     let Some(predicate) = object.get("predicate") else {
         return Ok(unmodeled());
     };
-    let predicate = as_object(predicate, "predicate")?;
+    Ok(
+        match decode_tool_predicate(as_object(predicate, "predicate")?)? {
+            Some(predicate) => LootCondition::ToolMatches(predicate),
+            None => unmodeled(),
+        },
+    )
+}
+
+/// The `items` + enchantment-level subset of `ItemPredicate`; `None` when the
+/// predicate carries any other field.
+pub(super) fn decode_tool_predicate(predicate: &Object) -> Result<Option<ToolPredicate>, String> {
     if predicate
         .keys()
         .any(|key| key != "items" && key != "predicates")
     {
-        return Ok(unmodeled());
+        return Ok(None);
     }
     let items = predicate.get("items").map(decode_holder_set).transpose()?;
     let mut enchantments = Vec::new();
     if let Some(components) = predicate.get("predicates") {
         let components = as_object(components, "predicates")?;
         if components.keys().any(|key| key != "minecraft:enchantments") {
-            return Ok(unmodeled());
+            return Ok(None);
         }
         if let Some(list) = components.get("minecraft:enchantments") {
             for bound in as_list(list, "minecraft:enchantments")? {
                 match decode_enchantment_bound(bound)? {
                     Some(bound) => enchantments.push(bound),
-                    None => return Ok(unmodeled()),
+                    None => return Ok(None),
                 }
             }
         }
     }
-    Ok(LootCondition::ToolMatches(ToolPredicate {
+    Ok(Some(ToolPredicate {
         items,
         enchantments,
     }))
 }
 
 /// `RegistryCodecs.homogeneousList`: an id, a `#tag` or a list of ids.
-fn decode_holder_set(value: &Value) -> Result<HolderSet, String> {
-    match value {
-        Value::String(text) => match text.strip_prefix('#') {
-            Some(tag) => Ok(HolderSet::Tag(identifier(
-                &Value::String(tag.into()),
-                "tag",
-            )?)),
-            None => Ok(HolderSet::Ids(vec![identifier(value, "id")?])),
-        },
-        Value::Array(ids) => Ok(HolderSet::Ids(
-            ids.iter()
-                .map(|id| identifier(id, "id"))
-                .collect::<Result<_, _>>()?,
-        )),
-        other => Err(format!("not an id, tag or list: {other}")),
-    }
+pub(super) fn decode_holder_set(value: &Value) -> Result<HolderSet, String> {
+    HolderSet::from_json(value)
 }
 
 /// `EnchantmentPredicate`; `None` when it carries fields this model lacks.
@@ -250,29 +251,12 @@ fn decode_block_state_property(object: &Object, value: &Value) -> Result<LootCon
 /// Field validation for the condition types with no runtime model.
 fn validate_unmodeled_condition(kind: &str, object: &Object) -> Result<(), String> {
     match kind {
-        "entity_properties" => validate_fields(
-            object,
-            &[
-                ("predicate", Kind::Obj, false),
-                ("entity", Kind::Target, true),
-            ],
-        ),
         "entity_scores" => {
             for range in as_object(required(object, "scores")?, "scores")?.values() {
                 int_range(range)?;
             }
             validate_fields(object, &[("entity", Kind::Target, true)])
         }
-        "damage_source_properties" => validate_fields(object, &[("predicate", Kind::Obj, false)]),
-        "location_check" => validate_fields(
-            object,
-            &[
-                ("predicate", Kind::Obj, false),
-                ("offsetX", Kind::Int, false),
-                ("offsetY", Kind::Int, false),
-                ("offsetZ", Kind::Int, false),
-            ],
-        ),
         "time_check" => validate_fields(
             object,
             &[

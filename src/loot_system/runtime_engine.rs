@@ -188,11 +188,18 @@ impl LootPool {
             for entry in &self.entries {
                 entry.expand(context, &mut candidates);
             }
+            // `LootPool.addRandomItem`: only entries of positive weight are valid.
+            candidates.retain(|entry| entry.effective_weight(context.luck) > 0);
             let total_weight: i32 = candidates
                 .iter()
                 .map(|entry| entry.effective_weight(context.luck))
                 .sum();
             if total_weight <= 0 {
+                continue;
+            }
+            if candidates.len() == 1 {
+                // A lone valid entry is chosen without drawing a random number.
+                result.extend(candidates[0].create(context));
                 continue;
             }
             let mut pick = context.random.next_i32(total_weight);
@@ -258,6 +265,14 @@ pub enum LootEntry {
         conditions: Vec<LootCondition>,
         functions: Vec<LootFunction>,
     },
+    /// `NestedLootTable` with an inline (`DIRECT_CODEC`) table.
+    InlineTable {
+        table: Box<LootTable>,
+        weight: i32,
+        quality: i32,
+        conditions: Vec<LootCondition>,
+        functions: Vec<LootFunction>,
+    },
     /// `DynamicLoot`: drops the context's dynamic drop named `name`.
     Dynamic {
         name: String,
@@ -309,6 +324,12 @@ impl LootEntry {
                 ..
             }
             | Self::WeightedNestedTable {
+                weight,
+                quality,
+                conditions,
+                ..
+            }
+            | Self::InlineTable {
                 weight,
                 quality,
                 conditions,
@@ -423,6 +444,12 @@ impl LootEntry {
             Self::WeightedNestedTable {
                 table, functions, ..
             } => create_nested_table(table, functions, context),
+            Self::InlineTable {
+                table, functions, ..
+            } => {
+                let stacks = table.evaluate(context);
+                apply_entry_functions(functions, stacks, context)
+            }
             Self::Dynamic {
                 name, functions, ..
             } => {
@@ -665,9 +692,7 @@ impl NumberProvider {
             Self::UniformProvider { min, max } => {
                 let min = min.int(context);
                 let max = max.int(context);
-                min + context
-                    .random
-                    .next_i32(max.saturating_sub(min).saturating_add(1))
+                item_functions::mth_next_int(context, min, max)
             }
             Self::Binomial { n, p } => binomial_roll(context, *n, *p),
             Self::BinomialProvider { n, p } => {
@@ -693,9 +718,14 @@ impl NumberProvider {
             Self::Uniform { min, max } => *min + (*max - *min) * context.random.next_f32(),
             Self::Binomial { n, p } => binomial_roll(context, *n, *p) as f32,
             Self::UniformProvider { min, max } => {
+                // `Mth.nextFloat`: no draw when the range is empty.
                 let min = min.float(context);
                 let max = max.float(context);
-                min + (max - min) * context.random.next_f32()
+                if min >= max {
+                    min
+                } else {
+                    context.random.next_f32() * (max - min) + min
+                }
             }
             Self::BinomialProvider { n, p } => {
                 let n = n.int(context);
@@ -819,6 +849,18 @@ pub enum LootCondition {
     },
     /// `MatchTool` with an item/enchantment `ItemPredicate`.
     ToolMatches(ToolPredicate),
+    /// `LootItemEntityPropertyCondition`.
+    EntityHasProperties {
+        target: LootEntityTarget,
+        predicate: Option<EntityPredicate>,
+    },
+    /// `DamageSourceCondition`.
+    DamageSourceMatches(Option<DamageSourcePredicate>),
+    /// `LocationCheck`: the predicate at the origin plus `offset`.
+    LocationMatches {
+        predicate: Option<LocationPredicate>,
+        offset: (i32, i32, i32),
+    },
     Reference(String),
     Inverted(Box<LootCondition>),
     AllOf(Vec<LootCondition>),
@@ -838,6 +880,36 @@ impl LootCondition {
     pub fn matches(&self, context: &LootContext) -> bool {
         let mut fork = context.clone_for_condition();
         self.matches_mut(&mut fork)
+    }
+
+    /// The conditions that embed advancement predicates (`entity_properties`,
+    /// `damage_source_properties`, `location_check`).
+    fn predicate_matches(&self, context: &LootContext) -> bool {
+        match self {
+            Self::EntityHasProperties { target, predicate } => predicate
+                .as_ref()
+                .is_none_or(|predicate| predicate.matches(context.entities.get(target), context)),
+            Self::DamageSourceMatches(predicate) => {
+                match (&context.damage_source, context.origin()) {
+                    (Some(source), Some(_)) => predicate
+                        .as_ref()
+                        .is_none_or(|predicate| predicate.matches(source, context)),
+                    _ => false,
+                }
+            }
+            Self::LocationMatches { predicate, offset } => match context.origin() {
+                Some((x, y, z)) => predicate.as_ref().is_none_or(|predicate| {
+                    predicate.matches(
+                        context,
+                        x + f64::from(offset.0),
+                        y + f64::from(offset.1),
+                        z + f64::from(offset.2),
+                    )
+                }),
+                None => false,
+            },
+            _ => unreachable!("non-predicate condition routed to predicate handler"),
+        }
     }
 
     fn matches_mut(&self, context: &mut LootContext) -> bool {
@@ -868,9 +940,7 @@ impl LootCondition {
                 Some(radius) if radius > 0.0 => context.random.next_f32() <= 1.0 / radius,
                 _ => true,
             },
-            Self::EntityProperty { key, value } => {
-                context.entity_properties.get(key) == Some(value)
-            }
+            Self::EntityProperty { key, value } => context.entity_properties.get(key) == Some(value),
             Self::EntityScore { name, min, max } => context
                 .scores
                 .get(name)
@@ -929,6 +999,9 @@ impl LootCondition {
                     .unwrap_or(0.0);
                 context.random.next_f32() < chance
             }
+            Self::EntityHasProperties { .. }
+            | Self::DamageSourceMatches(_)
+            | Self::LocationMatches { .. } => self.predicate_matches(context),
             Self::Reference(name) => context.condition_references.contains(name),
             Self::Inverted(condition) => !condition.matches_mut(context),
             Self::AllOf(conditions) => conditions
@@ -973,15 +1046,39 @@ pub enum LootFunction {
         limit: i32,
     },
     SetItem(String),
-    SetEnchantments(HashMap<String, i32>),
-    SetDamage(NumberProvider),
+    /// `SetEnchantmentsFunction`: level providers in declaration order.
+    SetEnchantments {
+        enchantments: Vec<(String, NumberProvider)>,
+        add: bool,
+    },
+    /// `SetItemDamageFunction`.
+    SetDamage {
+        damage: NumberProvider,
+        add: bool,
+    },
     SetNbt(HashMap<String, String>),
+    /// `EnchantWithLevelsFunction`; `options` absent means every enchantment.
     EnchantWithLevels {
         levels: NumberProvider,
-        options: Vec<String>,
+        options: Option<HolderSet>,
+        include_additional_cost_component: bool,
     },
-    EnchantRandomly(Vec<String>),
-    SmeltItem,
+    /// `EnchantRandomlyFunction`; `options` absent means every enchantment.
+    EnchantRandomly {
+        options: Option<HolderSet>,
+        only_compatible: bool,
+        include_additional_cost_component: bool,
+    },
+    /// `SmeltItemFunction`.
+    SmeltItem {
+        use_input_count: bool,
+    },
+    /// `CopyComponentsFunction`.
+    CopyComponents {
+        source: ComponentSource,
+        include: Option<Vec<String>>,
+        exclude: Option<Vec<String>>,
+    },
     CopyName {
         source: String,
     },
@@ -996,7 +1093,11 @@ pub enum LootFunction {
         decoration: String,
     },
     FillPlayerHead,
-    CopyState(Vec<String>),
+    /// `CopyBlockState`: `properties` are those of `block` that exist on it.
+    CopyState {
+        block: String,
+        properties: Vec<String>,
+    },
     SetAttributes(Vec<String>),
     SetBannerPatterns(Vec<String>),
     SetBookContents {
@@ -1004,13 +1105,20 @@ pub enum LootFunction {
         author: String,
         pages: Vec<String>,
     },
-    SetComponents(HashMap<String, String>),
-    SetInstrument(String),
+    /// `SetComponentsFunction`: the `DataComponentPatch` edits.
+    SetComponents(Vec<ComponentEdit>),
+    /// `SetInstrumentFunction`.
+    SetInstrument(HolderSet),
     SetLore(Vec<String>),
-    SetName(String),
+    /// `SetNameFunction`: `name` is the compact JSON of the text component.
+    SetName {
+        name: Option<String>,
+        target: NameTarget,
+    },
     SetPotion(String),
     SetRandomPotion(Vec<String>),
-    SetStewEffects(Vec<String>),
+    /// `SetStewEffectFunction`.
+    SetStewEffects(Vec<StewEffect>),
     SetRandomDyes(Vec<String>),
     SetWrittenBookPages(Vec<String>),
     SetWritableBookPages(Vec<String>),

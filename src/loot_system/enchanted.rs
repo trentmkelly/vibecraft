@@ -80,14 +80,51 @@ pub enum HolderSet {
 }
 
 impl HolderSet {
-    /// Whether `id` is in the set; tags resolve through the context's tag map.
-    pub fn contains(&self, id: &str, context: &LootContext) -> bool {
+    /// `RegistryCodecs.homogeneousList`: an id, a `#tag` or a list of ids.
+    pub fn from_json(value: &serde_json::Value) -> Result<Self, String> {
+        let identifier = |text: &str| {
+            crate::registry::Identifier::parse(text)
+                .map(|id| id.to_string())
+                .map_err(|err| format!("{text}: {err}"))
+        };
+        match value {
+            serde_json::Value::String(text) => match text.strip_prefix('#') {
+                Some(tag) => Ok(Self::Tag(identifier(tag)?)),
+                None => Ok(Self::Ids(vec![identifier(text)?])),
+            },
+            serde_json::Value::Array(ids) => ids
+                .iter()
+                .map(|id| {
+                    id.as_str()
+                        .ok_or_else(|| format!("not an id: {id}"))
+                        .and_then(identifier)
+                })
+                .collect::<Result<_, _>>()
+                .map(Self::Ids),
+            other => Err(format!("not an id, tag or list: {other}")),
+        }
+    }
+
+    /// Whether `id` (an entry of `registry`, e.g. `"item"` or `"enchantment"`) is in
+    /// the set; tags resolve through [`LootContext::tag_members`].
+    pub fn contains_in(&self, registry: &str, id: &str, context: &LootContext) -> bool {
         match self {
             Self::Ids(ids) => ids.iter().any(|candidate| candidate == id),
             Self::Tag(tag) => context
-                .tags
-                .get(tag)
+                .tag_members(registry, tag)
                 .is_some_and(|members| members.iter().any(|member| member == id)),
+        }
+    }
+
+    /// `HolderSet.stream()`: the members in set order (tag order for a tag). An
+    /// unknown tag is empty.
+    pub fn members(&self, registry: &str, context: &LootContext) -> Vec<String> {
+        match self {
+            Self::Ids(ids) => ids.clone(),
+            Self::Tag(tag) => context
+                .tag_members(registry, tag)
+                .map(<[String]>::to_vec)
+                .unwrap_or_default(),
         }
     }
 }
@@ -116,7 +153,7 @@ impl ToolPredicate {
             if !context
                 .tool
                 .as_deref()
-                .is_some_and(|tool| items.contains(tool, context))
+                .is_some_and(|tool| items.contains_in("item", tool, context))
             {
                 return false;
             }
@@ -127,7 +164,30 @@ impl ToolPredicate {
                 bound
                     .enchantments
                     .as_ref()
-                    .is_none_or(|set| set.contains(id, context))
+                    .is_none_or(|set| set.contains_in("enchantment", id, context))
+                    && bound.min_level.is_none_or(|min| *level >= min)
+                    && bound.max_level.is_none_or(|max| *level <= max)
+            })
+        })
+    }
+}
+
+impl ToolPredicate {
+    /// `ItemPredicate.test(stack)`: the stack's item against `items` and its
+    /// `minecraft:enchantments` component against the enchantment requirements.
+    pub fn matches_stack(&self, stack: &LootStack, context: &LootContext) -> bool {
+        if let Some(items) = &self.items {
+            if !items.contains_in("item", &stack.item, context) {
+                return false;
+            }
+        }
+        let held = stack.item_enchantments(super::stack_components::ENCHANTMENTS_COMPONENT);
+        self.enchantments.iter().all(|bound| {
+            held.iter().any(|(id, level)| {
+                bound
+                    .enchantments
+                    .as_ref()
+                    .is_none_or(|set| set.contains_in("enchantment", id, context))
                     && bound.min_level.is_none_or(|min| *level >= min)
                     && bound.max_level.is_none_or(|max| *level <= max)
             })
