@@ -30,6 +30,7 @@ mod model_tables;
 mod official_transcript;
 mod order_fixtures;
 mod synchronization;
+mod vanilla_data_coverage;
 mod vanilla_fields;
 mod vanilla_payloads;
 mod world_packs;
