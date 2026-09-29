@@ -79,7 +79,9 @@ fn unloaded_worldgen_registries_are_exactly_the_ones_without_ported_codecs() {
             "{key} is synchronised but has no codec"
         );
     }
-    assert!(unloaded.contains(&"minecraft:worldgen/configured_feature"));
+    assert!(unloaded.contains(&"minecraft:worldgen/structure_set"));
+    assert!(!unloaded.contains(&"minecraft:worldgen/configured_feature"));
+    assert!(!unloaded.contains(&"minecraft:worldgen/placed_feature"));
     assert!(!unloaded.contains(&"minecraft:worldgen/biome"));
 }
 

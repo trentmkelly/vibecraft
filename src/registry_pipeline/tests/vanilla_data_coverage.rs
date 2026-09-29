@@ -17,7 +17,8 @@ use crate::registry::Identifier;
 ///
 /// Not listed (still unticked): `enchantment` and `dialog` (generic codec,
 /// TODO(registry-pipeline-enchantment), TODO(registry-pipeline-dialog)),
-/// `worldgen/configured_carver|placed_feature|structure` (reference-only targets),
+/// `worldgen/configured_carver|structure` (reference-only targets; the feature
+/// registries are verified by `worldgen_features`, which also checks round-tripping),
 /// and every registry the pipeline does not load yet (see `registry_data`).
 const VERIFIED_REGISTRIES: &[(&str, &str)] = &[
     ("minecraft:worldgen/biome", "worldgen/biome"),

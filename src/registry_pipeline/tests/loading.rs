@@ -47,9 +47,10 @@ fn tags_of(
 #[test]
 fn vanilla_registries_load_and_freeze() {
     let registries = super::registries();
-    // The 28 synchronised registries plus the `configured_carver`, `placed_feature`
-    // and `structure` registries loaded for reference resolution.
-    assert_eq!(registries.worldgen_layer().len(), 31);
+    // The 28 synchronised registries plus the `configured_carver`,
+    // `configured_feature`, `placed_feature` and `structure` registries loaded for
+    // reference resolution.
+    assert_eq!(registries.worldgen_layer().len(), 32);
     assert!(registries.static_layer().len() > 50);
     // Every synchronised element records the vanilla known pack it came from.
     for registry in registries.worldgen_layer() {
