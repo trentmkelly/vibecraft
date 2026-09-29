@@ -670,6 +670,16 @@ fn dispatch_behavioral_item_use_on(
             held_slot,
         ));
     }
+    if item_name == "minecraft:bone_meal" {
+        return Some(super::item_use_live::use_bone_meal(
+            stream,
+            compression,
+            state,
+            context,
+            packet,
+            held_slot,
+        ));
+    }
     if item_name == "minecraft:honeycomb" {
         return Some(super::item_use_live::use_honeycomb(
             stream,

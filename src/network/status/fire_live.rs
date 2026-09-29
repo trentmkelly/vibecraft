@@ -18,7 +18,6 @@ use crate::block_placement::PlacementWorld;
 use crate::block_survival::SurvivalWorld;
 use crate::block_update::{BlockPos, Direction};
 use crate::fire_block::{fire_tick, fire_tick_delay, FireRandom, FireWorld};
-use crate::storage::chunk::HeightmapKind;
 
 /// `Level.setBlock` flag bits (`Block.UPDATE_*`).
 const UPDATE_NEIGHBORS: i32 = 1;
@@ -122,25 +121,7 @@ impl<W: Write> FireWorld for LiveFireWorld<'_, '_, W> {
     }
 
     fn is_raining_at(&self, pos: BlockPos) -> bool {
-        if !self.environment.raining {
-            return false;
-        }
-        // `Level.precipitationAt`: the MOTION_BLOCKING height must not be
-        // above the position. TODO(precipitation-biome): the biome's
-        // `getPrecipitationAt` (snow/none biomes) is not consulted.
-        let chunk = self.inner.cache.get_or_load(
-            pos.x.div_euclid(16),
-            pos.z.div_euclid(16),
-            self.inner.layout.root(),
-            self.inner.seed,
-        );
-        chunk
-            .heightmap_value(
-                HeightmapKind::MotionBlocking,
-                pos.x.rem_euclid(16) as usize,
-                pos.z.rem_euclid(16) as usize,
-            )
-            .is_none_or(|height| height <= pos.y)
+        super::random_tick_live::is_raining_at(&self.inner, self.environment.raining, pos)
     }
 
     fn is_infiniburn(&self, state: &BlockStateModel) -> bool {
