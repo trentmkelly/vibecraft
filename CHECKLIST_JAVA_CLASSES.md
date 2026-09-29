@@ -4327,36 +4327,36 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 
 ## `decompiled-server-26.1.2/net/minecraft/world/level/block`
 
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractBannerBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractCandleBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractCauldronBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractChestBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractFurnaceBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractSkullBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AirBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AmethystBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AmethystClusterBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AnvilBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AttachedStemBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AzaleaBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BambooSaplingBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BambooStalkBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BannerBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BarrelBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BarrierBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseCoralFanBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseCoralPlantBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseCoralPlantTypeBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseCoralWallFanBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseEntityBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseFireBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BasePressurePlateBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseRailBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseTorchBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BeaconBeamBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BeaconBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BedBlock.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BeehiveBlock.java`.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractBannerBlock.java`. Gap: banner rotation/wall placement + survival exist (block_placement/block_survival) but BannerBlockEntity custom-name/patterns placement (setPlacedBy) and getCloneItemStack component copy are not live.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractCandleBlock.java`. Gap: candle survival/placement exist; extinguish-on-projectile/explosion (`extinguish`, `onProjectileHit` fire arrows), lit particles/sounds not wired.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractCauldronBlock.java`. Gap: only dispenser_cauldron/special_block models; useItemOn CauldronInteraction map not live-wired, entityInside/fill-level events absent.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractChestBlock.java`. Gap: chest block entity exists; DoubleBlockCombiner (combine/menu provider) and ChestType neighbour merge on placement not live.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractFurnaceBlock.java`. Gap: furnace menus/block entity exist; use() open-menu, lit/animateTick, onRemove drop-contents+XP not verified live end to end.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AbstractSkullBlock.java`. Gap: no skull placement at all (no SkullBlock/WallSkullBlock getStateForPlacement, `powered` sampling via hasNeighborSignal) and no live neighborChanged dispatch to re-sample POWERED (level.setBlock flag 2). TODO(skull-blocks).
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AirBlock.java`. Not verified: shape/render come from generated physics tables; no dedicated test; left open.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AmethystBlock.java`. Gap: onProjectileHit chime (AMETHYST_BLOCK_CHIME, pitch 0.5+rand*1.2) needs a projectile-block-hit hook; not wired. TODO(projectile-block-hit).
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AmethystClusterBlock.java`. Gap: survival/attachment exists (block_survival amethyst_cluster); waterlogging/updateShape+placement and onProjectileHit chime not audited/wired.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AnvilBlock.java`. Gap: gravity/FallingBlock and anvil menu exist; damage-on-use (12% degrade chain), fall damage landing, placement facing rotate not fully audited/tested.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AttachedStemBlock.java`. `block_shape_updates` now follows `AttachedStemBlock.updateShape` (fruit-gone revert to age-7 stem, else `VegetationBlock.updateShape` canSurvive->AIR), live via `block_placement_live`; `clone_item_override` in player_creative_packets gives the seed item for pick-block (`getCloneItemStack`); support rule and rotate/mirror via the facing property; tests in block_shape_updates/tests.rs and player_creative_packets.rs.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/AzaleaBlock.java`. Gap: survival/bonemeal exist; mayPlaceOn (supports_azalea) and shape only; no dedicated parity test.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BambooSaplingBlock.java`. Gap: survival (supports_bamboo) only; randomTick growth, updateShape->BambooStalk conversion, useOn stalk placement absent. TODO(bamboo).
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BambooStalkBlock.java`. Gap: bamboo growth (randomTick/growBamboo), age/leaves/stage, bonemeal, destroy speed, and placement not implemented. TODO(bamboo).
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BannerBlock.java`. Gap: 16-segment rotation placement + survival exist; rotate/mirror via RotationSegment and banner block entity data not verified/tested.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BarrelBlock.java`. Gap: container/menu exists; placement facing (nearest looking direction), open-state/lid sounds and onRemove scatter not verified live.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BarrierBlock.java`. Partial: waterlogged placement + fluid tick in updateShape exist; pickupBlock/canPlaceLiquid creative-only gating (bucket interaction) not implemented; no test.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseCoralFanBlock.java`. Gap: survival/scheduled tick coral death exist in block_scheduled_ticks; tryScanForWater/fan wrappers not audited against Java.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseCoralPlantBlock.java`. Gap: same as BaseCoralFanBlock; not audited.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseCoralPlantTypeBlock.java`. Gap: tryScanForWater/scanForWater and tick->dead-coral conversion not audited method by method.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseCoralWallFanBlock.java`. Gap: wall-fan survival exists (block_survival); updateShape facing check and placement not audited.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseEntityBlock.java`. Gap: base of block entities; newBlockEntity/getTicker/triggerEvent handled in block_entity registry, no class-level parity test.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseFireBlock.java`. Partial: fire_block.rs/fire_live.rs cover tick, spread, portal light; entityInside burn (setRemainingFireTicks) and fireIgnite sound/onPlace portal not fully audited.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BasePressurePlateBlock.java`. Gap: survival exists; live neighborChanged/tick/entityInside signal computation absent (no pressure plate activation). TODO(pressure-plates).
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseRailBlock.java`. Gap: survival and placement shape exist; RailState connection logic (updateDir/neighborChanged) not implemented.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BaseTorchBlock.java`. Gap: survival exists; updateShape check against supports and particle-only extras; no dedicated parity test.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BeaconBeamBlock.java`. Interface only (getColor); stained glass colour lookup not modeled; left open pending BeaconBlockEntity beam parity.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BeaconBlock.java`. Gap: beacon block entity exists; use() open menu and beam/levels tick effect wiring not verified live.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BedBlock.java`. Gap: two-part shape update/placement exist; use() sleep/explode-in-nether, fall-damage bounce, setPlacedBy head placement not verified live.
+- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BeehiveBlock.java`. Gap: block entity + placement exist; use() honey harvest (shears/bottle), angry bees, campfire smoke, onRemove bee release not live.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BeetrootBlock.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BellBlock.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/world/level/block/BigDripleafBlock.java`.

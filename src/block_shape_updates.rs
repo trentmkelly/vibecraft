@@ -613,6 +613,9 @@ pub fn update_shape(
                     "minecraft:pumpkin_stem"
                 };
                 ShapeUpdate::keep(&set(default_state(stem), "age", "7"))
+            } else if unsupported(state, pos, world) {
+                // `VegetationBlock.updateShape`: `!canSurvive ? AIR : super`.
+                ShapeUpdate::air()
             } else {
                 ShapeUpdate::keep(state)
             }

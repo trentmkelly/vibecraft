@@ -247,6 +247,13 @@ fn special_families_follow_java_quirks() {
     assert_eq!(update.state.registry_id, "minecraft:melon_stem");
     assert_eq!(update.state.property("age"), Some("7"));
 
+    // AttachedStemBlock falls through to VegetationBlock.updateShape: a
+    // support-less attached stem (nothing below) becomes air when an
+    // unrelated neighbour changes.
+    let fruit_side = super::facing_of(&attached).opposite();
+    let update = run(&attached, fruit_side, &block("minecraft:stone"), &world);
+    assert!(update.state.is_air());
+
     // Kelp heads turn into plant bodies when grown past.
     let kelp = block("minecraft:kelp");
     let grown = TestWorld::default()

@@ -80,10 +80,26 @@ pub(in crate::network::status) fn apply_pick_item_from_block_packet(
     if block_name == "minecraft:air" {
         return PickItemOutcome::NoItem;
     }
-    let Some(item_name) = item_static_name(&block_name) else {
-        return PickItemOutcome::NoItem;
+    let item_name = match clone_item_override(&block_name) {
+        Some(item_name) => item_name,
+        None => match item_static_name(&block_name) {
+            Some(item_name) => item_name,
+            None => return PickItemOutcome::NoItem,
+        },
     };
     apply_pick_item_stack(state, ItemStack::new(item_name, 1))
+}
+
+/// Blocks whose Java `getCloneItemStack` is not the block's own item.
+/// `AttachedStemBlock.getCloneItemStack` returns its configured `seed` item
+/// (`Blocks.ATTACHED_PUMPKIN_STEM` -> pumpkin seeds, `ATTACHED_MELON_STEM` ->
+/// melon seeds).
+fn clone_item_override(block_name: &str) -> Option<&'static str> {
+    match block_name {
+        "minecraft:attached_pumpkin_stem" => Some("minecraft:pumpkin_seeds"),
+        "minecraft:attached_melon_stem" => Some("minecraft:melon_seeds"),
+        _ => None,
+    }
 }
 
 pub(in crate::network::status) fn apply_pick_item_from_entity_packet(
@@ -215,5 +231,18 @@ mod reach_tests {
             &state,
             BlockPos { x: 6, y: 0, z: 0 }
         ));
+    }
+}
+
+#[cfg(test)]
+mod clone_item_tests {
+    use super::clone_item_override;
+
+    /// `AttachedStemBlock.getCloneItemStack` yields the seed item.
+    #[test]
+    fn attached_stems_clone_to_their_seed_items() {
+        assert_eq!(clone_item_override("minecraft:attached_melon_stem"), Some("minecraft:melon_seeds"));
+        assert_eq!(clone_item_override("minecraft:attached_pumpkin_stem"), Some("minecraft:pumpkin_seeds"));
+        assert_eq!(clone_item_override("minecraft:stone"), None);
     }
 }
