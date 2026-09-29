@@ -419,21 +419,11 @@ impl StatusServerRuntime {
             lock_status_mutex(&clock).game_time,
         )));
 
-        // Load vanilla recipes once at startup and share via Arc.
-        // Java: MinecraftServer.loadDataPacks() → RecipeManager.apply()
-        let recipe_dir =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("vanilla-data/data/minecraft/recipe");
-        let recipe_manager = load_recipe_directory(&recipe_dir).unwrap_or_else(|err| {
-            panic!(
-                "failed to load bundled vanilla recipes from {}: {err}",
-                recipe_dir.display()
-            )
+        // Java: MinecraftServer.loadDataPacks() -> RecipeManager.apply() over every
+        // enabled pack; `/reload` swaps the manager (see `datapack_live`).
+        let recipe_manager = active_recipe_manager().unwrap_or_else(|err| {
+            panic!("failed to load the recipes of the enabled data packs: {err}")
         });
-        log_info(&format!(
-            "loaded {} bundled vanilla recipes",
-            recipe_manager.recipe_map().values().len()
-        ));
-        let recipe_manager: Arc<RecipeManagerModel> = Arc::new(recipe_manager);
         let max_tick_time = Duration::from_millis(properties.max_tick_time);
         Ok(Self {
             address,
@@ -724,7 +714,8 @@ fn run_status_accept_loop(
                 let clock = Arc::clone(&runtime.clock);
                 let weather = Arc::clone(&runtime.weather);
                 let game_rules = Arc::clone(&runtime.game_rules);
-                let recipe_manager = Arc::clone(&runtime.recipe_manager);
+                let recipe_manager = active_recipe_manager()
+                    .unwrap_or_else(|_| Arc::clone(&runtime.recipe_manager));
                 let world_items = Arc::clone(&runtime.world_items);
                 let world_mobs = Arc::clone(&runtime.world_mobs);
                 let world_ticks = Arc::clone(&runtime.world_ticks);
@@ -732,6 +723,7 @@ fn run_status_accept_loop(
                 let remote_address = peer_addr.to_string();
                 let remote_for_log = loggable_remote_address(properties.log_ips, &remote_address);
                 thread::spawn(move || {
+                    begin_session_sync(&recipe_manager);
                     let context = StatusConnectionContext {
                         shared: ConnectionSharedContext {
                             properties: &properties,
@@ -2263,6 +2255,7 @@ fn tick_joined_play_session_loop(
         clock,
         &game_rule_player,
     )?;
+    sync_reloaded_recipes(stream, compression, play_state)?;
     tick_item_entities_for_client(stream, compression, world_items, last_item_tick)?;
     join_commands.observe_permission_level(
         player_permission_set(
@@ -4239,7 +4232,9 @@ fn run_joined_play_session(
                 world_root,
                 world_seed,
                 profile: &finished.profile,
-                recipe_manager,
+                recipe_manager: installed_recipe_manager()
+                    .as_deref()
+                    .unwrap_or(recipe_manager),
                 world_layout: &world_layout,
                 chunk_cache,
                 chunk_pipeline,

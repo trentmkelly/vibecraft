@@ -264,6 +264,11 @@ impl LiveBlockEntityTicker {
     /// Ticks every block entity once and broadcasts the resulting block changes.
     pub fn tick(&mut self) {
         self.game_time += 1;
+        // A `/reload` swaps the server's recipe manager; furnaces and campfires must
+        // cook with the recipes now in force.
+        if let Some(live) = crate::registry_pipeline::server_resources::installed_recipe_manager() {
+            self.recipes = live;
+        }
         let env = BlockEntityTickEnvironment {
             recipes: self.recipes.recipe_map(),
             fuel_values: self.fuel_values,

@@ -1,19 +1,32 @@
 use super::*;
+use crate::registry_pipeline::server_resources::ServerResources;
 
 /// Builds the block loot table for `block_name`, matching the JSON loot tables
 /// from data/minecraft/loot_table/blocks/ in the Java source.
+///
+/// A table a data pack defines for the block (`loot_table/blocks/<key>.json`, decoded on
+/// load and on `/reload`) wins over the built-in Rust tables, exactly as a pack copy of
+/// a vanilla table replaces it in the reloadable registries holder.
 pub fn block_loot_table(block_name: &str) -> Option<LootTable> {
     let block_id = block_name.split_once('[').map_or(block_name, |(id, _)| id);
     let key = block_id.strip_prefix("minecraft:").unwrap_or(block_id);
     let random_sequence = format!("minecraft:blocks/{key}");
 
-    terrain_block_loot_table(key, &random_sequence)
+    datapack_block_loot_table(&random_sequence)
+        .or_else(|| terrain_block_loot_table(key, &random_sequence))
         .or_else(|| ore_block_loot_table(key, &random_sequence))
         .or_else(|| wood_block_loot_table(key, &random_sequence))
         .or_else(|| leaves_block_loot_table(key, &random_sequence))
         .or_else(|| plant_block_loot_table(key, &random_sequence))
         .or_else(|| crop_block_loot_table(key, &random_sequence))
         .or_else(|| special_block_loot_table(key, &random_sequence))
+}
+
+/// The loot table the enabled data packs define under `table_id`, when a server state
+/// is installed.
+fn datapack_block_loot_table(table_id: &str) -> Option<LootTable> {
+    let resources = ServerResources::installed()?.current();
+    resources.content.loot_tables.get(table_id).cloned()
 }
 
 fn terrain_block_loot_table(key: &str, random_sequence: &str) -> Option<LootTable> {

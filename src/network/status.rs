@@ -14,7 +14,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::command::{
-    debug_biome_at_command_source, execute_builtin_command, LevelBasedPermissionSet,
+    debug_biome_at_command_source, execute_command_with_functions, LevelBasedPermissionSet,
     PermissionLevel, ServerCommandState,
 };
 use crate::brigadier::sync::CommandTreeSync;
@@ -136,7 +136,11 @@ use crate::player_inventory::{
     InventoryAddResult, InventoryMenu, PlayerInventory, HOTBAR_SIZE, INVENTORY_SIZE, SLOT_OFFHAND,
 };
 use crate::live_block_entities::LiveBlockEntityTicker;
-use crate::recipe_system::{load_recipe_directory, RecipeManagerModel, RecipeMap};
+#[cfg(test)]
+use crate::recipe_system::load_recipe_directory;
+use crate::recipe_system::{RecipeManagerModel, RecipeMap};
+use crate::registry_pipeline::server_resources::{active_recipe_manager, installed_recipe_manager};
+use datapack_live::{begin_session_sync, sync_reloaded_recipes};
 use crate::registry::Identifier;
 use crate::scheduled_tick::{LevelTickQueues, TickPriority};
 use crate::server_properties::ServerProperties;

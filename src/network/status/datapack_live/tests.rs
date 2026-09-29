@@ -37,6 +37,12 @@ impl World {
             r#"{"values":["minecraft:stick"]}"#,
         )
         .unwrap_or_else(|e| panic!("{e}"));
+        fs::create_dir_all(pack.join("data/added/function")).unwrap_or_else(|e| panic!("{e}"));
+        fs::write(
+            pack.join("data/added/function/hello.mcfunction"),
+            "say hello from the pack",
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
         Self { root }
     }
 
@@ -117,12 +123,13 @@ fn seeding_reflects_the_repository_and_datapack_enable_reloads_with_a_broadcast(
         vec!["vanilla", "file/added"]
     );
 
-    // `PlayerList.reloadResources` sends the tags and then the recipes to every player.
+    // `PlayerList.reloadResources` broadcasts the tags; the recipe packets are per
+    // player (see `session_sync`).
     let mut frames = Vec::new();
     let count = subscription
         .drain_into(&mut frames, CompressionState::disabled())
         .unwrap_or_else(|e| panic!("drain: {e}"));
-    assert_eq!(count, 2);
+    assert_eq!(count, 1);
     let mut reader = &frames[..];
     let mut ids = Vec::new();
     while !reader.is_empty() {
@@ -131,7 +138,7 @@ fn seeding_reflects_the_repository_and_datapack_enable_reloads_with_a_broadcast(
             .unwrap_or_else(|e| panic!("frame: {e}"));
         ids.push(read_var_i32(&mut &payload[..]).unwrap_or_else(|e| panic!("id: {e}")));
     }
-    assert_eq!(ids, vec![134, 133]);
+    assert_eq!(ids, vec![134]);
 }
 
 #[test]
@@ -226,4 +233,54 @@ fn only_datapack_and_reload_commands_read_the_repository() {
     assert!(!touches_data_packs("say datapack"));
     assert!(!touches_data_packs("reloadx"));
     assert!(!touches_data_packs(""));
+}
+
+#[test]
+fn only_function_commands_read_the_function_library() {
+    assert!(mentions_functions("function added:hello"));
+    assert!(mentions_functions("/schedule function added:hello 1t"));
+    assert!(mentions_functions("execute if function added:hello run say x"));
+    assert!(!mentions_functions("say hi"));
+}
+
+#[test]
+fn a_reloaded_pack_function_runs_through_the_seeded_function_command() {
+    let world = World::new("function");
+    let resources = world.resources();
+    let mut state = ServerCommandState::default();
+    seed_functions(&resources, &mut state);
+    assert!(state.available_functions.is_empty());
+
+    let bus = WorldPacketBus::default();
+    let (enable, result) = run(&resources, "datapack enable file/added");
+    assert_eq!(result, Ok(()));
+    assert_eq!(
+        apply_requests(&resources, &enable, &bus),
+        DataPackOutcome::Reloaded
+    );
+
+    let mut state = ServerCommandState::default();
+    seed_functions(&resources, &mut state);
+    assert_eq!(
+        state
+            .available_functions
+            .iter()
+            .map(|function| function.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["added:hello"]
+    );
+    let result = crate::command::execute_command_with_functions(
+        &mut state,
+        LevelBasedPermissionSet::OWNER,
+        "function added:hello",
+    );
+    assert_eq!(result.map(|r| r.success_count), Ok(1));
+    assert_eq!(
+        state
+            .chat_events
+            .iter()
+            .map(|event| event.message.as_str())
+            .collect::<Vec<_>>(),
+        vec!["hello from the pack"]
+    );
 }

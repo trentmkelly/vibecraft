@@ -788,6 +788,8 @@ fn json_string_value(value: &serde_json::Value) -> Result<String, String> {
         .ok_or_else(|| "value must be a string".to_string())
 }
 
+mod json_codec;
+pub use json_codec::decode_loot_table;
 mod runtime_engine;
 pub use runtime_engine::*;
 mod runtime_functions;

@@ -18,6 +18,8 @@
 //! - [`store`] — `MappedRegistry` and the layered [`Registries`] access.
 //! - [`server_resources`] — the live pack repository, world data configuration and
 //!   the registries in force (`WorldLoader.load`, `MinecraftServer.reloadResources`).
+//! - [`datapack_content`] — the reloadable pack content besides registries: recipes,
+//!   loot tables, advancements and functions (`ReloadableServerResources`).
 //! - [`sync`] — packing registries and tags for clients.
 //!
 //! Registries not loaded yet (`TODO(registry-pipeline-worldgen-<name>)`) are listed
@@ -26,6 +28,7 @@
 pub mod attributes;
 pub mod builtin;
 pub mod codec;
+pub mod datapack_content;
 pub mod element_codecs;
 pub mod gametest_codecs;
 pub mod loader;

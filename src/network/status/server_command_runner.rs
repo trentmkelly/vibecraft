@@ -4,7 +4,7 @@
 //! `Commands.performPrefixedCommand(source, msg)`; `DedicatedServer.runCommand` (invoked by
 //! `RconClient` through `ServerInterface`) does the same with the `RconConsoleSource` stack after
 //! `prepareForCommand()` and returns `getCommandResponse()`. Both funnel into the one command
-//! engine ([`execute_builtin_command`]) exactly like a player's chat command, differing only in
+//! engine ([`execute_command_with_functions`]) exactly like a player's chat command, differing only in
 //! the [`CommandOrigin`]:
 //!
 //! * console: the `MinecraftServer` itself (`CommandSource.NULL`-style, `shouldInformAdmins`
@@ -132,7 +132,7 @@ impl ServerCommandRunner {
         };
         let access_seed = seed_access_state(&mut state, &self.player_access, access_context.sessions);
         let permissions = LevelBasedPermissionSet::new(PermissionLevel::Owners);
-        let result = execute_builtin_command(&mut state, permissions, line);
+        let result = execute_command_with_functions(&mut state, permissions, line);
         apply_command_game_rule_changes(&state, &self.game_rules);
         apply_access_changes(&access_context, &access_seed, &state);
         apply_console_disconnects(access_context.sessions, &state);

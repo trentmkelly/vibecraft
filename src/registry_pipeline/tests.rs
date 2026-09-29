@@ -5,6 +5,7 @@
 //! - `codec_engine`: the JSON-to-NBT codec combinators.
 //! - `loading`: `RegistryDataLoader`/`TagLoader` behaviour on synthetic packs.
 //! - `synchronization`: known-pack elision and the tags payload.
+//! - `datapack_content`: recipes, loot tables, advancements and functions from packs.
 //! - `world_packs`: world data packs, overlays/filters, overrides and `/reload`.
 
 use std::collections::BTreeMap;
@@ -22,6 +23,7 @@ use crate::registry_pipeline::vanilla_registries;
 use crate::storage::nbt::Tag;
 
 mod codec_engine;
+mod datapack_content;
 mod gametest_codecs;
 mod loading;
 mod model_tables;
