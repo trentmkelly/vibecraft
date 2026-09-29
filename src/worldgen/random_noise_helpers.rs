@@ -166,7 +166,8 @@ pub fn improved_noise_sample(
         } else {
             yr
         };
-        (fudge_limit / y_scale + 1.0E-7).floor() * y_scale
+        // Java: `1.0E-7F` is a float literal widened to double.
+        (fudge_limit / y_scale + f64::from(1.0E-7_f32)).floor() * y_scale
     } else {
         0.0
     };

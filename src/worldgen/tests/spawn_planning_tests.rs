@@ -515,3 +515,17 @@ fn chunk_generation_mob_spawn_rules_cover_common_creature_predicates() {
         &chunk, pos
     ));
 }
+
+/// Java evaluates `(int)(Math.sin(angle) * radius)` in double precision from float inputs.
+#[test]
+fn climate_spawn_search_offset_uses_double_precision_trigonometry() {
+    for (angle, radius) in [(0.0_f32, 32.0_f32), (1.234_567_9, 512.0), (5.5, 2048.0)] {
+        let expected_x = (f64::from(angle).sin() * f64::from(radius)) as i32;
+        let expected_z = (f64::from(angle).cos() * f64::from(radius)) as i32;
+        assert_eq!(
+            super::super::climate_spawn_search_offset(angle, radius),
+            (expected_x, expected_z)
+        );
+    }
+    assert_eq!(super::super::climate_spawn_search_offset(0.0, 32.0), (0, 32));
+}

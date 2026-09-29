@@ -1,3 +1,4 @@
+use crate::lighting::direction::Direction;
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -726,9 +727,9 @@ pub struct PointedDripstoneSpreadRoll {
     pub direction: HorizontalDirection,
     pub direction_roll: f32,
     pub radius2_roll: f32,
-    pub radius2_direction: HorizontalDirection,
+    pub radius2_direction: Direction,
     pub radius3_roll: f32,
-    pub radius3_direction: HorizontalDirection,
+    pub radius3_direction: Direction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

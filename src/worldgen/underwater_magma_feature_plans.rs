@@ -21,8 +21,10 @@ pub fn underwater_magma_placement_plan(
     };
     let mut placements = Vec::new();
     let mut roll_index = 0;
-    for y in floor_pos.y - radius..=floor_pos.y + radius {
-        for z in floor_pos.z - radius..=floor_pos.z + radius {
+    // Java iterates `BlockPos.betweenClosedStream(bounds)`: x fastest, then y, then z
+    // outermost, and consumes one `nextFloat` per position in that order.
+    for z in floor_pos.z - radius..=floor_pos.z + radius {
+        for y in floor_pos.y - radius..=floor_pos.y + radius {
             for x in floor_pos.x - radius..=floor_pos.x + radius {
                 let roll = probability_rolls.get(roll_index).copied().unwrap_or(0.0);
                 roll_index += 1;
