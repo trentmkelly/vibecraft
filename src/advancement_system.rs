@@ -230,6 +230,7 @@ impl AdvancementDefinition {
             .get("display")
             .map(parse_advancement_display)
             .transpose()?;
+        crate::advancement_codec::validate_builtin(id, &value)?; // strict Advancement.CODEC
         Ok(Self {
             id: Identifier::parse(id)?,
             parent: object
