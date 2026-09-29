@@ -327,6 +327,7 @@ mod player_messaging_live;
 use player_messaging_live::{apply_command_effects, dedicated_publish_request, KICK_SUCCESS_KEY};
 
 mod player_chat_live;
+mod advancements_live;
 mod live_chat_state;
 use live_chat_state::LiveChatState;
 

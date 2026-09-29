@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::advancement_system::AdvancementDefinition;
+use crate::advancement_tree_position::{AdvancementLayoutInput, TreeNodePositionLayout};
 use crate::advancement_tree::{AdvancementTreeHolderModel, AdvancementTreeModel};
 use crate::registry::Identifier;
 
@@ -17,6 +18,14 @@ impl AdvancementHolderModel {
 
     pub fn value(&self) -> &AdvancementDefinition {
         &self.value
+    }
+
+    /// `DisplayInfo.setLocation` as run by `TreeNodePosition.finalizePosition`.
+    fn set_display_location(&mut self, x: f32, y: f32) {
+        if let Some(display) = &mut self.value.display {
+            display.x = x;
+            display.y = y;
+        }
     }
 
     fn tree_holder(&self) -> AdvancementTreeHolderModel {
@@ -58,6 +67,20 @@ impl ServerAdvancementManagerModel {
                 .is_some()
             {
                 self.positioned_visible_roots.push(root_id.clone());
+            }
+        }
+        for root_id in self.positioned_visible_roots.clone() {
+            let input = layout_input(&tree, &advancements, &root_id);
+            // A visible root always has a display, so the layout cannot reject it.
+            if let Ok(positions) = TreeNodePositionLayout::run(&input) {
+                for (id, position) in positions {
+                    if let Some(holder) = Identifier::parse(&id)
+                        .ok()
+                        .and_then(|id| advancements.get_mut(&id))
+                    {
+                        holder.set_display_location(position.x as f32, position.y);
+                    }
+                }
             }
         }
 
@@ -102,6 +125,31 @@ impl ServerAdvancementManagerModel {
     }
 }
 
+/// `TreeNodePosition` input for `id`'s subtree: children in tree order, each flagged
+/// with whether it has a `DisplayInfo`.
+fn layout_input(
+    tree: &AdvancementTreeModel,
+    advancements: &BTreeMap<Identifier, AdvancementHolderModel>,
+    id: &Identifier,
+) -> AdvancementLayoutInput {
+    let children = tree
+        .get(id)
+        .map(|node| {
+            node.children()
+                .map(|child| layout_input(tree, advancements, child))
+                .collect()
+        })
+        .unwrap_or_default();
+    let has_display = advancements
+        .get(id)
+        .is_some_and(|holder| holder.value().display.is_some());
+    if has_display {
+        AdvancementLayoutInput::visible(&id.to_string(), children)
+    } else {
+        AdvancementLayoutInput::invisible(&id.to_string(), children)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -120,6 +168,8 @@ mod tests {
             icon: id("minecraft:stone"),
             title: "Title".to_string(),
             description: "Description".to_string(),
+            title_json: serde_json::json!("Title"),
+            description_json: serde_json::json!("Description"),
             background: None,
             frame: AdvancementFrame::Task,
             show_toast: true,

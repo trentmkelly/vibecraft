@@ -1759,6 +1759,8 @@ fn deliver_world_bus(
     Ok(true)
 }
 
+// One player tick: world systems, vitals, advancements and the chunk drain in Java order.
+#[allow(clippy::too_many_lines)]
 fn tick_player_and_chunk_sender(
     stream: &mut ClientStream,
     compression: CompressionState,
@@ -1846,6 +1848,18 @@ fn tick_player_and_chunk_sender(
             profile,
         },
         health_changed,
+    )?;
+
+    // Tail of `ServerPlayer.tick`: advancement triggers and `advancements.flushDirty`.
+    advancements_live::tick_player_advancements(
+        stream,
+        compression,
+        play_state,
+        &advancements_live::AdvancementTickContext {
+            profile,
+            bus: world_bus_publisher,
+            world_items,
+        },
     )?;
 
     drain_chunks_for_tick(
@@ -2324,15 +2338,10 @@ fn persist_play_disconnect_state(
     // items to inventory before the player state is persisted.
     play_state.inventory_menu.clear_crafting_to_inventory();
     let _ = save_play_session_state(world_root, profile_uuid, play_state);
-    // TODO(live-stats-advancements-persistence): Java ServerPlayer.disconnect ->
-    // PlayerList.save() also flushes the player's stats (stats/<uuid>.json via
-    // ServerStatsCounter.save) and advancements (advancements/<uuid>.json via
-    // PlayerAdvancements.save). The file format is implemented + tested
-    // (statistics.rs to_vanilla_json/from_vanilla_json, WorldLayout::save_stats/
-    // save_advancements) but is NOT wired here, and stats are never incremented
-    // during live play (no .increment() calls in the play loop). Wiring requires
-    // live gameplay stat tracking (movement/mining/etc.) + advancement criteria
-    // triggers. Blocks CHECKLIST_STORAGE #80 (advancements) and #81 (stats).
+    // TODO(live-stats-persistence): Java `PlayerList.save` also flushes the player's stats
+    // (stats/<uuid>.json via ServerStatsCounter.save). The file format is implemented and
+    // tested (statistics.rs, WorldLayout::save_stats) but stats are never incremented during
+    // live play. Advancements are saved by the session's `AdvancementSessionGuard`.
     save_world_item_entities(world_root, &lock_status_mutex(world_items));
     // Flush any in-memory block changes (player edits, fluid spreads) that
     // have not reached the periodic flush window; disconnect must not lose work.
@@ -3776,6 +3785,8 @@ fn try_handle_chat_packet(
     Ok(true)
 }
 
+// The serverbound play packet router: one arm per handled packet family.
+#[allow(clippy::too_many_lines)]
 fn handle_decoded_play_packet(
     stream: &mut ClientStream,
     compression: CompressionState,
@@ -3796,6 +3807,15 @@ fn handle_decoded_play_packet(
             properties: context.properties,
             player_access: context.player_access,
         },
+    )? {
+        return Ok(PlayPacketDispatchOutcome::Continue);
+    }
+    if advancements_live::try_handle_seen_advancements(
+        stream,
+        compression,
+        packet_id,
+        &mut input,
+        &context.profile.uuid,
     )? {
         return Ok(PlayPacketDispatchOutcome::Continue);
     }
@@ -4177,6 +4197,8 @@ fn run_joined_play_session(
         mut last_player_tick,
         mut play_tick_count,
     } = initialize_joined_play_session(stream, compression, &finished, shared, remote_address)?;
+    // `PlayerList.getPlayerAdvancements`; saved and unregistered when the session ends.
+    let _advancements = advancements_live::begin_session(&finished.profile, &world_layout, game_rules)?;
     // The per-session `chunk_sender` (Java `PlayerChunkSender`), weather-level
     // latches, and item-entity tick timer were all seeded in
     // `initialize_joined_play_session`; the per-tick loop below drains/advances

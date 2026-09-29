@@ -84,12 +84,9 @@ pub struct DatapackContent {
     pub recipes: Arc<RecipeManagerModel>,
     /// `ReloadableServerRegistries.Holder`'s loot tables.
     pub loot_tables: LootTables,
-    /// `ServerAdvancementManager`: the advancement tree. Nothing reads it yet: players
-    /// have no live advancement progress to re-validate against it or resend.
-    /// TODO(player-advancements-live): `PlayerAdvancements.reload` and the
-    /// `ClientboundUpdateAdvancementsPacket` resend need live per-player progress.
-    #[allow(dead_code)]
-    pub advancements: ServerAdvancementManagerModel,
+    /// `ServerAdvancementManager`: the advancement tree. Shared (not copied) with each
+    /// player's `PlayerAdvancements`, which detects a `/reload` by pointer identity.
+    pub advancements: Arc<ServerAdvancementManagerModel>,
     /// `ServerFunctionLibrary`: functions and function tags. `/function` and
     /// `execute ... function` read it; `minecraft:load`/`minecraft:tick` and
     /// `/schedule function` need a live function tick.
@@ -122,7 +119,7 @@ impl DatapackContent {
         Ok(Self {
             recipes,
             loot_tables,
-            advancements,
+            advancements: Arc::new(advancements),
             functions,
         })
     }

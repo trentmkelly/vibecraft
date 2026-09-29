@@ -1,25 +1,23 @@
-// Player progress on top of these models is pending: TODO(player-advancements-live).
+// Player progress (`player_advancements`) builds on these models; the parts the server
+// does not reach yet (builders, network round trips) stay dead code outside tests.
 #[allow(dead_code)]
 mod advancement_criteria;
 #[cfg(test)]
 mod advancement_display;
 #[cfg(test)]
 mod advancement_model;
-#[cfg(test)]
+#[allow(dead_code)]
 mod advancement_progress;
 #[cfg(test)]
 mod advancement_rewards;
-// Player progress on top of these models is pending: TODO(player-advancements-live).
 #[allow(dead_code)]
 mod advancement_system;
-// Player progress on top of these models is pending: TODO(player-advancements-live).
 #[allow(dead_code)]
 mod advancement_tree;
-#[cfg(test)]
+#[allow(dead_code)]
 mod advancement_tree_position;
-#[cfg(test)]
+#[allow(dead_code)]
 mod advancement_trigger_registry;
-#[cfg(test)]
 mod advancement_visibility_evaluator;
 mod abortable_iteration_consumer;
 mod ai_system;
@@ -670,6 +668,7 @@ mod persistence_roundtrip_tests;
 mod plant;
 mod player;
 mod player_access;
+mod player_advancements;
 mod player_entity;
 mod player_game_mode;
 mod player_inventory;
@@ -722,7 +721,6 @@ mod running_on_different_thread_exception;
 mod runtime;
 mod scheduled_tick;
 mod seed_validation;
-// Player progress on top of these models is pending: TODO(player-advancements-live).
 #[allow(dead_code)]
 mod server_advancement_manager;
 mod server_function_library;

@@ -43,7 +43,10 @@ impl CriteriaTriggersModel {
     }
 
     fn trigger_model(entry: CriteriaTriggerEntry) -> CriterionTriggerModel {
-        CriterionTriggerModel::new(Identifier::parse(entry.serialized_name).unwrap())
+        CriterionTriggerModel::new(
+            Identifier::parse(entry.serialized_name)
+                .unwrap_or_else(|err| panic!("invalid trigger name {}: {err}", entry.serialized_name)),
+        )
     }
 
     pub const IMPOSSIBLE: CriteriaTriggerEntry = CriteriaTriggerEntry {

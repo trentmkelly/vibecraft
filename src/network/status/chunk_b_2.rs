@@ -263,7 +263,7 @@ fn unlock_recipes_for_pickups(
     }
 }
 
-fn write_pickup_recipe_unlocks<W: Write>(
+pub(super) fn write_pickup_recipe_unlocks<W: Write>(
     writer: &mut W,
     compression: CompressionState,
     state: &mut PlaySessionState,
