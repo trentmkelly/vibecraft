@@ -1,0 +1,24 @@
+# ColorlessShulkerEntityFix + shulker box renames (1474)
+CHUNK|1470|1474|{Level:{Entities:[{id:"minecraft:shulker",Color:10b},{id:"minecraft:shulker",Color:3b},{id:"minecraft:shulker"}],TileTicks:[{i:"minecraft:purple_shulker_box",x:1,y:2,z:3,t:1,p:0},{i:"minecraft:shulker_box",x:1,y:2,z:3,t:1,p:0}],Sections:[{Y:0b,Palette:[{Name:"minecraft:purple_shulker_box"},{Name:"minecraft:stone"}]}]}}
+BLOCK_STATE|1470|1474|{Name:"minecraft:purple_shulker_box",Properties:{facing:"up"}}
+PLAYER|1470|1474|{Inventory:[{id:"minecraft:purple_shulker_box",Count:1b},{id:"purple_shulker_box",Count:1b},{id:"minecraft:shulker_box",Count:1b}]}
+# Flowing fixer (1475), coral renames (1480)
+CHUNK|1470|1475|{Level:{TileTicks:[{i:"minecraft:flowing_water",x:1,y:2,z:3,t:1,p:0},{i:"minecraft:flowing_lava",x:1,y:2,z:3,t:1,p:0},{i:"minecraft:water",x:1,y:2,z:3,t:1,p:0}],Sections:[{Y:0b,Palette:[{Name:"minecraft:flowing_water",Properties:{level:"0"}}]}]}}
+CHUNK|1475|1480|{Level:{TileTicks:[{i:"minecraft:blue_coral",x:1,y:2,z:3,t:1,p:0},{i:"minecraft:yellow_dead_coral",x:1,y:2,z:3,t:1,p:0},{i:"minecraft:red_coral_fan",x:1,y:2,z:3,t:1,p:0}]}}
+PLAYER|1475|1480|{Inventory:[{id:"minecraft:pink_coral_plant",Count:1b},{id:"minecraft:purple_coral",Count:1b},{id:"minecraft:stone",Count:1b}]}
+# Conduit choice (1481), pufferfish (1483), seagrass + heightmaps (1484)
+CHUNK|1480|1481|{Level:{TileEntities:[{id:"minecraft:chest"},{id:"minecraft:bed"}]}}
+CHUNK|1481|1483|{Level:{Entities:[{id:"minecraft:puffer_fish"},{id:"minecraft:pig"},{id:"minecraft:item",Item:{id:"minecraft:puffer_fish_spawn_egg",Count:1b}}]}}
+PLAYER|1481|1483|{Inventory:[{id:"minecraft:puffer_fish_spawn_egg",Count:1b},{id:"minecraft:pig_spawn_egg",Count:1b}]}
+CHUNK|1483|1484|{Level:{TileTicks:[{i:"minecraft:sea_grass",x:1,y:2,z:3,t:1,p:0},{i:"minecraft:tall_sea_grass",x:1,y:2,z:3,t:1,p:0}],Heightmaps:{LIQUID:[L;1L,2L],SOLID:[L;3L],LIGHT:[L;4L],RAIN:[L;5L],OTHER:[L;6L]}}}
+CHUNK|1483|1484|{Level:{Heightmaps:{OCEAN_FLOOR:[L;9L]}}}
+CHUNK|1483|1484|{Level:{}}
+PLAYER|1483|1484|{Inventory:[{id:"minecraft:sea_grass",Count:1b},{id:"minecraft:tall_sea_grass",Count:1b}]}
+# Cod/salmon (1486), prismarine (1487), kelp / command block names / igloos (1488)
+CHUNK|1484|1486|{Level:{Entities:[{id:"minecraft:cod_mob"},{id:"minecraft:salmon_mob"},{id:"minecraft:cod"}]}}
+PLAYER|1484|1486|{Inventory:[{id:"minecraft:cod_mob_spawn_egg",Count:1b},{id:"minecraft:salmon_mob_spawn_egg",Count:1b}]}
+PLAYER|1486|1487|{Inventory:[{id:"minecraft:prismarine_bricks_slab",Count:1b},{id:"minecraft:prismarine_bricks_stairs",Count:1b}]}
+CHUNK|1486|1487|{Level:{TileTicks:[{i:"minecraft:prismarine_bricks_slab",x:1,y:2,z:3,t:1,p:0}]}}
+CHUNK|1487|1488|{Level:{TileTicks:[{i:"minecraft:kelp_top",x:1,y:2,z:3,t:1,p:0},{i:"minecraft:kelp",x:1,y:2,z:3,t:1,p:0}],TileEntities:[{id:"minecraft:command_block",CustomName:"Cb",Command:"say hi"},{id:"minecraft:command_block",CustomName:""},{id:"minecraft:command_block"},{id:"minecraft:chest",CustomName:"{\"text\":\"kept\"}"}],Entities:[{id:"minecraft:commandblock_minecart",CustomName:"{\"text\":\"Cart\"}"},{id:"minecraft:commandblock_minecart"},{id:"minecraft:minecart",CustomName:"{\"text\":\"other\"}"}]}}
+PLAYER|1487|1488|{Inventory:[{id:"minecraft:kelp_top",Count:1b},{id:"minecraft:kelp",Count:1b}]}
+CHUNK|1487|1488|{Level:{Structures:{Starts:{Igloo:{id:"Igloo",Children:[{id:"Iglu",Template:"x"}]},Village:{id:"Village",Children:[{id:"Iglu"},{id:"ViS"}]},Empty:{id:"Igloo",Children:[]},Other:{id:"Temple"}}}}}

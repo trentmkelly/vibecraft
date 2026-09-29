@@ -768,6 +768,7 @@ mod static_cache_2d;
 mod status_effect;
 mod string_util;
 mod string_representable;
+mod datafix;
 mod storage;
 mod strict_json_parser;
 mod tick_throttler;

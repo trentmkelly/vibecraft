@@ -1998,7 +1998,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/DataFixers.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/ExtraDataFixUtils.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/LegacyComponentDataFixUtils.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/PackedBitStorage.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/PackedBitStorage.java`. Ported as `datafix::packed_bit_storage`; unit-tested and exercised by the `ChunkPalettedStorageFix` oracle fixtures.
 
 ## `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes`
 
@@ -2008,9 +2008,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AbstractUUIDFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AddFieldFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AddFlagIfNotPresentFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AddNewChoices.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AdvancementsFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AdvancementsRenameFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AddNewChoices.java`. Ported as `datafix::fixes::add_new_choices`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AdvancementsFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AdvancementsRenameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AreaEffectCloudDurationScaleFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AreaEffectCloudPotionFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AttributeIdPrefixFix.java`.
@@ -2019,50 +2019,50 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/AttributesRenameLegacy.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BannerEntityCustomNameToOverrideComponentFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BannerPatternFormatFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BedItemColorFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BedItemColorFix.java`. Ported as `datafix::fixes::bed_item_color_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BeehiveFieldRenameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BiomeFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BitStorageAlignFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlendingDataFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlendingDataRemoveFromNetherEndFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityBannerColorFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityBlockStateFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityCustomNameToComponentFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityBannerColorFix.java`. Ported as `datafix::fixes::block_entity_banner_color_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityBlockStateFix.java`. Ported as `datafix::fixes::block_entity_block_state_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityCustomNameToComponentFix.java`. Ported as `datafix::fixes::block_entity_custom_name_to_component_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityFurnaceBurnTimeFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityIdFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityJukeboxFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityKeepPacked.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityIdFix.java`. Ported as `datafix::fixes::block_entity_id_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityJukeboxFix.java`. Ported as `datafix::fixes::block_entity_jukebox_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityKeepPacked.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityRenameFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityShulkerBoxColorFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityShulkerBoxColorFix.java`. Ported as `datafix::fixes::block_entity_shulker_box_color_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntitySignDoubleSidedEditableTextFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockEntityUUIDFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockNameFlatteningFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockNameFlatteningFix.java`. Ported as `datafix::fixes::block_name_flattening_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockPosFormatAndRenamesFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockPropertyRenameAndFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockRenameFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockStateData.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockStateStructureTemplateFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockRenameFix.java`. Ported as `datafix::fixes::block_rename_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockStateData.java`. Ported as `datafix::fixes::block_state_data`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BlockStateStructureTemplateFix.java`. Ported as `datafix::fixes::block_state_structure_template_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/BoatSplitFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/CarvingStepRemoveFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/CatTypeFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/CauldronRenameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/CavesAndCliffsRenames.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChestedHorsesInventoryZeroIndexingFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkBedBlockEntityInjecterFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkBedBlockEntityInjecterFix.java`. Ported as `datafix::fixes::chunk_bed_block_entity_injecter_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkBiomeFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkDeleteIgnoredLightDataFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkDeleteLightFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkHeightAndBiomeFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkLightRemoveFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkPalettedStorageFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkPalettedStorageFix.java`. Ported as `datafix::fixes::chunk_paletted_storage_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkProtoTickListFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkRenamesFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkStatusFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkStatusFix2.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkStructuresTemplateRenameFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkStructuresTemplateRenameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkTicketUnpackPosFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkToProtochunkFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ColorlessShulkerEntityFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ChunkToProtochunkFix.java`. Ported as `datafix::fixes::chunk_to_protochunk_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ColorlessShulkerEntityFix.java`. Ported as `datafix::fixes::colorless_shulker_entity_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ContainerBlockEntityLockPredicateFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/CopperGolemWeatherStateFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/CriteriaRenameFix.java`.
@@ -2078,45 +2078,45 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EffectDurationFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EmptyItemInHotbarFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EmptyItemInVillagerTradeFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityArmorStandSilentFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityArmorStandSilentFix.java`. Ported as `datafix::fixes::entity_armor_stand_silent_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityAttributeBaseValueFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityBlockStateFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityBlockStateFix.java`. Ported as `datafix::fixes::entity_block_state_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityBrushableBlockFieldsRenameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityCatSplitFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityCodSalmonFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityCustomNameToComponentFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityElderGuardianSplitFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityEquipmentToArmorAndHandFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityCodSalmonFix.java`. Ported as `datafix::fixes::entity_cod_salmon_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityCustomNameToComponentFix.java`. Ported as `datafix::fixes::entity_custom_name_to_component_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityElderGuardianSplitFix.java`. Ported as `datafix::fixes::entity_elder_guardian_split_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityEquipmentToArmorAndHandFix.java`. Ported as `datafix::fixes::entity_equipment_to_armor_and_hand_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityFallDistanceFloatToDoubleFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityFieldsRenameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityGoatMissingStateFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityHealthFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityHorseSaddleFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityHorseSplitFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityIdFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityItemFrameDirectionFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityMinecartIdentifiersFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityPaintingItemFrameDirectionFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityPaintingMotiveFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityHealthFix.java`. Ported as `datafix::fixes::entity_health_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityHorseSaddleFix.java`. Ported as `datafix::fixes::entity_horse_saddle_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityHorseSplitFix.java`. Ported as `datafix::fixes::entity_horse_split_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityIdFix.java`. Ported as `datafix::fixes::entity_id_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityItemFrameDirectionFix.java`. Ported as `datafix::fixes::entity_item_frame_direction_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityMinecartIdentifiersFix.java`. Ported as `datafix::fixes::entity_minecart_identifiers_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityPaintingItemFrameDirectionFix.java`. Ported as `datafix::fixes::entity_painting_item_frame_direction_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityPaintingMotiveFix.java`. Ported as `datafix::fixes::entity_painting_motive_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityProjectileOwnerFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityPufferfishRenameFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityPufferfishRenameFix.java`. Ported as `datafix::fixes::entity_pufferfish_rename_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityRavagerRenameFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityRedundantChanceTagsFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityRenameFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityRidingToPassengersFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityRedundantChanceTagsFix.java`. Ported as `datafix::fixes::entity_redundant_chance_tags_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityRenameFix.java`. Ported as `datafix::fixes::entity_rename_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityRidingToPassengersFix.java`. Ported as `datafix::fixes::entity_riding_to_passengers_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntitySalmonSizeFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityShulkerColorFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityShulkerColorFix.java`. Ported as `datafix::fixes::entity_shulker_color_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityShulkerRotationFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntitySkeletonSplitFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntitySkeletonSplitFix.java`. Ported as `datafix::fixes::entity_skeleton_split_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntitySpawnerItemVariantComponentFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityStringUuidFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityTheRenameningFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityTippedArrowFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityStringUuidFix.java`. Ported as `datafix::fixes::entity_string_uuid_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityTheRenameningFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityTippedArrowFix.java`. Ported as `datafix::fixes::entity_tipped_arrow_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityUUIDFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityVariantFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityWolfColorFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityZombieSplitFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityZombieVillagerTypeFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityWolfColorFix.java`. Ported as `datafix::fixes::entity_wolf_color_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityZombieSplitFix.java`. Ported as `datafix::fixes::entity_zombie_split_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityZombieVillagerTypeFix.java`. Ported as `datafix::fixes::entity_zombie_villager_type_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EntityZombifiedPiglinRenameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EquipmentFormatFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/EquippableAssetRenameFix.java`.
@@ -2133,42 +2133,42 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/GameRuleRegistryFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/GoatHornIdFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/GossipUUIDFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/HeightmapRenamingFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/HeightmapRenamingFix.java`. Ported as `datafix::fixes::heightmap_renaming_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/HorseBodyArmorItemFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/IglooMetadataRemovalFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/IglooMetadataRemovalFix.java`. Ported as `datafix::fixes::igloo_metadata_removal_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/InlineBlockPosFormatFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/InvalidBlockEntityLockFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/InvalidLockComponentFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemBannerColorFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemCustomNameToComponentFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemIdFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemBannerColorFix.java`. Ported as `datafix::fixes::item_banner_color_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemCustomNameToComponentFix.java`. Ported as `datafix::fixes::item_custom_name_to_component_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemIdFix.java`. Ported as `datafix::fixes::item_id_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemLoreFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemPotionFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemRenameFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemShulkerBoxColorFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemSpawnEggFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemPotionFix.java`. Ported as `datafix::fixes::item_potion_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemRenameFix.java`. Ported as `datafix::fixes::item_rename_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemShulkerBoxColorFix.java`. Ported as `datafix::fixes::item_shulker_box_color_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemSpawnEggFix.java`. Ported as `datafix::fixes::item_spawn_egg_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackComponentizationFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackCustomNameToOverrideComponentFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackEnchantmentNamesFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackMapIdFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackSpawnEggFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackTagFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackEnchantmentNamesFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackMapIdFix.java`. Ported as `datafix::fixes::item_stack_map_id_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackSpawnEggFix.java`. Ported as `datafix::fixes::item_stack_spawn_egg_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackTagFix.java`. Ported as `datafix::fixes::item_stack_tag_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackTagRemainderFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackTheFlatteningFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackTheFlatteningFix.java`. Ported as `datafix::fixes::item_stack_the_flattening_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemStackUUIDFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemWaterPotionFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ItemWaterPotionFix.java`. Ported as `datafix::fixes::item_water_potion_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/JigsawPropertiesFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/JigsawRotationFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/JukeboxTicksSinceSongStartedFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LeavesFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LeavesFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LegacyDimensionIdFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LegacyDragonFightFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LegacyHoverEventFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LegacyWorldBorderFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LevelDatDifficultyFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LevelDatToSavedDataPreparationFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LevelDataGeneratorOptionsFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LevelFlatGeneratorInfoFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LevelDataGeneratorOptionsFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LevelFlatGeneratorInfoFix.java`. Ported as `datafix::fixes::level_flat_generator_info_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LevelLegacyWorldGenSettingsFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LevelUUIDFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/LockComponentPredicateFix.java`.
@@ -2178,13 +2178,13 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/MemoryExpiryDataFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/MissingDimensionFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/MobEffectIdFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/MobSpawnerEntityIdentifiersFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/MobSpawnerEntityIdentifiersFix.java`. Ported as `datafix::fixes::mob_spawner_entity_identifiers_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/NamedEntityConvertUncheckedFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/NamedEntityFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/NamedEntityWriteReadFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/NamespacedTypeRenameFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/NamedEntityFix.java`. Ported as `datafix::fixes::named_entity_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/NamedEntityWriteReadFix.java`. Ported as `datafix::fixes::named_entity_write_read_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/NamespacedTypeRenameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/NewVillageFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ObjectiveRenderTypeFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ObjectiveRenderTypeFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OminousBannerBlockEntityRenameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OminousBannerRarityFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OminousBannerRenameFix.java`.
@@ -2192,11 +2192,11 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsAddTextBackgroundFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsAmbientOcclusionFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsFancyGraphicsToGraphicsModeFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsForceVBOFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsForceVBOFix.java`. Ported as `datafix::fixes::options_force_vbo_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsGraphicsModeSplitFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsKeyLwjgl3Fix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsKeyTranslationFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsLowerCaseLanguageFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsKeyLwjgl3Fix.java`. Ported as `datafix::fixes::options_key_lwjgl3_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsKeyTranslationFix.java`. Ported as `datafix::fixes::options_key_translation_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsLowerCaseLanguageFix.java`. Ported as `datafix::fixes::options_lower_case_language_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsMenuBlurrinessFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsMusicToastFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/OptionsProgrammerArtFix.java`.
@@ -2214,29 +2214,29 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ProjectileStoredWeaponFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RaidRenamesDataFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RandomSequenceSettingsFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RecipesFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RecipesRenameningFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RecipesFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RecipesRenameningFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RedstoneWireConnectionsFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/References.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RemapChunkStatusFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RemoveBlockEntityTagFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RemoveBlockEntityTagFix.java`. Ported as `datafix::fixes::remove_block_entity_tag_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RemoveEmptyItemInBrushableBlockFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RemoveGolemGossipFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RenameEnchantmentsFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RenamedCoralFansFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RenamedCoralFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RenamedCoralFansFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/RenamedCoralFix.java`. Ported as `datafix::fixes::renamed_coral_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ReorganizePoi.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/SaddleEquipmentSlotFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/SavedDataFeaturePoolElementFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/SavedDataUUIDFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ScoreboardDisplayNameFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ScoreboardDisplayNameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ScoreboardDisplaySlotFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/SignTextStrictJsonFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/SimpleEntityRenameFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/SimplestEntityRenameFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/SignTextStrictJsonFix.java`. Ported as `datafix::fixes::sign_text_strict_json_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/SimpleEntityRenameFix.java`. Ported as `datafix::fixes::simple_entity_rename_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/SimplestEntityRenameFix.java`. Ported as `datafix::fixes::simplest_entity_rename_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/SpawnerDataFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/StatsCounterFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/StatsRenameFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/StatsCounterFix.java`. Ported as `datafix::fixes::stats_counter_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/StatsRenameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/StonecutterRecipeRenameFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/StriderGravityFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/StructureReferenceCountFix.java`.
@@ -2247,7 +2247,7 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ThrownPotionSplitFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/TippedArrowPotionToItemFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/TooltipDisplayComponentFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/TrappedChestBlockEntityFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/TrappedChestBlockEntityFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/TrialSpawnerConfigFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/TrialSpawnerConfigInRegistryFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/TridentAnimationFix.java`.
@@ -2256,9 +2256,9 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/VillagerDataFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/VillagerFollowRangeFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/VillagerRebuildLevelAndXpFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/VillagerSetCanPickUpLootFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/VillagerSetCanPickUpLootFix.java`. Ported as `datafix::fixes::villager_set_can_pick_up_loot_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/VillagerSetVillagerDataFinalized.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/VillagerTradeFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/VillagerTradeFix.java`. Ported as `datafix::fixes::villager_trade_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/WallPropertyFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/WeaponSmithChestLootTableFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/WorldBorderWarningTimeFix.java`.
@@ -2266,8 +2266,8 @@ Generated from `decompiled-server-26.1.2/net/minecraft` on 2026-05-24. This file
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/WorldGenSettingsFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/WorldGenSettingsHeightAndBiomeFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/WorldSpawnDataFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/WriteAndReadFix.java`.
-- [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/WrittenBookPagesStrictJsonFix.java`.
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/WriteAndReadFix.java`. Ported as `datafix::fixes::write_and_read_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
+- [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/WrittenBookPagesStrictJsonFix.java`. Ported as `datafix::fixes::written_book_pages_strict_json_fix`; verified against the real 26.1.2 fixer by oracle fixtures (`src/datafix/fixtures`).
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ZombieVillagerRebuildXpFix.java`.
 - [ ] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/ZombieVillagerSetVillagerDataFinalized.java`.
 - [x] Audit, port or explicitly defer, and parity-test `decompiled-server-26.1.2/net/minecraft/util/datafix/fixes/package-info.java`. Java 26.1.2 package marker contains only `@NullMarked`, the package declaration, and the `org.jspecify.annotations.NullMarked` import; no Rust runtime behavior or parity test is required beyond preserving nullability expectations in typed Rust APIs.

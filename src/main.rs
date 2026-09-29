@@ -327,7 +327,7 @@ fn check_world_version_compatibility(
     }
 
     if let Some(data_version) = version.data_version {
-        storage::datafix::require_current_world_data_version(data_version)?;
+        storage::datafix_upgrade::check_level_data_version(data_version)?;
     }
 
     Ok(())

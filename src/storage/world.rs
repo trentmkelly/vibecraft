@@ -7,7 +7,8 @@ use std::path::{Component, Path, PathBuf};
 use crate::storage::nbt::{read_named_tag, write_gzip_named_tag, write_named_tag, Tag};
 use crate::storage::region::{ChunkPos, RegionFile};
 
-use super::datafix::require_current_world_data_version;
+use super::datafix::TARGET_DATA_VERSION;
+use super::datafix_upgrade::{check_level_data_version, saved_data_fix_type, upgrade_level_dat};
 
 /// Java `DirectoryLock.LOCK_FILE`.
 pub const SESSION_LOCK_FILE: &str = "session.lock";
@@ -783,8 +784,12 @@ impl WorldLayout {
                 "level.dat missing DataVersion",
             )
         })?;
-        require_current_world_data_version(data_version)
+        check_level_data_version(data_version)
             .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
+        if data_version < TARGET_DATA_VERSION {
+            return upgrade_level_dat(tag)
+                .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err));
+        }
         Ok(tag)
     }
 
@@ -802,12 +807,18 @@ impl WorldLayout {
 
     pub fn load_player_data(&self, uuid: &str) -> std::io::Result<Tag> {
         match read_gzip_named_tag_file(&self.player_data_file(uuid)) {
-            Ok((_name, tag)) => checked_saved_tag("playerdata", tag),
+            Ok((_name, tag)) => {
+                checked_saved_tag("playerdata", Some(crate::datafix::references::PLAYER), tag)
+            }
             Err(primary_err) => {
                 // Java catches backup failures silently (logs warning, continues).
                 let _ = self.backup_corrupt_player_data(uuid, ".dat");
                 match read_gzip_named_tag_file(&self.player_data_old_file(uuid)) {
-                    Ok((_name, tag)) => checked_saved_tag("playerdata backup", tag),
+                    Ok((_name, tag)) => checked_saved_tag(
+                        "playerdata backup",
+                        Some(crate::datafix::references::PLAYER),
+                        tag,
+                    ),
                     Err(_) => Err(primary_err),
                 }
             }
@@ -964,7 +975,7 @@ fn write_saved_data_file(path: &Path, tag: &Tag) -> std::io::Result<()> {
 fn read_saved_data_file(path: &Path, label: &str) -> std::io::Result<Tag> {
     let bytes = fs::read(path)?;
     let (_name, tag) = read_named_tag(&mut bytes.as_slice())?;
-    checked_saved_tag(label, tag)
+    checked_saved_tag(label, saved_data_fix_type(label), tag)
 }
 
 impl PlayerDataStorage {

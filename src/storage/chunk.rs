@@ -2,7 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use super::datafix::require_current_tag_data_version;
+use super::datafix_upgrade::upgraded_saved_tag;
+use crate::datafix::references;
 use super::nbt::Tag;
 use super::region::ChunkPos;
 use crate::worldgen::{validate_blending_data_packed, BlendingDataPacked};

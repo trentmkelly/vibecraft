@@ -20,7 +20,11 @@ impl WorldLayout {
         validate_saved_data_namespace(namespace)?;
         let bytes = fs::read(self.command_storage_file(namespace))?;
         let (_name, tag) = read_named_tag(&mut bytes.as_slice())?;
-        checked_saved_tag(&format!("{namespace}:command_storage"), tag)
+        checked_saved_tag(
+            &format!("{namespace}:command_storage"),
+            Some(crate::datafix::references::SAVED_DATA_COMMAND_STORAGE),
+            tag,
+        )
     }
 }
 

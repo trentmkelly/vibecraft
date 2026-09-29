@@ -1,0 +1,33 @@
+# EntityEquipmentToArmorAndHandFix (v100)
+CHUNK|99|100|{Level:{Entities:[{id:"Zombie",Equipment:[{id:5s,Count:1b,Damage:0s},{id:6s,Count:1b,Damage:0s},{id:7s,Count:1b,Damage:0s}],DropChances:[0.5f,0.1f,0.2f,0.3f,0.4f]}]}}
+CHUNK|99|100|{Level:{Entities:[{id:"Zombie",Equipment:[{id:5s,Count:1b,Damage:0s}]}]}}
+CHUNK|99|100|{Level:{Entities:[{id:"Zombie",Equipment:[{id:1s,Count:1b,Damage:0s},{id:2s,Count:1b,Damage:0s},{id:3s,Count:1b,Damage:0s},{id:4s,Count:1b,Damage:0s},{id:5s,Count:1b,Damage:0s},{id:6s,Count:1b,Damage:0s}]}]}}
+CHUNK|99|100|{Level:{Entities:[{id:"Zombie"}]}}
+CHUNK|99|100|{Level:{Entities:[{id:"Zombie",DropChances:[1.0f,2.0f],HandDropChances:[9.0f,9.0f]}]}}
+CHUNK|99|100|{Level:{Entities:[{id:"Zombie",DropChances:"oops"}]}}
+CHUNK|99|100|{Level:{Entities:[{id:"Zombie",Riding:{id:"Pig",Equipment:[{id:5s,Count:1b,Damage:0s}]},Equipment:[{id:6s,Count:1b,Damage:0s}]}]}}
+# VillagerSetCanPickUpLootFix (v101)
+CHUNK|99|101|{Level:{Entities:[{id:"Villager",CanPickUpLoot:0b},{id:"Zombie"},{id:"Villager"}]}}
+# ItemIdFix + ItemPotionFix (v102)
+PLAYER|99|102|{Inventory:[{id:373s,Damage:16385s,Count:1b,tag:{display:{Name:"x"}}},{id:373s,Damage:37s,Count:1b,tag:{Potion:"minecraft:strong_healing"}},{id:9999s,Count:1b,Damage:0s},{id:"stone",Count:1b,Damage:0s}],EnderItems:[{id:1s,Count:64b,Damage:0s}]}
+PLAYER|99|102|{Inventory:[{id:373s,Damage:8192s,Count:1b},{id:373s,Damage:0s,Count:1b,tag:{}}]}
+PLAYER|99|102|{Inventory:[{id:2265s,Count:1b,Damage:0s},{id:"minecraft:potion",Damage:16457s,Count:1b,tag:{foo:1b}}]}
+# ItemSpawnEggFix (v105)
+PLAYER|99|105|{Inventory:[{id:383s,Damage:50s,Count:1b},{id:383s,Damage:54s,Count:1b,tag:{EntityTag:{id:"Zombie",Foo:1b}}},{id:383s,Damage:54s,Count:1b,tag:{EntityTag:{id:"Skeleton"}}},{id:383s,Damage:200s,Count:1b},{id:383s,Damage:0s,Count:1b,tag:{other:1b}}]}
+# MobSpawnerEntityIdentifiersFix (v106)
+CHUNK|99|106|{Level:{TileEntities:[{id:"MobSpawner",EntityId:"Zombie",x:1,y:2,z:3,Delay:20s},{id:"MobSpawner",EntityId:"",x:1,y:2,z:3},{id:"MobSpawner",EntityId:"Pig",SpawnData:{Foo:1b},SpawnPotentials:[{Type:"Cow",Weight:2,Properties:{a:1b}},{Type:"Sheep",Weight:1}]}]}}
+CHUNK|99|106|{Level:{TileEntities:[{id:"MobSpawner",EntityId:"NoSuchEntityAnywhere",x:1,y:2,z:3}]}}
+CHUNK|99|106|{Level:{TileEntities:[{id:"MobSpawner",x:1,y:2,z:3,SpawnPotentials:[{Type:"Cow",Weight:2},{Weight:5}]}]}}
+CHUNK|99|106|{Level:{Entities:[{id:"MinecartSpawner",EntityId:"Pig",DisplayTile:"stone"}]}}
+# EntityMinecartIdentifiersFix (v107)
+CHUNK|99|107|{Level:{Entities:[{id:"Minecart",Type:1,Items:[{id:5s,Count:1b,Damage:0s}]},{id:"Minecart",Type:2},{id:"Minecart",Type:0},{id:"Minecart"},{id:"Minecart",Type:9}]}}
+# EntityStringUuidFix (v108)
+CHUNK|99|108|{Level:{Entities:[{id:"Pig",UUID:"12345678-1234-5678-9abc-def012345678"},{id:"Cow",UUID:"1-2-3-4-5"},{id:"Pig"}]}}
+# EntityHealthFix (v109)
+CHUNK|99|109|{Level:{Entities:[{id:"Zombie",HealF:5.5f,Health:3s},{id:"Zombie",Health:12s},{id:"Zombie",HealF:7},{id:"Zombie"}]}}
+# EntityHorseSaddleFix (v110)
+CHUNK|99|110|{Level:{Entities:[{id:"EntityHorse",Saddle:1b},{id:"EntityHorse",Saddle:0b},{id:"EntityHorse",Saddle:1b,SaddleItem:{id:329s,Count:1b,Damage:0s}},{id:"EntityHorse"}]}}
+# EntityPaintingItemFrameDirectionFix (v111)
+CHUNK|99|111|{Level:{Entities:[{id:"Painting",Direction:2b,TileX:10,TileY:20,TileZ:30},{id:"Painting",Dir:3b},{id:"Painting",Facing:1b,Direction:2b},{id:"ItemFrame",Direction:1b,ItemRotation:3b,TileX:1,TileY:2,TileZ:3,Item:{id:5s,Count:1b,Damage:0s}},{id:"ItemFrame",Dir:0b}]}}
+# EntityRedundantChanceTagsFix (v113)
+CHUNK|99|113|{Level:{Entities:[{id:"Zombie",HandDropChances:[0.0f,0.0f],ArmorDropChances:[0.0f,0.0f,0.0f,0.0f]},{id:"Zombie",HandDropChances:[0.0f,0.1f],ArmorDropChances:[0.0f,0.0f,0.0f]},{id:"Zombie",HandDropChances:[0,0],ArmorDropChances:["a"]}]}}

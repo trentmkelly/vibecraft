@@ -1,0 +1,59 @@
+# Text1 of a sign through rewriteFromLenient (Gson lenient parse + stable write)
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"\"plain\"",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"plain"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"\"\"",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":""}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"null",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":""}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"NULL",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"NULL"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"\"null\"",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"null"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"true",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"true"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"a\":true,\"b\":false,\"c\":null}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"a":true,"b":false,"c":null}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"text\":\"x\",\"extra\":[{\"text\":\"y\"}]}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"extra":[{"text":"y"}],"text":"x"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{'single':'quoted'}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"single":"quoted"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{unquoted:value}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"unquoted":"value"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{a:1;b:2}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"a":1,"b":2}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{a=1,b=>2}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"a":1,"b":2}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"[1,2,3]",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:"[1,2,3]",id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"[1;2;3]",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:"[1,2,3]",id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"[,]",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:"[null,null]",id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"[1,]",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:"[1,null]",id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"[,1]",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:"[null,1]",id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"[]",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:"[]",id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:"{}",id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"a\":1,}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"{\\"a\\":1,}"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"a\":}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"{\\"a\\":}"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"a\"}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"{\\"a\\"}"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"[1 2]",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"[1 2]"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"x\":1.50,\"y\":-0,\"z\":1e5,\"w\":1E+5,\"v\":0.5}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"v":0.5,"w":1E+5,"x":1.50,"y":-0,"z":1e5}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"n\":012}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"n":"012"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"n\":-}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"n":"-"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"n\":1.}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"n":"1."}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"n\":.5}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"n":".5"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"n\":0x10}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"n":"0x10"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"n\":NaN}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"n":"NaN"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"n\":Infinity}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"n":"Infinity"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"s\":\"\\u00e9\\n\\t\\\"\\\\\\/\"}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"s":"é\\n\\t\\"\\\\/"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"s\":\"\\ud83d\\ude00\"}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"s":"😀"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"s\":\"\\x\"}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"{\\"s\\":\\"\\\\x\\"}"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"s\":\"unterminated}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"{\\"s\\":\\"unterminated}"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"/* c */ {\"a\":1} // t",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"/* c */ {\\"a\\":1} // t"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"a\":1} garbage",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"{\\"a\\":1} garbage"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"a\":1}{\"b\":2}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"{\\"a\\":1}{\\"b\\":2}"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"[1,2] [3]",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"[1,2] [3]"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"\"a\" \"b\"",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"\\"a\\" \\"b\\""}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"b\":1,\"a\":2,\"B\":3,\"é\":4,\"z😀\":5}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"B":3,"a":2,"b":1,"z😀":5,"é":4}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"a\":{\"c\":1,\"b\":2}}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"a":{"b":2,"c":1}}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"# hash comment\n{\"a\":1}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"# hash comment\\n{\\"a\\":1}"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"a\"#c\n:1}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"a":1}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"a\":\"line\\\nbreak\"}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"a":"line\\nbreak"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:")]}'\n{\"a\":1}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":")]}\'\\n{\\"a\\":1}"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"  {\"a\":1}  ",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"  {\\"a\\":1}  "}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"key with space\":1}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"key with space":1}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{k1:v1 v2}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"{k1:v1 v2}"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"[true,TRUE,tRuE,False,nUll]",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:"[true,true,true,false,null]",id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"a\":[{\"b\":[[1]]}]}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"a":[{"b":[[1]]}]}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"text\":\"café ☃\"}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"café ☃"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"text",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"text"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"unterminated\"",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"{\\"unterminated\\""}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"[\"x\"",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"[\\"x\\""}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{\"a\":1",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"{\\"a\\":1"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"'quoted'",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"text":"\'quoted\'"}',id:"Sign",x:0,y:0,z:0}]}}
+CHUNK	99	165	{Level:{TileEntities:[{id:"Sign",Text1:"{'a':'b\\'c'}",x:0,y:0,z:0}]}}	{Level:{TileEntities:[{Text1:'{"a":"b\'c"}',id:"Sign",x:0,y:0,z:0}]}}
