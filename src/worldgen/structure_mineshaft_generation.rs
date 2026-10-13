@@ -1006,6 +1006,13 @@ fn mineshaft_move_pieces(pieces: &mut [MineshaftGeneratedPieceModel], dy: i32) {
     }
 }
 
+/// Generates the currently ported mineshaft piece graph and adjusts its
+/// vertical position using sea level as the mesa surface-height fallback.
+///
+/// Full piece-graph parity with Java remains under investigation. Callers with
+/// terrain evidence should use
+/// [`mineshaft_generate_pieces_for_start_with_surface_height`] for mesa height
+/// adjustment.
 pub fn mineshaft_generate_pieces_for_start(
     seed: i64,
     chunk_pos: ChunkPos,
@@ -1013,6 +1020,36 @@ pub fn mineshaft_generate_pieces_for_start(
     sea_level: i32,
     min_y: i32,
 ) -> Vec<MineshaftGeneratedPieceModel> {
+    mineshaft_generate_pieces_for_start_with_surface_height(
+        seed,
+        chunk_pos,
+        mineshaft_type,
+        sea_level,
+        min_y,
+        |_, _| sea_level,
+    )
+}
+
+/// Generates a mineshaft and adjusts its vertical position using the surface
+/// height at the aggregate piece bounding-box center for mesa mineshafts.
+///
+/// Supply the generator's `WORLD_SURFACE_WG` base height from the callback.
+/// The callback is queried only for mesa mineshafts, after all child pieces
+/// have been generated, matching the vertical adjustment in
+/// `MineshaftStructure.generatePiecesAndAdjust`. Full piece-graph parity with
+/// Java remains under investigation; supplying surface height does not assert
+/// that the generated graph already matches Java.
+pub fn mineshaft_generate_pieces_for_start_with_surface_height<F>(
+    seed: i64,
+    chunk_pos: ChunkPos,
+    mineshaft_type: MineshaftTypeModel,
+    sea_level: i32,
+    min_y: i32,
+    surface_height_at: F,
+) -> Vec<MineshaftGeneratedPieceModel>
+where
+    F: FnOnce(i32, i32) -> i32,
+{
     let mut random = RandomSourceKind::Legacy(LegacyRandom::new(
         crate::random_source::large_feature_seed(seed, chunk_pos.x, chunk_pos.z),
     ));
@@ -1044,19 +1081,53 @@ pub fn mineshaft_generate_pieces_for_start(
         .map(MineshaftGeneratedPieceModel::bounding_box)
         .reduce(StructureBoundingBoxModel::union)
         .unwrap_or(room.bounding_box);
-    let random_roll = {
-        let max_y = sea_level - 10;
-        let y1_pos = (aggregate.max_y - aggregate.min_y + 1) + min_y + 1;
-        if y1_pos < max_y {
-            random_next_i32_bound(&mut random, max_y - y1_pos)
-        } else {
-            0
-        }
-    };
-    let Ok(dy) = mineshaft_move_below_sea_level_dy(aggregate, sea_level, min_y, 10, random_roll)
-    else {
-        panic!("computed mineshaft sea-level move roll should be valid");
-    };
+    let dy = mineshaft_vertical_adjustment_dy(
+        &mut random,
+        aggregate,
+        mineshaft_type,
+        sea_level,
+        min_y,
+        surface_height_at,
+    );
     mineshaft_move_pieces(&mut pieces, dy);
     pieces
 }
+
+fn mineshaft_vertical_adjustment_dy<F>(
+    random: &mut RandomSourceKind,
+    aggregate: StructureBoundingBoxModel,
+    mineshaft_type: MineshaftTypeModel,
+    sea_level: i32,
+    min_y: i32,
+    surface_height_at: F,
+) -> i32
+where
+    F: FnOnce(i32, i32) -> i32,
+{
+    match mineshaft_type {
+        MineshaftTypeModel::Mesa => {
+            let center = aggregate.center();
+            let surface_height = surface_height_at(center.x, center.z);
+            // Java's Mth.randomBetweenInclusive draws nextInt(max - min + 1)
+            // only when the surface is above sea level.
+            let target_y_for_center = if surface_height <= sea_level {
+                sea_level
+            } else {
+                sea_level + random_next_i32_bound(random, surface_height - sea_level + 1)
+            };
+            target_y_for_center - center.y
+        }
+        MineshaftTypeModel::Normal => {
+            let max_y = sea_level - 10;
+            let mut y1_pos = (aggregate.max_y - aggregate.min_y + 1) + min_y + 1;
+            if y1_pos < max_y {
+                y1_pos += random_next_i32_bound(random, max_y - y1_pos);
+            }
+            y1_pos - aggregate.max_y
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "tests/structure_mineshaft_vertical_tests.rs"]
+mod vertical_tests;

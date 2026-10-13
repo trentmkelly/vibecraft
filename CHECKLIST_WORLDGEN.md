@@ -846,3 +846,9 @@ The live VibeCraft spawn terrain is **synthetic scaffolding** (deterministic noi
 - [ ] Complete `LakeFeature` parity (blob grid generation, full-grid freeze pass at y=4, `FEATURES_CANNOT_REPLACE` on fluid placement, fluid-tag comparison).
 - [ ] Complete `DripstoneClusterFeature` parity (`placeDripstoneBlockIfPossible` early stop, `canPlacePool` world checks, per-column thickness IntProvider draws).
 - [ ] Model `BasaltColumnsFeature` surface search (`findSurface`/`findAir`) and driver loop, and `IcebergFeature` cut-out and under-water taper.
+
+## Reviewed partial parity work: 12-lead stress test
+
+Clipped tree geometry, mutable kelp execution and vine columns, basalt search/taper and blue-ice candidate gates now have focused Java-derived tests. Full tree providers/RNG, complete vine features and live decoration adapters remain open. Mineshaft Mesa adjustment accepts the authoritative surface-height callback; stronghold and fortress factories expose oriented geometry and child anchors. Monument room graphs have actual-server seed fixtures covering room order, openings and RNG continuation. Full structure placement, monument fitters and live generation wiring remain open; these changes do not complete the subsystem rows above.
+
+- [ ] Resolve eight baseline worldgen test failures reproduced on untouched commit `f3297e6b` during the stress test: three `generator_carver_preview_tests` mutation/heightmap assertions; `cache_all_in_cell_uses_wrapper_owned_cell_values_for_scalar_and_array_reads`; both normal-overworld 98% parity thresholds; `vanilla_worldgen_heightmap_parity_score_counts_matching_surface_columns`; and `worldgen_source_family_golden_matrix_is_deterministic`. Baseline heightmap parity is 456/768 and column-profile parity is 325/768. Preserve authoritative Java behavior and investigate fixture assumptions; do not lower parity thresholds to hide these failures.
