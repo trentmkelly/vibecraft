@@ -175,40 +175,6 @@ pub fn write_player_abilities_packet<W: Write>(
     writer.write_all(&0.1f32.to_be_bytes())
 }
 
-/// Java `ServerGamePacketListenerImpl.handleCustomCommandSuggestions`: parses the
-/// requested command against the dispatcher as the player's source and answers
-/// with `CommandDispatcher.getCompletionSuggestions` (at most 1000 entries).
-pub fn write_command_suggestions_response<W: Write, R: Read>(
-    stream: &mut W,
-    compression: CompressionState,
-    input: &mut R,
-    permission_level: u8,
-) -> io::Result<()> {
-    let packet = ServerboundCommandSuggestionPacket::read(input)?;
-    let suggestions = crate::brigadier::suggest::command_suggestions(
-        crate::brigadier::CommandGraph::served(),
-        permission_level,
-        &packet.command,
-    );
-
-    write_framed_packet_with_compression(
-        stream,
-        compression,
-        CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID,
-        |payload| {
-            write_var_i32(payload, packet.id)?;
-            write_var_i32(payload, suggestions.start as i32)?;
-            write_var_i32(payload, (suggestions.end - suggestions.start) as i32)?;
-            write_var_i32(payload, suggestions.texts.len() as i32)?;
-            for candidate in &suggestions.texts {
-                write_string(payload, candidate)?;
-                write_bool(payload, false)?;
-            }
-            Ok(())
-        },
-    )
-}
-
 /// Java `ServerGamePacketListenerImpl.handleChatAck`: advances the last-seen
 /// window, disconnecting with `CHAT_VALIDATION_FAILED` when the offset is invalid.
 pub fn handle_chat_ack_packet<R: Read>(

@@ -871,3 +871,30 @@ pub fn gamemode_self_feedback_uses_translated_mode_name() {
         "Set own game mode to Creative Mode"
     );
 }
+
+/// SuggestionProviders.SUMMONABLE_ENTITIES supplies EntityType.getDescription;
+/// ClientboundCommandSuggestionsPacket must retain that optional component.
+#[test]
+fn raw_command_suggestion_response_preserves_entity_tooltip() {
+    let mut request = Vec::new();
+    ServerboundCommandSuggestionPacket {
+        id: 43,
+        command: "/summon minecraft:creep".to_owned(),
+    }.write(&mut request).unwrap();
+    let mut written = Vec::new();
+    write_command_suggestions_response(
+        &mut written, CompressionState::disabled(), &mut Cursor::new(request), 2,
+    ).unwrap();
+    let mut frame = Cursor::new(read_packet(&mut Cursor::new(written)).unwrap());
+    assert_eq!(read_var_i32(&mut frame).unwrap(), CLIENTBOUND_COMMAND_SUGGESTIONS_PACKET_ID);
+    assert_eq!(read_var_i32(&mut frame).unwrap(), 43);
+    assert_eq!(read_var_i32(&mut frame).unwrap(), 8);
+    assert_eq!(read_var_i32(&mut frame).unwrap(), 15);
+    assert_eq!(read_var_i32(&mut frame).unwrap(), 1);
+    assert_eq!(read_string(&mut frame, 32767).unwrap(), "minecraft:creeper");
+    assert!(read_bool(&mut frame).unwrap());
+    let tooltip = crate::network::codec::read_trusted_component(&mut frame).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&tooltip.0).unwrap();
+    assert_eq!(value, serde_json::json!({"translate": "entity.minecraft.creeper"}));
+    assert_eq!(frame.position() as usize, frame.get_ref().len());
+}

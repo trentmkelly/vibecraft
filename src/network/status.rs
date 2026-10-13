@@ -377,6 +377,9 @@ mod player_creative_packets;
 mod chunk_c;
 pub use chunk_c::*;
 
+mod command_suggestions_live;
+pub use command_suggestions_live::write_command_suggestions_response;
+
 mod play_session_world_packets;
 pub use play_session_world_packets::*;
 

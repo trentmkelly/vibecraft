@@ -8,9 +8,12 @@
 //! Argument handling status (see [`argument`]): the Brigadier primitives are
 //! ported exactly; Minecraft argument types are consumed with a token heuristic
 //! and only `bool`, `gamemode` and `entity_anchor` list suggestions, since the
-//! others need live game data (players, registries, scoreboards).
+//! others need live game data (players, registries, scoreboards). Named sound
+//! and summonable-entity providers use the pinned built-in registries; static
+//! per-command providers are recovered from the parsed command path.
 
 pub mod argument;
+mod providers;
 
 use std::collections::HashSet;
 
@@ -27,6 +30,9 @@ pub struct Suggestions {
     pub start: usize,
     pub end: usize,
     pub texts: Vec<String>,
+    /// Optional translatable-component keys, aligned one-for-one with `texts`.
+    /// EntityType descriptions are the tooltips of SUMMONABLE_ENTITIES.
+    pub tooltips: Vec<Option<String>>,
 }
 
 /// One `Suggestion` before merging: its own range and text.
@@ -35,6 +41,7 @@ struct Suggestion {
     start: usize,
     end: usize,
     text: String,
+    tooltip: Option<String>,
 }
 
 /// `SuggestionsBuilder`.
@@ -65,6 +72,11 @@ impl<'a> SuggestionsBuilder<'a> {
 
     /// `suggest(String)`: a suggestion equal to the remaining input is dropped.
     pub(crate) fn suggest(&mut self, text: &str) {
+        self.suggest_with_tooltip(text, None);
+    }
+
+    /// `suggest(String, Message)` preserves the tooltip through range merging.
+    pub(crate) fn suggest_with_tooltip(&mut self, text: &str, tooltip: Option<String>) {
         if text == self.remaining() {
             return;
         }
@@ -72,6 +84,7 @@ impl<'a> SuggestionsBuilder<'a> {
             start: self.start,
             end: self.input.len(),
             text: text.to_owned(),
+            tooltip,
         });
     }
 }
@@ -276,13 +289,20 @@ pub fn command_suggestions(
     let (parent, start_pos) = parse.context.find_suggestion_context(cursor);
     let start = start_pos.min(cursor);
     let mut all: Vec<Suggestion> = Vec::new();
+    // A redirect creates a child CommandContext; its path names identify the
+    // actual dispatched command, including after `/execute ... run`.
+    let mut context = &parse.context;
+    while let Some(child) = &context.child {
+        context = child;
+    }
     for &child in &graph.node(parent).children {
         let mut builder = SuggestionsBuilder::new(&input, start);
-        list_node_suggestions(graph, child, &parse.context, &mut builder);
+        list_node_suggestions(graph, child, context, &mut builder);
         all.extend(builder.result);
     }
     let mut suggestions = create_suggestions(&input, all);
     suggestions.texts.truncate(MAX_SUGGESTIONS);
+    suggestions.tooltips.truncate(MAX_SUGGESTIONS);
     suggestions
 }
 
@@ -290,7 +310,7 @@ pub fn command_suggestions(
 fn list_node_suggestions(
     graph: &CommandGraph,
     id: usize,
-    _context: &ParseContext,
+    context: &ParseContext,
     builder: &mut SuggestionsBuilder<'_>,
 ) {
     match &graph.node(id).kind {
@@ -309,11 +329,16 @@ fn list_node_suggestions(
             suggestions,
             ..
         } => match suggestions.as_deref() {
-            // `ask_server` resolves to `CommandSourceStack.customSuggestion`
-            // (`Suggestions.empty()`); the other providers need server data.
-            // TODO(command-suggestion-providers): available_sounds,
-            // summonable_entities and the per-command lambdas.
-            Some(_) => {}
+            Some(provider) => {
+                let mut path: Vec<&str> = context
+                    .nodes
+                    .iter()
+                    .filter(|(_, node_start, _)| *node_start < builder.start)
+                    .map(|(node, _, _)| graph.node(*node).kind.name())
+                    .collect();
+                path.push(graph.node(id).kind.name());
+                providers::list_suggestions(provider, &path, builder);
+            }
             None => argument::list_suggestions(parser, properties, builder),
         },
     }
@@ -328,7 +353,7 @@ fn create_suggestions(input: &[u16], suggestions: Vec<Suggestion>) -> Suggestion
     let start = suggestions.iter().map(|s| s.start).min().unwrap_or(0);
     let end = suggestions.iter().map(|s| s.end).max().unwrap_or(0);
     let mut seen = HashSet::new();
-    let mut expanded: Vec<String> = Vec::new();
+    let mut expanded: Vec<(String, Option<String>)> = Vec::new();
     for suggestion in suggestions {
         // `Suggestion.expand`
         let mut text = String::new();
@@ -339,15 +364,18 @@ fn create_suggestions(input: &[u16], suggestions: Vec<Suggestion>) -> Suggestion
         if end > suggestion.end {
             text.push_str(&String::from_utf16_lossy(&input[suggestion.end..end]));
         }
-        if seen.insert(text.clone()) {
-            expanded.push(text);
+        let entry = (text, suggestion.tooltip);
+        if seen.insert(entry.clone()) {
+            expanded.push(entry);
         }
     }
-    expanded.sort_by(|a, b| compare_to_ignore_case(a, b));
+    expanded.sort_by(|a, b| compare_to_ignore_case(&a.0, &b.0));
+    let (texts, tooltips) = expanded.into_iter().unzip();
     Suggestions {
         start,
         end,
-        texts: expanded,
+        texts,
+        tooltips,
     }
 }
 

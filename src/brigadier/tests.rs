@@ -217,6 +217,59 @@ fn suggestions_skip_an_exact_match_but_keep_longer_literals() {
 }
 
 #[test]
+fn sound_providers_complete_both_commands_with_resource_matching() {
+    for input in [
+        "/playsound ambient.cave",
+        "/stopsound @s master ambient.cave",
+    ] {
+        let s = command_suggestions(CommandGraph::vanilla(), 4, input);
+        assert_eq!(s.texts, ["minecraft:ambient.cave"]);
+        assert_eq!(s.tooltips, [None]);
+        assert_eq!(s.start, input.rfind(' ').unwrap() + 1);
+        assert_eq!(s.end, input.len());
+    }
+    assert_eq!(
+        suggest(4, "/playsound minecraft:ambient.cave").2,
+        Vec::<String>::new()
+    );
+    assert!(suggest(4, "/playsound craft:ambient").2.is_empty());
+}
+
+#[test]
+fn summon_provider_filters_unsummonable_entities_and_preserves_tooltips() {
+    for input in ["/summon pig", "/execute summon pig"] {
+        let s = command_suggestions(CommandGraph::vanilla(), 4, input);
+        assert!(s.texts.contains(&"minecraft:pig".to_owned()));
+        assert_eq!(s.tooltips.len(), s.texts.len());
+        for (text, tooltip) in s.texts.iter().zip(&s.tooltips) {
+            assert_eq!(
+                tooltip.as_deref(),
+                Some(format!("entity.{}", text.replace(':', ".")).as_str())
+            );
+        }
+    }
+    assert!(suggest(4, "/summon player").2.is_empty());
+    assert!(suggest(4, "/summon fishing_bobber").2.is_empty());
+}
+
+#[test]
+fn anonymous_tick_providers_are_resolved_from_the_effective_command_path() {
+    assert_eq!(suggest(4, "/tick rate ").2, ["20"]);
+    assert_eq!(suggest(4, "/tick step 1").2, ["1s", "1t"]);
+    assert_eq!(suggest(4, "/tick sprint ").2, ["1d", "3d", "60s", "stop"]);
+    assert_eq!(suggest(4, "/execute run tick rate ").2, ["20"]);
+    assert!(suggest(4, "/bossbar remove ").2.is_empty());
+}
+
+#[test]
+fn provider_truncation_keeps_tooltips_aligned() {
+    let sounds = command_suggestions(CommandGraph::vanilla(), 4, "/playsound ");
+    assert_eq!(sounds.texts.len(), super::suggest::MAX_SUGGESTIONS);
+    assert_eq!(sounds.tooltips.len(), sounds.texts.len());
+    assert!(sounds.tooltips.iter().all(Option::is_none));
+}
+
+#[test]
 fn served_graph_appends_the_biome_debug_command_last() {
     let served = CommandGraph::served();
     let last = served.node(ROOT).children.last().copied().unwrap();
