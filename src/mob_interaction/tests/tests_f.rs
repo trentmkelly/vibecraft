@@ -101,8 +101,12 @@ fn assert_creaking_ai_target_and_update_gates() {
     assert!(creaking_ai_melee_can_start(true));
     assert!(!creaking_ai_melee_can_start(false));
     assert!(creaking_ai_attack_target_still_reachable(true, true, true));
-    assert!(!creaking_ai_attack_target_still_reachable(false, true, true));
-    assert!(!creaking_ai_attack_target_still_reachable(true, false, true));
+    assert!(!creaking_ai_attack_target_still_reachable(
+        false, true, true
+    ));
+    assert!(!creaking_ai_attack_target_still_reachable(
+        true, false, true
+    ));
     assert_eq!(
         CREAKING_AI_FIGHT_REQUIREMENTS,
         [("attack_target", "value_present")]
@@ -270,7 +274,18 @@ fn assert_blaze_attributes_hover_and_fire_state() {
     assert!(!blaze_is_on_fire(false));
 
     assert_eq!(
-        blaze_ai_step(false, -0.2, 10, 3.0, false, 0.0, false),
+        blaze_ai_step(
+            false,
+            -0.2,
+            BlazeHoverState {
+                allowed_height_offset: BLAZE_DEFAULT_ALLOWED_HEIGHT_OFFSET,
+                next_height_offset_change_tick: 10
+            },
+            3.0,
+            false,
+            0.0,
+            false
+        ),
         BlazeAiStep {
             delta_y: -0.120000005,
             needs_sync: false,
@@ -279,7 +294,18 @@ fn assert_blaze_attributes_hover_and_fire_state() {
         }
     );
     assert_eq!(
-        blaze_ai_step(true, 0.0, 1, 4.25, true, 5.0, true),
+        blaze_ai_step(
+            true,
+            0.0,
+            BlazeHoverState {
+                allowed_height_offset: BLAZE_DEFAULT_ALLOWED_HEIGHT_OFFSET,
+                next_height_offset_change_tick: 1
+            },
+            4.25,
+            true,
+            5.0,
+            true
+        ),
         BlazeAiStep {
             delta_y: 0.09,
             needs_sync: true,

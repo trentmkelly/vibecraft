@@ -203,12 +203,55 @@ pub fn ghast_random_float_target(
     )
 }
 
+/// Advances `GhastMoveControl.floatDuration` by one tick.
+///
+/// Java post-decrements the duration and draws `nextInt(5) + 2` only when the
+/// duration was already non-positive. `random_0_to_4` represents that draw;
+/// callers should not consume RNG for a tick whose current duration is
+/// positive. For those ticks this value is ignored, matching Java's conditional
+/// RNG consumption as well as its countdown behavior.
 pub fn ghast_move_float_duration_tick(current_duration: i32, random_0_to_4: i32) -> i32 {
-    current_duration - 1
-        + random_0_to_4.rem_euclid(GHAST_MOVE_FLOAT_DURATION_RANDOM_BOUND)
-        + GHAST_MOVE_FLOAT_DURATION_MIN_ADD
+    let decremented = current_duration.wrapping_sub(1);
+    if current_duration <= 0 {
+        decremented
+            .wrapping_add(random_0_to_4.rem_euclid(GHAST_MOVE_FLOAT_DURATION_RANDOM_BOUND))
+            .wrapping_add(GHAST_MOVE_FLOAT_DURATION_MIN_ADD)
+    } else {
+        decremented
+    }
 }
 
 pub fn large_fireball_hit_outcome(mob_griefing: bool, explosion_power: i32) -> (f32, bool, bool) {
     (explosion_power as f32, mob_griefing, true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ghast_move_float_duration_tick;
+
+    #[test]
+    fn move_float_duration_counts_down_before_drawing_again() {
+        let mut duration = 3;
+        let mut observed = Vec::new();
+
+        // The supplied values vary during the countdown, but Java consumes no
+        // random values until the old duration is zero or below.
+        for random_0_to_4 in [0, 1, 4, 4, 0, 1, 4, 2, 0, 0] {
+            duration = ghast_move_float_duration_tick(duration, random_0_to_4);
+            observed.push(duration);
+        }
+
+        assert_eq!(observed, [2, 1, 0, 5, 4, 3, 2, 1, 0, 1]);
+    }
+
+    #[test]
+    fn move_float_duration_rerolls_only_at_non_positive_boundaries() {
+        assert_eq!(ghast_move_float_duration_tick(1, 4), 0);
+        assert_eq!(ghast_move_float_duration_tick(0, 4), 5);
+        assert_eq!(ghast_move_float_duration_tick(0, 0), 1);
+        assert_eq!(ghast_move_float_duration_tick(-1, 4), 4);
+        // The old MIN value takes the <= 0 branch; post-decrement and the
+        // subsequent +4 and +2 wrap to MIN + 5.
+        assert_eq!(ghast_move_float_duration_tick(i32::MIN, 4), i32::MIN + 5);
+    }
 }

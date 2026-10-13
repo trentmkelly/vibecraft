@@ -19,6 +19,21 @@ pub struct BlazeAiStep {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BlazeHoverState {
+    pub allowed_height_offset: f32,
+    pub next_height_offset_change_tick: i32,
+}
+
+impl Default for BlazeHoverState {
+    fn default() -> Self {
+        Self {
+            allowed_height_offset: BLAZE_DEFAULT_ALLOWED_HEIGHT_OFFSET,
+            next_height_offset_change_tick: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BlazeAttackState {
     pub attack_step: i32,
     pub attack_time: i32,
@@ -81,10 +96,18 @@ pub fn blaze_attributes() -> BlazeAttributes {
     }
 }
 
+/// Advances the blaze's server-side hover state for one tick.
+///
+/// Pass the entity's current stored hover state and carry the returned offset
+/// and timer into the next tick. A newly created blaze starts with
+/// [`BlazeHoverState::default`].
+/// The caller should draw `sampled_allowed_height_offset` from its RNG only
+/// when the timer decremented with wrapping arithmetic is nonpositive,
+/// because that is when this step resamples and replaces the stored offset.
 pub fn blaze_ai_step(
     on_ground: bool,
     delta_y: f32,
-    next_height_offset_change_tick: i32,
+    hover_state: BlazeHoverState,
     sampled_allowed_height_offset: f32,
     target_present: bool,
     target_eye_y_above_self_eye_y: f32,
@@ -95,8 +118,10 @@ pub fn blaze_ai_step(
     } else {
         delta_y
     };
-    let mut next_tick = next_height_offset_change_tick - 1;
-    let mut allowed_height_offset = BLAZE_DEFAULT_ALLOWED_HEIGHT_OFFSET;
+    let mut next_tick = hover_state.next_height_offset_change_tick.wrapping_sub(1);
+    // The Java entity retains this field between refreshes; sampling is only
+    // consumed when the countdown expires.
+    let mut allowed_height_offset = hover_state.allowed_height_offset;
     if next_tick <= 0 {
         next_tick = BLAZE_HEIGHT_OFFSET_REFRESH_TICKS;
         allowed_height_offset = sampled_allowed_height_offset;
@@ -244,5 +269,120 @@ pub fn blaze_loot_roll(
         base_roll_0_or_1.clamp(0, 1) + looting_roll_0_to_level.max(0)
     } else {
         0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ai_step_retains_height_offset_until_refresh_and_resamples_at_boundary() {
+        let first = blaze_ai_step(
+            true,
+            0.0,
+            BlazeHoverState {
+                allowed_height_offset: 3.25,
+                next_height_offset_change_tick: 2,
+            },
+            6.0,
+            false,
+            0.0,
+            false,
+        );
+        assert_eq!(first.allowed_height_offset, 3.25);
+        assert_eq!(first.next_height_offset_change_tick, 1);
+
+        let refreshed = blaze_ai_step(
+            true,
+            0.0,
+            BlazeHoverState {
+                allowed_height_offset: first.allowed_height_offset,
+                next_height_offset_change_tick: first.next_height_offset_change_tick,
+            },
+            6.0,
+            false,
+            0.0,
+            false,
+        );
+        assert_eq!(refreshed.allowed_height_offset, 6.0);
+        assert_eq!(
+            refreshed.next_height_offset_change_tick,
+            BLAZE_HEIGHT_OFFSET_REFRESH_TICKS
+        );
+
+        let following = blaze_ai_step(
+            true,
+            0.0,
+            BlazeHoverState {
+                allowed_height_offset: refreshed.allowed_height_offset,
+                next_height_offset_change_tick: refreshed.next_height_offset_change_tick,
+            },
+            0.75,
+            false,
+            0.0,
+            false,
+        );
+        assert_eq!(following.allowed_height_offset, 6.0);
+        assert_eq!(
+            following.next_height_offset_change_tick,
+            BLAZE_HEIGHT_OFFSET_REFRESH_TICKS - 1
+        );
+    }
+
+    #[test]
+    fn ai_step_uses_retained_height_offset_for_ascent_threshold() {
+        let retained_state = BlazeHoverState {
+            allowed_height_offset: 3.0,
+            next_height_offset_change_tick: 5,
+        };
+        let below_threshold = blaze_ai_step(true, 0.0, retained_state, 0.5, true, 2.9, true);
+        assert!(!below_threshold.needs_sync);
+        assert_eq!(below_threshold.delta_y, 0.0);
+
+        let at_threshold = blaze_ai_step(true, 0.0, retained_state, 0.5, true, 3.0, true);
+        assert!(!at_threshold.needs_sync);
+        assert_eq!(at_threshold.delta_y, 0.0);
+
+        let above_threshold = blaze_ai_step(true, 0.0, retained_state, 0.5, true, 3.1, true);
+        assert!(above_threshold.needs_sync);
+        assert_eq!(above_threshold.delta_y, 0.09);
+        assert_eq!(above_threshold.allowed_height_offset, 3.0);
+    }
+
+    #[test]
+    fn ai_step_wraps_timer_before_testing_refresh_boundary() {
+        assert_eq!(BlazeHoverState::default().allowed_height_offset, 0.5);
+        assert_eq!(BlazeHoverState::default().next_height_offset_change_tick, 0);
+
+        let zero_timer = blaze_ai_step(
+            true,
+            0.0,
+            BlazeHoverState::default(),
+            4.25,
+            false,
+            0.0,
+            false,
+        );
+        assert_eq!(zero_timer.allowed_height_offset, 4.25);
+        assert_eq!(
+            zero_timer.next_height_offset_change_tick,
+            BLAZE_HEIGHT_OFFSET_REFRESH_TICKS
+        );
+
+        let min_timer = blaze_ai_step(
+            true,
+            0.0,
+            BlazeHoverState {
+                allowed_height_offset: 2.75,
+                next_height_offset_change_tick: i32::MIN,
+            },
+            9.0,
+            false,
+            0.0,
+            false,
+        );
+        assert_eq!(min_timer.allowed_height_offset, 2.75);
+        assert_eq!(min_timer.next_height_offset_change_tick, i32::MAX);
     }
 }
