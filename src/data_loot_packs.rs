@@ -312,7 +312,7 @@ struct EntityInteractTableSummary {
 
 fn vanilla_entity_interact_tables() -> Vec<EntityInteractTableSummary> {
     vec![EntityInteractTableSummary {
-        id: "minecraft:gameplay/armadillo_brush",
+        id: "minecraft:brush/armadillo",
         pool_count: 1,
         roll_shape: "constant:1",
         item: "minecraft:armadillo_scute",
@@ -668,7 +668,8 @@ mod tests {
 
     #[test]
     fn trade_rebalance_chest_java_source_sentinels_match_authoritative_file() {
-        let source = vibecraft_java_source!("/net/minecraft/data/loot/packs/TradeRebalanceChestLoot.java");
+        let source =
+            vibecraft_java_source!("/net/minecraft/data/loot/packs/TradeRebalanceChestLoot.java");
         for expected in [
             "output.accept(\n         BuiltInLootTables.ABANDONED_MINESHAFT",
             "output.accept(BuiltInLootTables.ANCIENT_CITY, this.ancientCityLootTable());",
@@ -686,7 +687,9 @@ mod tests {
 
     #[test]
     fn trade_rebalance_provider_java_source_matches_wrapper_shape() {
-        let source = vibecraft_java_source!("/net/minecraft/data/loot/packs/TradeRebalanceLootTableProvider.java");
+        let source = vibecraft_java_source!(
+            "/net/minecraft/data/loot/packs/TradeRebalanceLootTableProvider.java"
+        );
         assert!(source.contains("new LootTableProvider("));
         assert!(source.contains("output, Set.of(), List.of("));
         assert!(source.contains(
@@ -725,7 +728,8 @@ mod tests {
 
     #[test]
     fn vanilla_archaeology_java_source_sentinels_match_authoritative_file() {
-        let source = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaArchaeologyLoot.java");
+        let source =
+            vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaArchaeologyLoot.java");
         for expected in [
             "BuiltInLootTables.DESERT_WELL_ARCHAEOLOGY",
             "BuiltInLootTables.DESERT_PYRAMID_ARCHAEOLOGY",
@@ -774,7 +778,8 @@ mod tests {
 
     #[test]
     fn vanilla_block_interact_java_source_sentinels_match_authoritative_file() {
-        let source = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaBlockInteractLoot.java");
+        let source =
+            vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaBlockInteractLoot.java");
         for expected in [
             "BuiltInLootTables.HARVEST_BEEHIVE",
             "LootItem.lootTableItem(Items.HONEYCOMB).apply(SetItemCountFunction.setCount(ConstantValue.exactly(3.0F)))",
@@ -839,7 +844,9 @@ mod tests {
 
     #[test]
     fn vanilla_charged_creeper_java_source_sentinels_match_authoritative_file() {
-        let source = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaChargedCreeperExplosionLoot.java");
+        let source = vibecraft_java_source!(
+            "/net/minecraft/data/loot/packs/VanillaChargedCreeperExplosionLoot.java"
+        );
         for expected in [
             "private static final List<VanillaChargedCreeperExplosionLoot.Entry> ENTRIES = List.of(",
             "BuiltInLootTables.CHARGED_CREEPER_PIGLIN, EntityType.PIGLIN, Items.PIGLIN_HEAD",
@@ -866,7 +873,7 @@ mod tests {
         assert_eq!(
             tables,
             vec![EntityInteractTableSummary {
-                id: "minecraft:gameplay/armadillo_brush",
+                id: "minecraft:brush/armadillo",
                 pool_count: 1,
                 roll_shape: "constant:1",
                 item: "minecraft:armadillo_scute",
@@ -876,7 +883,8 @@ mod tests {
 
     #[test]
     fn vanilla_entity_interact_java_source_sentinels_match_authoritative_file() {
-        let source = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaEntityInteractLoot.java");
+        let source =
+            vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaEntityInteractLoot.java");
         for expected in [
             "public record VanillaEntityInteractLoot(HolderLookup.Provider registries) implements LootTableSubProvider",
             "BuiltInLootTables.ARMADILLO_BRUSH",
@@ -945,7 +953,8 @@ mod tests {
 
     #[test]
     fn vanilla_equipment_java_source_counts_match_authoritative_file() {
-        let source = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaEquipmentLoot.java");
+        let source =
+            vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaEquipmentLoot.java");
         assert_eq!(count_occurrences(source, "output.accept"), 3);
         assert_eq!(count_occurrences(source, "LootPool.lootPool("), 7);
         assert_eq!(count_occurrences(source, "LootItem.lootTableItem"), 9);
@@ -970,7 +979,8 @@ mod tests {
 
     #[test]
     fn vanilla_equipment_java_source_sentinels_match_authoritative_file() {
-        let source = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaEquipmentLoot.java");
+        let source =
+            vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaEquipmentLoot.java");
         for expected in [
             "public record VanillaEquipmentLoot(HolderLookup.Provider registries) implements LootTableSubProvider",
             "BuiltInLootTables.EQUIPMENT_TRIAL_CHAMBER",
@@ -1114,7 +1124,8 @@ mod tests {
 
     #[test]
     fn vanilla_fishing_java_source_counts_match_authoritative_file() {
-        let source = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaFishingLoot.java");
+        let source =
+            vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaFishingLoot.java");
         assert_eq!(count_occurrences(source, "output.accept"), 4);
         assert_eq!(count_occurrences(source, "LootPool.lootPool("), 4);
         assert_eq!(count_occurrences(source, "LootItem.lootTableItem"), 23);
@@ -1146,7 +1157,8 @@ mod tests {
 
     #[test]
     fn vanilla_fishing_java_source_sentinels_match_authoritative_file() {
-        let source = vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaFishingLoot.java");
+        let source =
+            vibecraft_java_source!("/net/minecraft/data/loot/packs/VanillaFishingLoot.java");
         for expected in [
             "public record VanillaFishingLoot(HolderLookup.Provider registries) implements LootTableSubProvider",
             "BuiltInLootTables.FISHING",

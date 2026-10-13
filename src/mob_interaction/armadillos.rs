@@ -84,21 +84,11 @@ pub fn armadillo_spawnable_on(block: &str) -> bool {
             | "minecraft:coarse_dirt"
             | "minecraft:terracotta"
             | "minecraft:white_terracotta"
-            | "minecraft:orange_terracotta"
-            | "minecraft:magenta_terracotta"
-            | "minecraft:light_blue_terracotta"
             | "minecraft:yellow_terracotta"
-            | "minecraft:lime_terracotta"
-            | "minecraft:pink_terracotta"
-            | "minecraft:gray_terracotta"
+            | "minecraft:orange_terracotta"
             | "minecraft:light_gray_terracotta"
-            | "minecraft:cyan_terracotta"
-            | "minecraft:purple_terracotta"
-            | "minecraft:blue_terracotta"
             | "minecraft:brown_terracotta"
-            | "minecraft:green_terracotta"
             | "minecraft:red_terracotta"
-            | "minecraft:black_terracotta"
     )
 }
 
@@ -125,7 +115,14 @@ pub fn armadillo_scute_drop_tick(
     loot_dropped: bool,
     next_random_offset: i32,
 ) -> ArmadilloScuteDropPlan {
-    if alive && scute_time - 1 <= 0 && should_drop_loot {
+    // Java short-circuits before --scuteTime for dead entities. Its integer
+    // decrement also wraps, including values restored from saved data.
+    let next_scute_time = if alive {
+        scute_time.wrapping_sub(1)
+    } else {
+        scute_time
+    };
+    if alive && next_scute_time <= 0 && should_drop_loot {
         ArmadilloScuteDropPlan {
             next_scute_time: armadillo_pick_next_scute_drop_time(next_random_offset),
             loot_table: Some("minecraft:gameplay/armadillo_shed"),
@@ -134,7 +131,7 @@ pub fn armadillo_scute_drop_tick(
         }
     } else {
         ArmadilloScuteDropPlan {
-            next_scute_time: scute_time - 1,
+            next_scute_time,
             loot_table: None,
             sound: None,
             game_event: None,
@@ -260,7 +257,7 @@ pub enum ArmadilloInteractPlan {
 pub fn armadillo_interact_plan(item: &str, baby: bool, scared: bool) -> ArmadilloInteractPlan {
     if item == "minecraft:brush" && !baby {
         ArmadilloInteractPlan::Brush {
-            loot_table: "minecraft:gameplay/armadillo_brush",
+            loot_table: "minecraft:brush/armadillo",
             sound: "minecraft:entity.armadillo.brush",
             game_event: "minecraft:entity_interact",
             tool_damage: ARMADILLO_BRUSH_DAMAGE,
@@ -313,6 +310,64 @@ pub enum ArmadilloBallUpTickPlan {
     None,
 }
 
+/// Persistent fields of Java's `ArmadilloAi.ArmadilloBallUp` behavior.
+///
+/// The behavior scheduler owns start/stop conditions and the danger memory's
+/// expiry. These fields survive behavior restarts: Java's `start` and `stop`
+/// only roll the entity up/out and do not reset either field.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ArmadilloBallUpMemory {
+    pub next_peek_timer: i32,
+    pub danger_was_around: bool,
+}
+
+impl ArmadilloBallUpMemory {
+    /// Advances one running behavior tick, preserving Java's update order.
+    ///
+    /// `sample_peek_delay` supplies the entity RNG's inclusive 100..=400 draw.
+    /// It is invoked only when Java would consume that draw, so callers can
+    /// share the entity RNG with other behaviors without advancing it early.
+    pub fn tick(
+        &mut self,
+        state: ArmadilloStateModel,
+        in_state_ticks: i64,
+        on_ground: bool,
+        danger_ticks_remaining: i64,
+        mut sample_peek_delay: impl FnMut() -> i32,
+    ) -> ArmadilloBallUpTickPlan {
+        if self.next_peek_timer > 0 {
+            self.next_peek_timer -= 1;
+        }
+
+        // Rolling completion has its own branch: neither danger tracking nor
+        // peek resampling runs on the tick which first enters SCARED.
+        let finishes_rolling = state == ArmadilloStateModel::Rolling
+            && in_state_ticks > i64::from(ArmadilloStateModel::Rolling.animation_duration());
+        if !finishes_rolling {
+            let danger_is_around =
+                danger_ticks_remaining > i64::from(ARMADILLO_DANGER_THRESHOLD_TICKS);
+            if danger_is_around != self.danger_was_around {
+                self.next_peek_timer =
+                    ArmadilloStateModel::Scared.animation_duration() + sample_peek_delay();
+            }
+            self.danger_was_around = danger_is_around;
+        }
+
+        let plan = armadillo_ball_up_tick_plan(
+            state,
+            in_state_ticks,
+            on_ground,
+            danger_ticks_remaining,
+            self.next_peek_timer,
+        );
+        if matches!(plan, ArmadilloBallUpTickPlan::Peek { .. }) {
+            self.next_peek_timer =
+                ArmadilloStateModel::Scared.animation_duration() + sample_peek_delay();
+        }
+        plan
+    }
+}
+
 pub fn armadillo_ball_up_tick_plan(
     state: ArmadilloStateModel,
     in_state_ticks: i64,
@@ -350,3 +405,7 @@ pub fn armadillo_ball_up_tick_plan(
 
     ArmadilloBallUpTickPlan::None
 }
+
+#[cfg(test)]
+#[path = "armadillo_lifecycle_tests.rs"]
+mod lifecycle_tests;

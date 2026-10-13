@@ -3,6 +3,8 @@ pub struct GoatState {
     pub is_screaming: bool,
     pub has_left_horn: bool,
     pub has_right_horn: bool,
+    /// Retained from Goat.handleEntityEvent, then read every Goat.aiStep.
+    pub is_lowering_head: bool,
     pub lower_head_tick: i32,
 }
 
@@ -20,6 +22,7 @@ pub enum GoatInteraction {
 }
 
 pub const GOAT_SCREAMING_CHANCE_DENOMINATOR: i32 = 50;
+pub const GOAT_SCREAMING_OFFSPRING_CHANCE: f64 = 0.02;
 pub const GOAT_INITIAL_MISSING_HORN_CHANCE_DENOMINATOR: i32 = 10;
 pub const GOAT_RAM_PREPARE_TIME: i32 = 20;
 pub const GOAT_RAM_MIN_DISTANCE: i32 = 4;
@@ -49,6 +52,7 @@ impl GoatState {
             is_screaming: false,
             has_left_horn: true,
             has_right_horn: true,
+            is_lowering_head: false,
             lower_head_tick: 0,
         }
     }
@@ -97,13 +101,37 @@ impl GoatState {
         horn_to_drop
     }
 
-    pub fn tick_lower_head(&mut self, lowering_head: bool) {
-        if lowering_head {
-            self.lower_head_tick += 1;
+    /// Applies Goat.handleEntityEvent's head-lowering events.
+    ///
+    /// Java handles event 58 by retaining a true flag, and event 59 by
+    /// retaining false. Other entity events are delegated to the superclass;
+    /// this state model reports those as unhandled so the caller can do the same.
+    pub fn handle_entity_event(&mut self, event_id: u8) -> bool {
+        match event_id {
+            58 => self.is_lowering_head = true,
+            59 => self.is_lowering_head = false,
+            _ => return false,
+        }
+        true
+    }
+
+    /// Advances Goat's head pose once, matching the head update at the start
+    /// of Goat.aiStep before the superclass step runs.
+    pub fn ai_step(&mut self) {
+        if self.is_lowering_head {
+            self.lower_head_tick = self.lower_head_tick.wrapping_add(1);
         } else {
-            self.lower_head_tick -= 2;
+            self.lower_head_tick = self.lower_head_tick.wrapping_sub(2);
         }
         self.lower_head_tick = self.lower_head_tick.clamp(0, GOAT_MAX_LOWER_HEAD_TICK);
+    }
+
+    /// Compatibility adapter for callers that previously supplied the pose
+    /// state on every tick. New event-driven callers should use
+    /// `handle_entity_event` and `ai_step` so the event remains retained.
+    pub fn tick_lower_head(&mut self, lowering_head: bool) {
+        self.is_lowering_head = lowering_head;
+        self.ai_step();
     }
 
     pub fn ramming_x_head_rot_radians(self, baby: bool) -> f32 {
@@ -130,6 +158,29 @@ impl GoatState {
     }
 }
 
+/// Models `Goat.getBreedOffspring`'s screaming inheritance expression.
+///
+/// Call only after offspring creation succeeds; Java returns `null` before
+/// selecting a parent or drawing the fallback when entity creation fails.
+/// The boolean selection is the result of Java's first `nextBoolean()` draw.
+/// The fallback closure is called only when the selected parent is not a
+/// screaming goat, matching Java's short-circuit `||` and RNG draw order.
+pub fn goat_baby_is_screaming(
+    self_is_screaming: bool,
+    partner_is_goat: bool,
+    partner_is_screaming: bool,
+    selected_self: bool,
+    fallback_random_value: impl FnOnce() -> f64,
+) -> bool {
+    let selected_parent_is_screaming = if selected_self {
+        self_is_screaming
+    } else {
+        partner_is_goat && partner_is_screaming
+    };
+
+    selected_parent_is_screaming || fallback_random_value() < GOAT_SCREAMING_OFFSPRING_CHANCE
+}
+
 pub fn goat_interaction(item: &str, baby: bool) -> GoatInteraction {
     if item == "minecraft:bucket" && !baby {
         GoatInteraction::Milk
@@ -145,3 +196,7 @@ pub fn goat_ram_knockback_force(baby: bool) -> f32 {
         GOAT_ADULT_RAM_KNOCKBACK_FORCE
     }
 }
+
+#[cfg(test)]
+#[path = "goat_lifecycle_tests.rs"]
+mod lifecycle_tests;

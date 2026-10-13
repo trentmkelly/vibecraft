@@ -313,7 +313,7 @@ fn assert_armadillo_interactions_sounds_and_animation_ticks() {
     assert_eq!(
         armadillo_interact_plan("minecraft:brush", false, false),
         ArmadilloInteractPlan::Brush {
-            loot_table: "minecraft:gameplay/armadillo_brush",
+            loot_table: "minecraft:brush/armadillo",
             sound: "minecraft:entity.armadillo.brush",
             game_event: "minecraft:entity_interact",
             tool_damage: 16,
