@@ -166,3 +166,7 @@
 - [ ] Add Mineflayer XP reward tests that collect orbs from mining, smelting, breeding, trading, commands, mob kills, and advancements, then verify level bar updates, orb merge timing, death drops, and reconnect persistence.
 - [ ] Implement trial spawner, vault, ominous trial, and related reward data.
 - [ ] Add Mineflayer trial reward tests that enter a trial chamber fixture, activate normal and ominous spawners, open vaults with generated bot profiles, reconnect mid-encounter, and compare reward drops, cooldowns, and denied-open feedback against vanilla.
+
+## Reviewed partial parity work: 12-lead stress test
+
+Decoded loot functions now apply Java list-operation modes to lore, writable/written book pages and custom-model-data fields, with end-to-end decoded-table evaluation tests for bounds, provider RNG consumption and Java rounding. Dynamic entity-resolved lore and structured written-page components with unproven encoded-length handling remain explicitly unmodeled. Bridging these canonical LootStack components to live ItemStack/network execution remains open.

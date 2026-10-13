@@ -10,14 +10,14 @@
 use serde_json::Value;
 
 use super::conditions::decode_conditions;
+use super::fields::{
+    as_bool, as_float, as_int, as_list, as_object, as_str, bool_or, identifier, int_field,
+    int_range, list, required, type_name, validate_fields, Field, Kind, Object,
+};
 use super::item_functions::{
     decode_copy_components, decode_copy_state, decode_enchant_randomly, decode_enchant_with_levels,
     decode_furnace_smelt, decode_set_components, decode_set_damage, decode_set_enchantments,
     decode_set_instrument, decode_set_name, decode_set_stew_effect,
-};
-use super::fields::{
-    as_bool, as_float, as_int, as_list, as_object, as_str, bool_or, identifier, int_field,
-    int_range, list, required, type_name, validate_fields, Field, Kind, Object,
 };
 use super::numbers::decode_number;
 use crate::loot_system::{ContentsComponent, LootBonusFormula, LootCondition, LootFunction};
@@ -116,6 +116,13 @@ fn decode_function_body(
             Some(function) => Ok(function),
             None => unmodeled(),
         },
+        "set_lore" | "set_written_book_pages" | "set_writable_book_pages" => {
+            match crate::loot_system::list_component_functions::decode(kind, object)? {
+                Some(function) => Ok(function),
+                None => unmodeled(),
+            }
+        }
+        "set_custom_model_data" => crate::loot_system::custom_model_data::decode(object),
         "set_contents" => decode_set_contents(object, value),
         "modify_contents" => decode_modify_contents(object, value),
         "discard" => Ok(LootFunction::Discard),
@@ -137,9 +144,7 @@ fn decode_function_body(
     }
 }
 
-use Kind::{
-    Any, Bool, Function, Id, IdSet, Int, List, ListMode, Long, Number, Obj, Str, Target,
-};
+use Kind::{Any, Bool, Function, Id, IdSet, Int, List, ListMode, Long, Number, Obj, Str, Target};
 
 /// The record fields (besides `conditions`) of each function type the runtime does
 /// not model, or `None` for an unregistered type.
@@ -225,9 +230,7 @@ fn validate_unmodeled_function(kind: &str, object: &Object) -> Result<(), String
             }
             validate_list_operation_fields(object, Some(256))
         }
-        "set_written_book_pages" => {
-            validate_list_operation_fields(object, None)
-        }
+        "set_written_book_pages" => validate_list_operation_fields(object, None),
         "set_writable_book_pages" => {
             let pages = as_list(required(object, "pages")?, "pages")?;
             if pages.len() > 100 {
@@ -308,12 +311,16 @@ fn validate_custom_model_data_operation(value: &Value, field: &str) -> Result<()
     let operation = as_object(value, field)?;
     let values = as_list(required(operation, "values")?, "values")?;
     match field {
-        "floats" => values.iter().try_for_each(|value| decode_number(value).map(drop))?,
-        "flags" => values.iter().try_for_each(|value| as_bool(value, "flags").map(drop))?,
-        "strings" => values.iter().try_for_each(|value| as_str(value, "strings").map(drop))?,
-        "colors" => values
+        "floats" => values
             .iter()
-            .try_for_each(validate_color_provider)?,
+            .try_for_each(|value| decode_number(value).map(drop))?,
+        "flags" => values
+            .iter()
+            .try_for_each(|value| as_bool(value, "flags").map(drop))?,
+        "strings" => values
+            .iter()
+            .try_for_each(|value| as_str(value, "strings").map(drop))?,
+        "colors" => values.iter().try_for_each(validate_color_provider)?,
         _ => unreachable!("only known custom model data fields are passed"),
     }
     validate_list_operation_fields(operation, None)

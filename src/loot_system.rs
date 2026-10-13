@@ -162,7 +162,11 @@ impl LootTable {
 /// Java `LootTable.shuffleAndSplitItems`: distribute generated stacks across
 /// available slots before the final shuffle, preserving the exact random draw
 /// order (including the two independent decisions to requeue split halves).
-fn shuffle_and_split_items(items: &mut Vec<LootStack>, available_slots: usize, random: &LootRandom) {
+fn shuffle_and_split_items(
+    items: &mut Vec<LootStack>,
+    available_slots: usize,
+    random: &LootRandom,
+) {
     let mut splittable = Vec::new();
     items.retain(|stack| !stack.is_empty());
     let mut singles = Vec::new();
@@ -890,9 +894,9 @@ mod json_codec;
 pub use json_codec::{
     decode_loot_table, validate_loot_condition, validate_loot_function, validate_number_provider,
 };
+mod contents_entry;
 mod enchanted;
 mod enchantment_registry;
-mod contents_entry;
 mod item_functions;
 mod modeling;
 mod predicates;
@@ -912,6 +916,13 @@ pub use world_view::{
     canonical_component_value, EntityFlags, LootDamageSource, LootEntity, LootEntityTarget,
     LootLevel, RegistryTags,
 };
+mod function_model;
+pub use function_model::LootFunction;
+mod list_operations;
+pub use list_operations::LootListEdit;
+mod custom_model_data;
+mod list_component_functions;
+pub use custom_model_data::CustomModelDataEdit;
 mod runtime_engine;
 pub use runtime_engine::*;
 mod runtime_functions;
@@ -922,6 +933,6 @@ mod random;
 pub use random::LootRandom;
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod random_tests;
+#[cfg(test)]
+mod tests;

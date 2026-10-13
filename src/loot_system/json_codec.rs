@@ -23,9 +23,16 @@ mod numbers;
 mod predicates;
 
 use conditions::decode_conditions;
-use fields::{as_bool, as_list, as_object, identifier, int_field, list, required, type_name, Object};
+use fields::{
+    as_bool, as_list, as_object, identifier, int_field, list, required, type_name, Object,
+};
 use functions::decode_functions;
 use numbers::decode_number;
+
+/// Shared `NumberProviders.CODEC` decoder for component-editing functions.
+pub(super) fn decode_number_provider(value: &Value) -> Result<NumberProvider, String> {
+    decode_number(value)
+}
 
 /// Decodes one loot table JSON document.
 pub fn decode_loot_table(raw: &str) -> Result<LootTable, String> {

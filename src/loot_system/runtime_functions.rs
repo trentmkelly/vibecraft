@@ -3,6 +3,10 @@ use super::*;
 impl LootFunction {
     pub fn apply(&self, stack: LootStack, context: &mut LootContext) -> Option<LootStack> {
         match self {
+            Self::EditLore(_) | Self::EditWrittenBookPages(_) | Self::EditWritableBookPages(_) => {
+                Some(list_component_functions::apply(stack, self))
+            }
+            Self::EditCustomModelData(edit) => Some(custom_model_data::apply(stack, edit, context)),
             Self::SetCount(_)
             | Self::LimitCount { .. }
             | Self::AddLootingBonus { .. }

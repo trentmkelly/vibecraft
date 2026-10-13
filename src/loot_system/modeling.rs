@@ -155,6 +155,13 @@ impl LootFunction {
             | Self::EnchantWithLevels {
                 levels: provider, ..
             } => provider.collect_unmodeled(out),
+            Self::EditCustomModelData(edit) => {
+                for operation in [&edit.floats, &edit.colors].into_iter().flatten() {
+                    for provider in &operation.values {
+                        provider.collect_unmodeled(out);
+                    }
+                }
+            }
             Self::SetEnchantments { enchantments, .. } => enchantments
                 .iter()
                 .for_each(|(_, provider)| provider.collect_unmodeled(out)),

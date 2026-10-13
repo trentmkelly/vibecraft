@@ -673,12 +673,33 @@ impl NbtProvider {
     }
 }
 
+/// Reads the legacy flat damage-source snapshot, preserving its `type` alias.
+fn damage_source_property_matches(context: &LootContext, key: &str, value: &str) -> bool {
+    context
+        .entity_properties
+        .get(&format!("damage_source.{key}"))
+        .or_else(|| {
+            if key == "type" {
+                context.entity_properties.get("damage_source")
+            } else {
+                None
+            }
+        })
+        .is_some_and(|actual| actual == value)
+}
+
+/// Java `Math.round(float)` rounds ties toward positive infinity. Computing the
+/// addition in f64 also preserves integers above float's half-unit precision.
+fn java_round(value: f32) -> i32 {
+    (f64::from(value) + 0.5).floor() as i32
+}
+
 impl NumberProvider {
     pub fn int(&self, context: &mut LootContext) -> i32 {
         match self {
             Self::Uniform { min, max } => {
-                let min = (*min).round() as i32;
-                let max = (*max).round() as i32;
+                let min = java_round(*min);
+                let max = java_round(*max);
                 min + context
                     .random
                     .next_i32(max.saturating_sub(min).saturating_add(1))
@@ -702,7 +723,7 @@ impl NumberProvider {
                 .map(|provider| provider.float(context))
                 .sum::<f32>()
                 .floor() as i32,
-            _ => self.float(context).round() as i32,
+            _ => java_round(self.float(context)),
         }
     }
 
@@ -934,7 +955,9 @@ impl LootCondition {
                 Some(radius) if radius > 0.0 => context.random.next_f32() <= 1.0 / radius,
                 _ => true,
             },
-            Self::EntityProperty { key, value } => context.entity_properties.get(key) == Some(value),
+            Self::EntityProperty { key, value } => {
+                context.entity_properties.get(key) == Some(value)
+            }
             Self::EntityScore { name, min, max } => context
                 .scores
                 .get(name)
@@ -945,17 +968,7 @@ impl LootCondition {
             }
             Self::MatchTool { item } => context.tool.as_ref() == Some(item),
             Self::DamageSourceProperty { key, value } => {
-                context
-                    .entity_properties
-                    .get(&format!("damage_source.{key}"))
-                    .or_else(|| {
-                        if key == "type" {
-                            context.entity_properties.get("damage_source")
-                        } else {
-                            None
-                        }
-                    })
-                    == Some(value)
+                damage_source_property_matches(context, key, value)
             }
             Self::LocationCheck { key, value } => context.entity_properties.get(key) == Some(value),
             Self::WeatherCheck {
@@ -968,7 +981,9 @@ impl LootCondition {
             Self::TimeCheck { min, max, period } => {
                 let time = period
                     .filter(|period| *period > 0)
-                    .map_or(context.game_time, |period| context.game_time.rem_euclid(period));
+                    .map_or(context.game_time, |period| {
+                        context.game_time.rem_euclid(period)
+                    });
                 time >= *min && time <= *max
             }
             Self::ValueCheck { provider, min, max } => {
@@ -1007,156 +1022,6 @@ impl LootCondition {
             Self::Unmodeled { .. } => false,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum LootFunction {
-    SetCount(NumberProvider),
-    LimitCount {
-        min: i32,
-        max: i32,
-    },
-    AddLootingBonus {
-        per_level: NumberProvider,
-        limit: Option<i32>,
-    },
-    ApplyFortuneBonus {
-        per_level: NumberProvider,
-        limit: Option<i32>,
-    },
-    /// `ApplyBonusCount`: `formula` over the tool's level of `enchantment`.
-    ApplyBonus {
-        enchantment: String,
-        formula: LootBonusFormula,
-    },
-    /// `SetItemCountFunction` with `add: true`.
-    AddCount(NumberProvider),
-    /// `EnchantedCountIncreaseFunction`: grows the count by
-    /// `round(level * count)` for the attacker's level of `enchantment`, capped at
-    /// `limit` when it is positive.
-    EnchantedCountIncrease {
-        enchantment: String,
-        count: NumberProvider,
-        limit: i32,
-    },
-    SetItem(String),
-    /// `SetEnchantmentsFunction`: level providers in declaration order.
-    SetEnchantments {
-        enchantments: Vec<(String, NumberProvider)>,
-        add: bool,
-    },
-    /// `SetItemDamageFunction`.
-    SetDamage {
-        damage: NumberProvider,
-        add: bool,
-    },
-    SetNbt(HashMap<String, String>),
-    /// `EnchantWithLevelsFunction`; `options` absent means every enchantment.
-    EnchantWithLevels {
-        levels: NumberProvider,
-        options: Option<HolderSet>,
-        include_additional_cost_component: bool,
-    },
-    /// `EnchantRandomlyFunction`; `options` absent means every enchantment.
-    EnchantRandomly {
-        options: Option<HolderSet>,
-        only_compatible: bool,
-        include_additional_cost_component: bool,
-    },
-    /// `SmeltItemFunction`.
-    SmeltItem {
-        use_input_count: bool,
-    },
-    /// `CopyComponentsFunction`.
-    CopyComponents {
-        source: ComponentSource,
-        include: Option<Vec<String>>,
-        exclude: Option<Vec<String>>,
-    },
-    CopyName {
-        source: String,
-    },
-    CopyNbt {
-        provider: NbtProvider,
-        target: String,
-    },
-    /// `SetContainerContents`: expand every entry without weighted pool selection.
-    SetContainerContents {
-        component: ContentsComponent,
-        entries: Vec<LootEntry>,
-    },
-    /// `ModifyContainerContents`: edit nonempty slots and clamp each result's size.
-    ModifyContainerContents {
-        component: ContentsComponent,
-        modifier: Box<LootFunction>,
-    },
-    SetContents(Vec<LootStack>),
-    ModifyContents(Vec<LootFunction>),
-    ExplorationMap {
-        destination: String,
-        decoration: String,
-    },
-    FillPlayerHead,
-    /// `CopyBlockState`: `properties` are those of `block` that exist on it.
-    CopyState {
-        block: String,
-        properties: Vec<String>,
-    },
-    SetAttributes(Vec<String>),
-    SetBannerPatterns(Vec<String>),
-    SetBookContents {
-        title: String,
-        author: String,
-        pages: Vec<String>,
-    },
-    /// `SetComponentsFunction`: the `DataComponentPatch` edits.
-    SetComponents(Vec<ComponentEdit>),
-    /// `SetInstrumentFunction`.
-    SetInstrument(HolderSet),
-    SetLore(Vec<String>),
-    /// `SetNameFunction`: `name` is the compact JSON of the text component.
-    SetName {
-        name: Option<String>,
-        target: NameTarget,
-    },
-    SetPotion(String),
-    SetRandomPotion(Vec<String>),
-    /// `SetStewEffectFunction`.
-    SetStewEffects(Vec<StewEffect>),
-    SetRandomDyes(Vec<String>),
-    SetWrittenBookPages(Vec<String>),
-    SetWritableBookPages(Vec<String>),
-    SetBookCover {
-        title: String,
-        author: String,
-    },
-    ToggleTooltips(Vec<String>),
-    SetFireworkExplosions(Vec<String>),
-    SetFireworks {
-        flight_duration: i32,
-        explosions: Vec<String>,
-    },
-    SetOminousBottleAmplifier(NumberProvider),
-    SetCustomModelData(String),
-    SetLootTable(String),
-    Reference(String),
-    Discard,
-    ApplyExplosionDecay,
-    Filtered {
-        // Conditions can contain recursive entity predicates; keep conditional
-        // functions from inflating every other function variant's allocation.
-        condition: Box<LootCondition>,
-        function: Box<LootFunction>,
-    },
-    Sequence(Vec<LootFunction>),
-    /// A `LootItemFunctions` type (or parameterisation) the runtime cannot apply
-    /// yet. The codec validated the document; the function leaves the stack
-    /// untouched and marks the table as not fully modeled.
-    /// TODO(loot-json-codec): model these functions.
-    Unmodeled {
-        kind: String,
-        data: serde_json::Value,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
