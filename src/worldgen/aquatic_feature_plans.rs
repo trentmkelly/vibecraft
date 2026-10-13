@@ -70,6 +70,8 @@ pub fn sea_pickle_placement_plan(
     }
 }
 
+/// Snapshot-only shape helper. Survival samples and `below_is_kelp` cannot model
+/// queries against earlier writes; use `place_kelp_feature` for Java execution.
 pub fn kelp_placement_plan(
     origin: BlockPos,
     water_column: &[bool],
@@ -123,6 +125,94 @@ pub fn kelp_placement_plan(
         }
     }
     blocks
+}
+
+/// World access required by `KelpFeature.place` in the Java decompilation.
+///
+/// Queries must observe preceding writes. Survival must delegate to the supplied
+/// block state's rules (`GrowingPlantBlock.canSurvive`, including support tags
+/// and face sturdiness), rather than treating water itself as valid support.
+pub trait KelpFeatureWorld {
+    fn ocean_floor_height(&mut self, x: i32, z: i32) -> i32;
+    fn is_water(&mut self, pos: BlockPos) -> bool;
+    fn is_kelp_head(&mut self, pos: BlockPos) -> bool;
+    fn can_survive(&mut self, pos: BlockPos, state: &'static str) -> bool;
+    /// Java uses update flag 2 and ignores the write's return value.
+    fn set_block(&mut self, block: AquaticPlacementBlock, flags: i32);
+}
+
+/// Execute Java `KelpFeature.place` against a mutable world using decoration RNG.
+///
+/// The origin's y coordinate is replaced by OCEAN_FLOOR height. Success counts
+/// attempted head writes, even when the world declines a write. Body writes
+/// alone do not count as success. The initial failed iteration deliberately
+/// advances, while later failed iterations attempt a fallback head then stop.
+pub fn place_kelp_feature(
+    world: &mut impl KelpFeatureWorld,
+    random: &mut RandomSourceKind,
+    origin: BlockPos,
+) -> bool {
+    let mut pos = BlockPos {
+        y: world.ocean_floor_height(origin.x, origin.z),
+        ..origin
+    };
+    if !world.is_water(pos) {
+        return false;
+    }
+    let height = 1 + worldgen_random_next_i32_bound(random, 10);
+    for h in 0..=height {
+        let above = BlockPos {
+            y: pos.y.wrapping_add(1),
+            ..pos
+        };
+        if world.is_water(pos)
+            && world.is_water(above)
+            && world.can_survive(pos, "minecraft:kelp_plant")
+        {
+            if h == height {
+                place_kelp_head(world, random, pos);
+                return true;
+            }
+            world.set_block(
+                AquaticPlacementBlock {
+                    pos,
+                    state: "minecraft:kelp_plant",
+                },
+                2,
+            );
+        } else if h > 0 {
+            let below = BlockPos {
+                y: pos.y.wrapping_sub(1),
+                ..pos
+            };
+            let support = BlockPos {
+                y: pos.y.wrapping_sub(2),
+                ..pos
+            };
+            if world.can_survive(below, "minecraft:kelp") && !world.is_kelp_head(support) {
+                place_kelp_head(world, random, below);
+                return true;
+            }
+            return false;
+        }
+        pos = above;
+    }
+    false
+}
+
+fn place_kelp_head(
+    world: &mut impl KelpFeatureWorld,
+    random: &mut RandomSourceKind,
+    pos: BlockPos,
+) {
+    let age = 20 + worldgen_random_next_i32_bound(random, 4);
+    world.set_block(
+        AquaticPlacementBlock {
+            pos,
+            state: kelp_state_for_age(age),
+        },
+        2,
+    );
 }
 
 const fn kelp_state_for_age(age: i32) -> &'static str {
@@ -343,3 +433,7 @@ pub fn coral_claw_positions(
     }
     positions
 }
+
+#[cfg(test)]
+#[path = "aquatic_kelp_execution_tests.rs"]
+mod kelp_execution_tests;
