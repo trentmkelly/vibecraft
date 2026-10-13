@@ -447,9 +447,11 @@ fn stateless_minecraft_parsers_gate_following_literal_completion() {
         command_suggestions(&one_tick_minimum, 0, "😀 0.04s n").texts,
         ["next"]
     );
-    assert!(command_suggestions(&one_tick_minimum, 0, "😀 0.02s n")
-        .texts
-        .is_empty());
+    assert!(
+        command_suggestions(&one_tick_minimum, 0, "😀 0.02s n")
+            .texts
+            .is_empty()
+    );
 }
 
 #[test]
@@ -465,7 +467,7 @@ fn vanilla_color_argument_suggests_chat_formatting_colors_and_reset() {
 
 #[test]
 fn stateless_minecraft_parsers_preserve_java_reader_cursor_semantics() {
-    use super::suggest::argument::{parse, StringReader};
+    use super::suggest::argument::{StringReader, parse};
 
     let parse_at_zero = |parser: &str, text: &str, properties: Value| {
         let input: Vec<u16> = text.encode_utf16().collect();
@@ -540,4 +542,150 @@ fn stateless_minecraft_parsers_preserve_java_reader_cursor_semantics() {
         0,
         "StringReader.readFloat resets on syntax error"
     );
+}
+
+/// Exercise the actual completion traversal, not only the argument helpers:
+/// invalid syntax must keep the following literal inaccessible, and successful
+/// arguments must retain Java's UTF-16 replacement ranges.
+#[test]
+fn minecraft_coordinate_parsers_gate_following_literal_completion() {
+    let cases: &[(&str, &[&str], &[&str])] = &[
+        (
+            "minecraft:vec3",
+            &["1 2 3", "~ ~1.5 ~", "^ ^2 ^-3"],
+            &["x y z", "~ ~ ^", "1 2", "^ ^ 1"],
+        ),
+        (
+            "minecraft:block_pos",
+            &["1 2 3", "~1.5 ~ ~", "^ ^ ^"],
+            &["1.5 2 3", "2147483648 2 3", "~ ~ ^"],
+        ),
+        (
+            "minecraft:vec2",
+            &["1.5 -2", "~ ~3.5"],
+            &["^ ^", "1", "x y"],
+        ),
+        (
+            "minecraft:column_pos",
+            &["1 -2", "~1.5 ~"],
+            &["1.5 2", "^ ^", "1"],
+        ),
+        (
+            "minecraft:rotation",
+            &["1.5 -2", "~ ~3.5"],
+            &["^ ^", "1", "x y"],
+        ),
+    ];
+    assert_parsers_gate_following_literal(cases);
+}
+
+#[test]
+fn minecraft_simple_parsers_gate_following_literal_completion() {
+    let cases: &[(&str, &[&str], &[&str])] = &[
+        (
+            "minecraft:resource_location",
+            &["minecraft:foo/bar", ":foo", "foo"],
+            &["..:foo", "foo::bar", "Foo"],
+        ),
+        (
+            "minecraft:resource_key",
+            &["minecraft:foo/bar", ":foo"],
+            &["..:foo", "foo::bar", "Foo"],
+        ),
+        (
+            "minecraft:resource_or_tag_key",
+            &["minecraft:foo", "#custom:foo"],
+            &["#..:foo", "foo::bar", "Foo"],
+        ),
+        (
+            "minecraft:heightmap",
+            &["world_surface", "motion_blocking_no_leaves"],
+            &["WORLD_SURFACE", "ocean_floor_wg", "unknown"],
+        ),
+        (
+            "minecraft:function",
+            &["minecraft:foo", "#custom:foo"],
+            &["#..:foo", "foo::bar", "Foo"],
+        ),
+        (
+            "minecraft:uuid",
+            &["dd12be42-52a9-4a91-a8a1-11c01849e498", "1-2-3-4-5"],
+            &["not_uuid", "1-2-3-4", "1-2-3-4-5-6"],
+        ),
+        (
+            "minecraft:angle",
+            &["0", "~-5.5", "~"],
+            &[
+                "^",
+                "angle",
+                "99999999999999999999999999999999999999999999999",
+            ],
+        ),
+        (
+            "minecraft:gamemode",
+            &["survival", "spectator"],
+            &["Survival", "1", "not_a_mode"],
+        ),
+        (
+            "minecraft:entity_anchor",
+            &["feet", "eyes"],
+            &["Feet", "head"],
+        ),
+        (
+            "minecraft:hex_color",
+            &["F0a", "FF0000", "FF-1+0"],
+            &["FFFF", "GGG", "#F00"],
+        ),
+        (
+            "minecraft:operation",
+            &["=", "+=", "><"],
+            &["==", "++", "+"],
+        ),
+    ];
+    assert_parsers_gate_following_literal(cases);
+}
+
+fn assert_parsers_gate_following_literal(cases: &[(&str, &[&str], &[&str])]) {
+    for &(parser, valid, invalid) in cases {
+        let graph = parser_completion_graph(parser, Value::Null);
+        for value in valid {
+            let input = format!("😀 {value} n");
+            let result = command_suggestions(&graph, 0, &input);
+            assert_eq!(result.texts, ["next"], "{parser} valid {value:?}");
+            let end = input.encode_utf16().count();
+            assert_eq!((result.start, result.end), (end - 1, end));
+        }
+        for value in invalid {
+            let input = format!("😀 {value} n");
+            let result = command_suggestions(&graph, 0, &input);
+            assert!(
+                !result.texts.iter().any(|text| text == "next"),
+                "{parser} invalid {value:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn minecraft_simple_arguments_offer_java_static_suggestions() {
+    let cases: &[(&str, &str, &[&str])] = &[
+        (
+            "minecraft:heightmap",
+            "motion",
+            &["motion_blocking", "motion_blocking_no_leaves"],
+        ),
+        ("minecraft:hex_color", "ff", &["FF0000"]),
+        // SuggestionsBuilder drops a candidate equal to the remaining input.
+        ("minecraft:operation", ">", &["><"]),
+    ];
+    for &(parser, prefix, expected) in cases {
+        let graph = parser_completion_graph(parser, Value::Null);
+        let input = format!("😀 {prefix}");
+        let result = command_suggestions(&graph, 0, &input);
+        assert_eq!(result.texts, expected, "{parser} {prefix:?}");
+        assert_eq!(
+            (result.start, result.end),
+            (3, input.encode_utf16().count())
+        );
+    }
 }

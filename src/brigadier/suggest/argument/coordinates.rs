@@ -26,10 +26,6 @@ impl Kind {
     fn is_3d(self) -> bool {
         matches!(self, Self::Vec3 | Self::BlockPos)
     }
-
-    fn integral(self) -> bool {
-        matches!(self, Self::BlockPos | Self::ColumnPos)
-    }
 }
 
 /// `listSuggestions` for a coordinate argument.
@@ -93,66 +89,11 @@ fn java_split_spaces(text: &str) -> Vec<&str> {
 fn parses(text: &str, kind: Kind) -> bool {
     let units: Vec<u16> = text.encode_utf16().collect();
     let mut reader = StringReader::new(&units, 0);
-    if reader.peek() == Some(b'^' as u16) {
-        return parse_local(&mut reader, kind);
-    }
-    let count = if kind.is_3d() { 3 } else { 2 };
-    for index in 0..count {
-        if index > 0 {
-            if reader.peek() != Some(b' ' as u16) {
-                return false; // ERROR_NOT_COMPLETE
-            }
-            reader.skip();
-        }
-        if !parse_world_coordinate(&mut reader, kind.integral()) {
-            return false;
-        }
-    }
-    true
-}
-
-/// `WorldCoordinate.parseDouble` / `parseInt`.
-fn parse_world_coordinate(reader: &mut StringReader<'_>, integral: bool) -> bool {
-    if reader.peek() == Some(b'^' as u16) || !reader.can_read(1) {
-        return false; // mixed types / expected number
-    }
-    let relative = reader.peek() == Some(b'~' as u16);
-    if relative {
-        reader.skip();
-    }
-    if reader.can_read(1) && reader.peek() != Some(b' ' as u16) {
-        if integral && !relative {
-            return reader.read_int().is_some();
-        }
-        return reader.read_double().is_some();
-    }
-    true
-}
-
-/// `LocalCoordinates.parse`: exactly `^`-prefixed values for every axis
-/// (`Vec3`/`BlockPos` take three, the 2D arguments reject local coordinates
-/// through `WorldCoordinates`/`Vec2` parsing).
-fn parse_local(reader: &mut StringReader<'_>, kind: Kind) -> bool {
-    if !kind.is_3d() {
-        return false;
-    }
-    for index in 0..3 {
-        if index > 0 {
-            if reader.peek() != Some(b' ' as u16) {
-                return false;
-            }
-            reader.skip();
-        }
-        if reader.peek() != Some(b'^' as u16) {
-            return false;
-        }
-        reader.skip();
-        if reader.can_read(1)
-            && reader.peek() != Some(b' ' as u16)
-            && reader.read_double().is_none()
-        {
-            return false;
-        }
-    }
-    true
+    let parse_kind = match kind {
+        Kind::Vec3 => super::coordinate_parse::Kind::Vec3,
+        Kind::BlockPos => super::coordinate_parse::Kind::BlockPos,
+        Kind::Vec2 => super::coordinate_parse::Kind::Vec2,
+        Kind::ColumnPos => super::coordinate_parse::Kind::ColumnPos,
+    };
+    super::coordinate_parse::parse(&mut reader, parse_kind)
 }

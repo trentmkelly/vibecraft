@@ -1,11 +1,11 @@
 //! Argument parsing and suggestions for server-side completion.
 //!
 //! Brigadier's own argument types (`bool`, numbers, strings) are ports of
-//! `StringReader`/`*ArgumentType.parse`. Stateless Minecraft ranges, colors,
-//! axis swizzles and times use their Java argument grammar and cursor behavior.
+//! `StringReader`/`*ArgumentType.parse`. Stateless Minecraft arguments and coordinates
+//! use their Java argument grammar and cursor behavior.
 //! Remaining Minecraft types use [`consume_minecraft_argument`], which only
 //! decides how many characters an argument occupies (balanced quotes, brackets
-//! and braces; fixed token counts for coordinates).
+//! and braces).
 //!
 //! TODO(command-argument-parsers): replace the approximation with exact ports
 //! of the argument classes under `net/minecraft/commands/arguments` (entity
@@ -15,7 +15,9 @@
 
 use serde_json::Value;
 
+mod coordinate_parse;
 pub(super) mod coordinates;
+mod simple_parse;
 mod stateless;
 
 use super::SuggestionsBuilder;
@@ -230,7 +232,15 @@ pub(crate) fn parse(parser: &str, properties: &Value, reader: &mut StringReader<
         "minecraft:color" => stateless::parse_color(reader),
         "minecraft:swizzle" => stateless::parse_swizzle(reader),
         "minecraft:time" => stateless::parse_time(properties, reader),
-        other => consume_minecraft_argument(other, reader),
+        "minecraft:vec3" => coordinate_parse::parse(reader, coordinate_parse::Kind::Vec3),
+        "minecraft:block_pos" => coordinate_parse::parse(reader, coordinate_parse::Kind::BlockPos),
+        "minecraft:vec2" => coordinate_parse::parse(reader, coordinate_parse::Kind::Vec2),
+        "minecraft:column_pos" => {
+            coordinate_parse::parse(reader, coordinate_parse::Kind::ColumnPos)
+        }
+        "minecraft:rotation" => coordinate_parse::parse(reader, coordinate_parse::Kind::Rotation),
+        other => simple_parse::parse(other, reader)
+            .unwrap_or_else(|| consume_minecraft_argument(other, reader)),
     }
 }
 
@@ -277,26 +287,8 @@ fn consume_minecraft_argument(parser: &str, reader: &mut StringReader<'_>) -> bo
             reader.set_cursor(reader.input.len());
             true
         }
-        // Positions take one whitespace separated coordinate each.
-        "vec3" | "block_pos" => consume_tokens(reader, 3),
-        "vec2" | "column_pos" | "rotation" => consume_tokens(reader, 2),
         _ => reader.read_balanced_token(),
     }
-}
-
-fn consume_tokens(reader: &mut StringReader<'_>, count: usize) -> bool {
-    for index in 0..count {
-        if index > 0 {
-            if reader.peek() != Some(b' ' as u16) {
-                return false;
-            }
-            reader.skip();
-        }
-        if !reader.read_balanced_token() {
-            return false;
-        }
-    }
-    true
 }
 
 /// `SharedSuggestionProvider.matchesSubStr`: the pattern must prefix the input
@@ -348,6 +340,9 @@ pub(crate) fn list_suggestions(
         "minecraft:entity_anchor" => suggest_matching(["feet", "eyes"], builder),
         "minecraft:time" => suggest_time_units(builder),
         "minecraft:color" => suggest_matching(stateless::COLORS, builder),
+        "minecraft:heightmap" => suggest_matching(simple_parse::HEIGHTMAPS, builder),
+        "minecraft:operation" => suggest_matching(simple_parse::OPERATIONS, builder),
+        "minecraft:hex_color" => suggest_matching(simple_parse::HEX_COLOR_EXAMPLES, builder),
         "minecraft:vec3" => coordinates::suggest(builder, coordinates::Kind::Vec3),
         "minecraft:block_pos" => coordinates::suggest(builder, coordinates::Kind::BlockPos),
         "minecraft:vec2" => coordinates::suggest(builder, coordinates::Kind::Vec2),

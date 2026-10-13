@@ -6,9 +6,10 @@
 //! written to `ClientboundCommandSuggestionsPacket` are directly comparable.
 //!
 //! Argument handling status (see [`argument`]): the Brigadier primitives are
-//! ported exactly, alongside stateless Minecraft ranges, colors, swizzles and
-//! times. Other Minecraft argument types use a token heuristic; bool, gamemode,
-//! entity anchors, colors, times and coordinates provide static suggestions.
+//! ported exactly, alongside stateless Minecraft scalar and coordinate grammars.
+//! Identifier/function keys receive Java's lexical validation; resolving live
+//! registries and functions is still a separate concern. Other Minecraft argument
+//! types use a token heuristic. Stateless arguments provide their Java suggestions.
 //! Many remaining arguments need live players, registries and scoreboards.
 //! Named sound and summonable-entity providers use pinned built-in registries; static
 //! per-command providers are recovered from the parsed command path.
