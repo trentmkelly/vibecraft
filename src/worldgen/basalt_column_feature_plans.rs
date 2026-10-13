@@ -2,7 +2,7 @@ use super::*;
 
 pub fn basalt_columns_cannot_place_on(state: &str) -> bool {
     matches!(
-        state,
+        block_state_id(state),
         "minecraft:lava"
             | "minecraft:bedrock"
             | "minecraft:magma_block"
@@ -17,7 +17,7 @@ pub fn basalt_columns_cannot_place_on(state: &str) -> bool {
 }
 
 pub fn basalt_columns_is_air_or_lava_ocean(state: &str, y: i32, lava_sea_level: i32) -> bool {
-    state == "minecraft:air" || (state == "minecraft:lava" && y <= lava_sea_level)
+    block_is_air(state) || (block_state_id(state) == "minecraft:lava" && y <= lava_sea_level)
 }
 
 pub fn basalt_columns_can_place_at(
@@ -27,8 +27,69 @@ pub fn basalt_columns_can_place_at(
     lava_sea_level: i32,
 ) -> bool {
     basalt_columns_is_air_or_lava_ocean(state, y, lava_sea_level)
-        && below_state != "minecraft:air"
+        && !block_is_air(below_state)
         && !basalt_columns_cannot_place_on(below_state)
+}
+
+/// Model Java's downward `findSurface` scan over explicitly sampled block states.
+///
+/// Each `(y, state)` pair describes one block in the same X/Z column. Samples
+/// must cover every queried height: Java's world always supplies those states,
+/// so an incomplete snapshot cannot establish a surface and returns `None`.
+/// The Java loop only examines positions strictly above `min_y + 1`, and a
+/// zero or negative limit performs no queries.
+pub fn basalt_columns_find_surface_y(
+    start_y: i32,
+    min_y: i32,
+    limit: i32,
+    states: &[(i32, &str)],
+    lava_sea_level: i32,
+) -> Option<i32> {
+    let mut y = start_y;
+    let mut remaining = limit;
+    while y > min_y + 1 && remaining > 0 {
+        remaining -= 1;
+        let current = basalt_column_state_at(states, y)?;
+        let below = basalt_column_state_at(states, y - 1)?;
+        if basalt_columns_can_place_at(current, below, y, lava_sea_level) {
+            return Some(y);
+        }
+        y -= 1;
+    }
+    None
+}
+
+/// Model Java's upward `findAir` scan over explicit states in one X/Z column.
+///
+/// `max_y` is inclusive. A forbidden block ends the search immediately, even
+/// if an air block exists farther above, matching the Java loop's check order.
+/// Missing samples return `None` because the scan cannot safely be continued.
+pub fn basalt_columns_find_air_y(
+    start_y: i32,
+    max_y: i32,
+    limit: i32,
+    states: &[(i32, &str)],
+) -> Option<i32> {
+    let mut y = start_y;
+    let mut remaining = limit;
+    while y <= max_y && remaining > 0 {
+        remaining -= 1;
+        let state = basalt_column_state_at(states, y)?;
+        if basalt_columns_cannot_place_on(state) {
+            return None;
+        }
+        if block_is_air(state) {
+            return Some(y);
+        }
+        y += 1;
+    }
+    None
+}
+
+fn basalt_column_state_at<'a>(states: &'a [(i32, &'a str)], y: i32) -> Option<&'a str> {
+    states
+        .iter()
+        .find_map(|(sample_y, state)| (*sample_y == y).then_some(*state))
 }
 
 pub fn validate_column_feature_config(
@@ -59,6 +120,12 @@ pub fn basalt_columns_cluster_parameters(
     (clustered, reach, count)
 }
 
+/// Plan the upward writes after Java's `findSurface` / `findAir` search.
+///
+/// `origin` is the column-cluster center, and `surface_pos` retains the sampled
+/// X/Z coordinate. Java measures taper from that sample at `origin.y`, before
+/// the vertical search moves its cursor. The reach bounds a square, including
+/// corners whose Manhattan distance exceeds reach.
 pub fn basalt_column_blocks_from_surface(
     surface_pos: BlockPos,
     origin: BlockPos,
@@ -68,12 +135,12 @@ pub fn basalt_column_blocks_from_surface(
     already_basalt_above: &[bool],
 ) -> Vec<BasaltColumnPlacementBlock> {
     let mut blocks = Vec::new();
-    let step_limit = (surface_pos.x - origin.x).abs()
-        + (surface_pos.y - origin.y).abs()
-        + (surface_pos.z - origin.z).abs();
-    if step_limit > reach {
+    let x_distance = (surface_pos.x - origin.x).abs();
+    let z_distance = (surface_pos.z - origin.z).abs();
+    if x_distance > reach || z_distance > reach {
         return blocks;
     }
+    let step_limit = x_distance + z_distance;
     let mut blocks_y = column_height - step_limit / 2;
     let mut step = 0usize;
     while blocks_y >= 0 {
@@ -93,3 +160,7 @@ pub fn basalt_column_blocks_from_surface(
     }
     blocks
 }
+
+#[cfg(test)]
+#[path = "basalt_column_feature_plan_regression_tests.rs"]
+mod regression_tests;
