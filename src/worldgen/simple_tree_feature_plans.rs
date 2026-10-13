@@ -24,17 +24,40 @@ pub fn simple_tree_placement_plan(
 ) -> Result<TreePlacementPlan, String> {
     validate_trunk_placer(input.trunk)?;
     validate_foliage_placer(input.foliage)?;
+    let tree_height = trunk_placer_height(input.trunk, input.rand_a, input.rand_b);
+    simple_tree_placement_plan_with_heights(input, tree_height, tree_height)
+}
+
+/// Place a straight tree after the configured feature's clearance scan.
+///
+/// `TreeFeature.doPlace` samples foliage dimensions using the original tree height,
+/// then passes the clipped height to `StraightTrunkPlacer.placeTrunk`. Its foliage
+/// attachment therefore moves down with the trunk without resampling the crown.
+pub(super) fn simple_tree_placement_plan_at_height(
+    input: SimpleTreePlacementInput,
+    tree_height: i32,
+    clipped_tree_height: i32,
+) -> Result<TreePlacementPlan, String> {
+    validate_trunk_placer(input.trunk)?;
+    validate_foliage_placer(input.foliage)?;
+    simple_tree_placement_plan_with_heights(input, tree_height, clipped_tree_height)
+}
+
+fn simple_tree_placement_plan_with_heights(
+    input: SimpleTreePlacementInput,
+    tree_height: i32,
+    clipped_tree_height: i32,
+) -> Result<TreePlacementPlan, String> {
     if input.trunk.kind != TrunkPlacerKind::Straight {
         return Err(
             "only straight trunk placement is modeled by simple_tree_placement_plan".to_string(),
         );
     }
 
-    let tree_height = trunk_placer_height(input.trunk, input.rand_a, input.rand_b);
     let foliage = simple_tree_foliage_layout(&input, tree_height);
     let mut blocks = Vec::new();
-    place_simple_tree_trunk(&mut blocks, &input, tree_height);
-    place_simple_tree_foliage(&mut blocks, &input, tree_height, &foliage);
+    place_simple_tree_trunk(&mut blocks, &input, clipped_tree_height);
+    place_simple_tree_foliage(&mut blocks, &input, clipped_tree_height, &foliage);
     Ok(TreePlacementPlan { blocks })
 }
 

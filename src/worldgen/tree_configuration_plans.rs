@@ -152,10 +152,16 @@ pub struct TreeCanPlaceInput<'a> {
 }
 
 pub fn tree_can_place(input: TreeCanPlaceInput<'_>) -> bool {
+    tree_clipped_placement_height(input).is_some()
+}
+
+/// Return the accepted clearance height, preserving Java's original-height bounds
+/// check even when a smaller trunk would fit inside the build height.
+fn tree_clipped_placement_height(input: TreeCanPlaceInput<'_>) -> Option<i32> {
     let min_y = input.origin.y.min(input.trunk_origin.y);
     let max_y = input.origin.y.max(input.trunk_origin.y) + input.tree_height + 1;
     if min_y < input.build_min_y + 1 || max_y > input.build_max_y + 1 {
-        return false;
+        return None;
     }
     let clipped_tree_height = tree_max_free_height(
         input.tree_height,
@@ -163,10 +169,11 @@ pub fn tree_can_place(input: TreeCanPlaceInput<'_>) -> bool {
         input.rows,
         input.ignore_vines,
     );
-    clipped_tree_height >= input.tree_height
+    let accepted = clipped_tree_height >= input.tree_height
         || input
             .min_clipped_height
-            .is_some_and(|min| clipped_tree_height >= min)
+            .is_some_and(|min| clipped_tree_height >= min);
+    accepted.then_some(clipped_tree_height)
 }
 
 fn feature_size_min_clipped_height(size: FeatureSizeModel) -> Option<i32> {
@@ -210,7 +217,7 @@ pub fn configured_tree_placement_plan(
 ) -> Result<Option<TreePlacementPlan>, String> {
     validate_tree_configuration(config)?;
     let tree_height = trunk_placer_height(config.trunk_placer, rand_a, rand_b);
-    if !tree_can_place(TreeCanPlaceInput {
+    let Some(clipped_tree_height) = tree_clipped_placement_height(TreeCanPlaceInput {
         origin,
         trunk_origin: origin,
         tree_height,
@@ -220,9 +227,9 @@ pub fn configured_tree_placement_plan(
         build_max_y,
         rows: replaceable_rows,
         ignore_vines: config.ignore_vines,
-    }) {
+    }) else {
         return Ok(None);
-    }
+    };
 
     let trunk_provider = block_state_provider_sample(&config.trunk_provider, rand_a)
         .ok_or_else(|| "validated tree trunk provider produced no block state".to_string())?;
@@ -232,7 +239,7 @@ pub fn configured_tree_placement_plan(
         block_state_provider_sample(&config.dirt_provider, rand_a.wrapping_add(rand_b))
             .ok_or_else(|| "validated tree dirt provider produced no block state".to_string())?;
 
-    Ok(Some(simple_tree_placement_plan(
+    Ok(Some(simple_tree_placement_plan_at_height(
         SimpleTreePlacementInput {
             origin,
             trunk: config.trunk_placer,
@@ -243,6 +250,8 @@ pub fn configured_tree_placement_plan(
             rand_a,
             rand_b,
         },
+        tree_height,
+        clipped_tree_height,
     )?))
 }
 
@@ -330,3 +339,7 @@ pub fn validate_root_placer(placer: RootPlacerModel) -> Result<RootPlacerModel, 
         Ok(placer)
     }
 }
+
+#[cfg(test)]
+#[path = "tree_clipped_geometry_tests.rs"]
+mod tree_clipped_geometry_tests;
