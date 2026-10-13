@@ -101,11 +101,26 @@ fn dragon_bossbar_death_respawn_and_crystal_rules_are_visible_to_clients() {
 
     assert_eq!(DRAGON_RESPAWN_STAGES.len(), 5);
     assert_eq!(dragon_death_plan(179), vec![]);
-    assert_eq!(dragon_death_plan(180), vec![DragonDeathPlan::Explode]);
+    assert_eq!(
+        dragon_death_plan(155),
+        vec![DragonDeathPlan::DropExperience]
+    );
+    assert_eq!(
+        dragon_death_plan(180),
+        vec![DragonDeathPlan::Explode, DragonDeathPlan::DropExperience]
+    );
     assert_eq!(
         dragon_death_plan(200),
         vec![
             DragonDeathPlan::Explode,
+            DragonDeathPlan::DropExperience,
+            DragonDeathPlan::SpawnExitPortalAndGateway,
+            DragonDeathPlan::Remove,
+        ]
+    );
+    assert_eq!(
+        dragon_death_plan(201),
+        vec![
             DragonDeathPlan::DropExperience,
             DragonDeathPlan::SpawnExitPortalAndGateway,
             DragonDeathPlan::Remove,

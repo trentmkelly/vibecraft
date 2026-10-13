@@ -1,5 +1,10 @@
 #![allow(dead_code)]
 
+/// Java-ordered dragon damage and death transitions.
+pub mod dragon_combat;
+/// Java-ordered crystal beams, pillar restoration, and dragon respawn transitions.
+pub mod respawn;
+
 pub const ENDER_DRAGON_MAX_HEALTH: f32 = 200.0;
 pub const ENDER_DRAGON_CAMERA_DISTANCE: f32 = 16.0;
 pub const ENDER_DRAGON_GROWL_INTERVAL_MIN: i32 = 200;
@@ -540,14 +545,31 @@ pub enum DragonDeathPlan {
     Remove,
 }
 
+/// Coarse compatibility summary for an already-incremented dragon death counter.
+///
+/// Use `dragon_combat::dragon_death_tick_plan` to execute a death tick: it retains
+/// the separate experience awards before and after movement and the side/rule gates.
+/// This summary assumes a server-side first kill with mob drops enabled.
 pub fn dragon_death_plan(dragon_death_time: i32) -> Vec<DragonDeathPlan> {
+    let tick = dragon_combat::dragon_death_tick_plan(dragon_combat::DragonDeathTickInput {
+        dragon_death_time: dragon_death_time.wrapping_sub(1),
+        has_fight: true,
+        previously_killed: false,
+        mob_drops: true,
+        silent: false,
+        server_side: true,
+    });
     let mut plan = Vec::new();
-    if (180..=200).contains(&dragon_death_time) {
+    if tick.emit_explosion_emitter {
         plan.push(DragonDeathPlan::Explode);
     }
-    if dragon_death_time == 200 {
+    if tick.periodic_experience.is_some() || tick.final_experience.is_some() {
         plan.push(DragonDeathPlan::DropExperience);
+    }
+    if tick.set_dragon_killed {
         plan.push(DragonDeathPlan::SpawnExitPortalAndGateway);
+    }
+    if tick.remove_as_killed {
         plan.push(DragonDeathPlan::Remove);
     }
     plan

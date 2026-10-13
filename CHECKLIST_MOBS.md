@@ -311,3 +311,7 @@
 - [ ] Implement raid package behavior: raid lifecycle, waves, leaders, omen integration, hero rewards, persistence, bossbar, and village detection.
 - [ ] Implement vehicles: boats, chest boats, minecarts, chest/hopper/furnace/TNT/spawner/command block minecarts, interpolation, collision, rails, activator/detector/powered rail behavior, and passenger sync.
 - [ ] For every entity family, create parity scenarios for spawn rules, pathfinding, interactions, damage, drops, NBT save/load, metadata sync, riding/passengers, portals, despawn, and chunk unload/reload.
+
+## Reviewed partial parity work: 12-lead stress test
+
+Armadillo lifecycle/peek memory and brush loot, goat event state/inheritance, Blaze retained hover state and Ghast countdown arithmetic now have focused Java-derived tests. Dragon part damage exposes the base-hurt callback; death rewards and ordered respawn stages expose explicit state/action plans, including persistence actions. Live entity execution and a world executor for these boss plans remain open; the broad mob and boss rows above remain unchecked.
