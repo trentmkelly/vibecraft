@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use super::contents_entry::conditions_hold;
 use super::*;
 use std::collections::HashMap;
 
@@ -309,7 +310,7 @@ impl LootEntry {
         }
     }
 
-    fn expand(&self, context: &LootContext, output: &mut Vec<ExpandedEntry>) {
+    pub(super) fn expand(&self, context: &LootContext, output: &mut Vec<ExpandedEntry>) {
         match self {
             Self::Item {
                 weight,
@@ -406,7 +407,7 @@ impl LootEntry {
         }
     }
 
-    fn create(&self, context: &mut LootContext) -> Vec<LootStack> {
+    pub(super) fn create(&self, context: &mut LootContext) -> Vec<LootStack> {
         match self {
             Self::Item {
                 item, functions, ..
@@ -538,16 +539,9 @@ impl LootEntry {
     }
 }
 
-/// True when every condition matches (`LootItemConditions.andConditions`).
-fn conditions_hold(conditions: &[LootCondition], context: &LootContext) -> bool {
-    conditions
-        .iter()
-        .all(|condition| condition.matches(context))
-}
-
 /// `LootPoolSingletonContainer.functions`: runs the entry's item modifiers over the
 /// stacks it produced; a modifier returning nothing drops the stack.
-fn apply_entry_functions(
+pub(super) fn apply_entry_functions(
     functions: &[LootFunction],
     stacks: Vec<LootStack>,
     context: &mut LootContext,
@@ -579,7 +573,7 @@ fn create_nested_table(
     apply_entry_functions(functions, stacks, context)
 }
 
-struct ExpandedEntry {
+pub(super) struct ExpandedEntry {
     entry: LootEntry,
     weight: i32,
     quality: i32,
@@ -592,7 +586,7 @@ impl ExpandedEntry {
             .max(0.0) as i32
     }
 
-    fn create(&self, context: &mut LootContext) -> Vec<LootStack> {
+    pub(super) fn create(&self, context: &mut LootContext) -> Vec<LootStack> {
         self.entry.create(context)
     }
 }
@@ -1085,6 +1079,16 @@ pub enum LootFunction {
     CopyNbt {
         provider: NbtProvider,
         target: String,
+    },
+    /// `SetContainerContents`: expand every entry without weighted pool selection.
+    SetContainerContents {
+        component: ContentsComponent,
+        entries: Vec<LootEntry>,
+    },
+    /// `ModifyContainerContents`: edit nonempty slots and clamp each result's size.
+    ModifyContainerContents {
+        component: ContentsComponent,
+        modifier: Box<LootFunction>,
     },
     SetContents(Vec<LootStack>),
     ModifyContents(Vec<LootFunction>),

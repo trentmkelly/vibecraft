@@ -72,6 +72,7 @@ fn decode_table(value: &Value) -> Result<LootTable, String> {
         .collect::<Result<_, _>>()?;
     let functions = decode_functions(object)?;
     Ok(LootTable {
+        identity: Default::default(),
         param_set,
         random_sequence,
         pools,

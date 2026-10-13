@@ -20,7 +20,7 @@ use super::fields::{
     int_range, list, required, type_name, validate_fields, Field, Kind, Object,
 };
 use super::numbers::decode_number;
-use crate::loot_system::{LootBonusFormula, LootCondition, LootFunction};
+use crate::loot_system::{ContentsComponent, LootBonusFormula, LootCondition, LootFunction};
 
 /// The `functions` list of a pool, entry or table.
 pub(super) fn decode_functions(object: &Object) -> Result<Vec<LootFunction>, String> {
@@ -116,6 +116,8 @@ fn decode_function_body(
             Some(function) => Ok(function),
             None => unmodeled(),
         },
+        "set_contents" => decode_set_contents(object, value),
+        "modify_contents" => decode_modify_contents(object, value),
         "discard" => Ok(LootFunction::Discard),
         "reference" => Ok(LootFunction::Reference(identifier(
             required(object, "name")?,
@@ -241,14 +243,64 @@ fn validate_unmodeled_function(kind: &str, object: &Object) -> Result<(), String
             }
             Ok(())
         }
-        "set_contents" => as_list(required(object, "entries")?, "entries")?
-            .iter()
-            .try_for_each(|entry| super::decode_entry(entry).map(drop)),
+        "set_contents" => {
+            validate_contents_component(object)?;
+            as_list(required(object, "entries")?, "entries")?
+                .iter()
+                .try_for_each(|entry| super::decode_entry(entry).map(drop))
+        }
+        "modify_contents" => {
+            validate_contents_component(object)?;
+            decode_function(required(object, "modifier")?).map(drop)
+        }
         "set_attributes" => as_list(required(object, "modifiers")?, "modifiers")?
             .iter()
             .try_for_each(validate_attribute_modifier),
         _ => Ok(()),
     }
+}
+
+/// `ContainerComponentManipulators.CODEC` accepts exactly these registered
+/// manipulator types. `bundle_contents` is codec-valid but remains unmodeled until
+/// item eligibility and exact fractional bundle capacity are available.
+fn validate_contents_component(object: &Object) -> Result<String, String> {
+    let component = identifier(required(object, "component")?, "component")?;
+    match component.as_str() {
+        "minecraft:container" | "minecraft:bundle_contents" | "minecraft:charged_projectiles" => {
+            Ok(component)
+        }
+        _ => Err(format!("No items in component '{component}'")),
+    }
+}
+
+fn decode_set_contents(object: &Object, value: &Value) -> Result<LootFunction, String> {
+    let component_id = validate_contents_component(object)?;
+    let entries = as_list(required(object, "entries")?, "entries")?
+        .iter()
+        .map(super::decode_entry)
+        .collect::<Result<Vec<_>, _>>()?;
+    let Some(component) = ContentsComponent::by_id(&component_id) else {
+        return Ok(LootFunction::Unmodeled {
+            kind: "minecraft:set_contents".to_string(),
+            data: value.clone(),
+        });
+    };
+    Ok(LootFunction::SetContainerContents { component, entries })
+}
+
+fn decode_modify_contents(object: &Object, value: &Value) -> Result<LootFunction, String> {
+    let component_id = validate_contents_component(object)?;
+    let modifier = decode_function(required(object, "modifier")?)?;
+    let Some(component) = ContentsComponent::by_id(&component_id) else {
+        return Ok(LootFunction::Unmodeled {
+            kind: "minecraft:modify_contents".to_string(),
+            data: value.clone(),
+        });
+    };
+    Ok(LootFunction::ModifyContainerContents {
+        component,
+        modifier: Box::new(modifier),
+    })
 }
 
 /// Validates one `ListOperation.StandAlone` field used by custom model data.

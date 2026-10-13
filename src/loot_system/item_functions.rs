@@ -15,6 +15,37 @@ use super::{
 };
 use crate::enchantment_system::{select_enchantments, EnchantingRandom};
 
+/// A `ContainerComponentManipulator` supported by the loot runtime.
+///
+/// `bundle_contents` is deliberately excluded until bundle insertion rules (including
+/// item eligibility and fractional nested-bundle weights) are backed by item data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentsComponent {
+    /// `ContainerComponentManipulators.CONTAINER`.
+    Container,
+    /// `ContainerComponentManipulators.CHARGED_PROJECTILES`.
+    ChargedProjectiles,
+}
+
+impl ContentsComponent {
+    /// The `DataComponents` identifier selected by the manipulator.
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Container => "minecraft:container",
+            Self::ChargedProjectiles => "minecraft:charged_projectiles",
+        }
+    }
+
+    /// `ContainerComponentManipulators.CODEC` supported identifiers.
+    pub fn by_id(id: &str) -> Option<Self> {
+        match id {
+            "minecraft:container" => Some(Self::Container),
+            "minecraft:charged_projectiles" => Some(Self::ChargedProjectiles),
+            _ => None,
+        }
+    }
+}
+
 /// `DataComponents.ADDITIONAL_TRADE_COST`.
 const ADDITIONAL_TRADE_COST_COMPONENT: &str = "minecraft:additional_trade_cost";
 /// `DataComponents.SUSPICIOUS_STEW_EFFECTS`.

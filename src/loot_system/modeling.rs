@@ -161,6 +161,12 @@ impl LootFunction {
             Self::SetStewEffects(effects) => effects
                 .iter()
                 .for_each(|effect| effect.duration.collect_unmodeled(out)),
+            Self::SetContainerContents { entries, .. } => {
+                entries
+                    .iter()
+                    .for_each(|entry| entry.collect_unmodeled(out));
+            }
+            Self::ModifyContainerContents { modifier, .. } => modifier.collect_unmodeled(out),
             Self::ModifyContents(functions) | Self::Sequence(functions) => {
                 collect_functions(functions, out);
             }

@@ -279,6 +279,7 @@ fn special_block_loot_table(key: &str, random_sequence: &str) -> Option<LootTabl
 
 fn self_drop_table(item: &str, sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![LootPool::single(LootEntry::item(
@@ -294,6 +295,7 @@ fn self_drop_table(item: &str, sequence: &str) -> LootTable {
 /// it (`TntBlock.dropFromExplosion` is false).
 fn tnt_table(sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![LootPool {
@@ -318,6 +320,7 @@ fn tnt_table(sequence: &str) -> LootTable {
 
 fn self_drop_survives_explosion(item: &str, sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![LootPool {
@@ -333,6 +336,7 @@ fn self_drop_survives_explosion(item: &str, sequence: &str) -> LootTable {
 
 fn ore_drop_1(drop_item: &str, sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![LootPool::single(LootEntry::Item {
@@ -348,6 +352,7 @@ fn ore_drop_1(drop_item: &str, sequence: &str) -> LootTable {
 
 fn ore_drop_count(drop_item: &str, min: f32, max: f32, sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![LootPool::single(LootEntry::Item {
@@ -366,6 +371,7 @@ fn ore_drop_count(drop_item: &str, min: f32, max: f32, sequence: &str) -> LootTa
 
 fn count_drop_table(item: &str, functions: Vec<LootFunction>, sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![LootPool::single(LootEntry::Item {
@@ -392,6 +398,7 @@ fn clay_table(sequence: &str) -> LootTable {
 
 fn gravel_table(sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![LootPool::single(LootEntry::Alternatives(vec![
@@ -419,6 +426,7 @@ fn gravel_table(sequence: &str) -> LootTable {
 
 fn grass_table(self_item: &str, sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![LootPool::single(LootEntry::Alternatives(vec![
@@ -465,6 +473,7 @@ fn leaves_table(
         pools.push(apple_pool(not_shears));
     }
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools,
@@ -474,6 +483,7 @@ fn leaves_table(
 
 fn mangrove_leaves_table(sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![LootPool::single(LootEntry::Alternatives(vec![
@@ -495,6 +505,7 @@ fn mangrove_leaves_table(sequence: &str) -> LootTable {
 
 fn tall_grass_table(shears_item: &str, sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![LootPool::single(LootEntry::Alternatives(vec![
@@ -519,6 +530,7 @@ fn tall_grass_table(shears_item: &str, sequence: &str) -> LootTable {
 
 fn dead_bush_table(sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![LootPool::single(LootEntry::Alternatives(vec![
@@ -540,6 +552,7 @@ fn dead_bush_table(sequence: &str) -> LootTable {
 
 fn mature_crop_table(food_item: &str, bonus_item: &str, sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![
@@ -561,6 +574,7 @@ fn mature_crop_table(food_item: &str, bonus_item: &str, sequence: &str) -> LootT
 
 fn potatoes_table(sequence: &str) -> LootTable {
     LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Block,
         random_sequence: Some(sequence.to_string()),
         pools: vec![

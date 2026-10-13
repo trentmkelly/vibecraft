@@ -75,6 +75,7 @@ fn fishing_loot_test_engine() -> LootBehaviorEngine {
         table_with_pool(LootPool::single(LootEntry::item("minecraft:name_tag", 1))),
     );
     let fishing_table = LootTable {
+        identity: Default::default(),
         param_set: LootParamSet::Fishing,
         random_sequence: Some("minecraft:gameplay/fishing".to_string()),
         pools: vec![LootPool {
@@ -358,7 +359,10 @@ fn assert_java_item_modifier_components(stack: &LootStack) {
         ("minecraft:custom_data", "1b"),
         ("minecraft:custom_name", "Named"),
         ("minecraft:copied_name", "Dinnerbone"),
-        ("minecraft:container", "minecraft:apple:3"),
+        (
+            "minecraft:container",
+            r#"[{"item":{"count":3,"id":"minecraft:apple"},"slot":0}]"#,
+        ),
         ("minecraft:profile", "Steve"),
         ("minecraft:attribute_modifiers", "generic.attack_damage:+1"),
         ("minecraft:banner_patterns", "minecraft:stripe_bottom"),

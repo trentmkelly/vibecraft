@@ -13,8 +13,132 @@
 
 use std::collections::BTreeMap;
 
+use serde_json::{Map, Number, Value};
+
 use super::reference_data::item_loot_properties;
 use super::LootStack;
+
+/// Sparse `ItemContainerContents` slots or ordered `ChargedProjectiles` stacks.
+/// Empty slots are retained because `ContainerComponentManipulator.modifyItems`
+/// transforms every slot in place before rebuilding the component.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentsSlots(pub Vec<Option<LootStack>>);
+
+impl ContentsSlots {
+    /// Decodes the canonical JSON stored for a container component.
+    pub fn decode(text: &str, component: super::item_functions::ContentsComponent) -> Self {
+        let Ok(Value::Array(values)) = serde_json::from_str::<Value>(text) else {
+            return Self(Vec::new());
+        };
+        match component {
+            super::item_functions::ContentsComponent::Container => {
+                let max_slot = values
+                    .iter()
+                    .filter_map(|value| value.get("slot").and_then(Value::as_u64))
+                    .filter(|slot| *slot < 256)
+                    .max();
+                let Some(max_slot) = max_slot else {
+                    return Self(Vec::new());
+                };
+                let mut slots = vec![None; max_slot as usize + 1];
+                for value in values {
+                    let Some(slot) = value.get("slot").and_then(Value::as_u64) else {
+                        continue;
+                    };
+                    if slot >= 256 {
+                        continue;
+                    }
+                    if let Some(stack) = value.get("item").and_then(decode_stack_value) {
+                        slots[slot as usize] = Some(stack);
+                    }
+                }
+                Self(slots)
+            }
+            super::item_functions::ContentsComponent::ChargedProjectiles => Self(
+                values
+                    .iter()
+                    .filter_map(decode_stack_value)
+                    .map(Some)
+                    .collect(),
+            ),
+        }
+    }
+
+    /// Encodes the component's vanilla JSON codec shape.
+    pub fn encode(
+        slots: &[Option<LootStack>],
+        component: super::item_functions::ContentsComponent,
+    ) -> String {
+        let value = match component {
+            super::item_functions::ContentsComponent::Container => {
+                let end = slots
+                    .iter()
+                    .rposition(|stack| stack.as_ref().is_some_and(|stack| !stack.is_empty()))
+                    .map_or(0, |index| index + 1);
+                Value::Array(
+                    slots[..end]
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(slot, stack)| {
+                            stack.as_ref().filter(|stack| !stack.is_empty()).map(|stack| {
+                                serde_json::json!({"slot": slot, "item": encode_stack_value(stack)})
+                            })
+                        })
+                        .collect(),
+                )
+            }
+            super::item_functions::ContentsComponent::ChargedProjectiles => Value::Array(
+                slots
+                    .iter()
+                    .filter_map(Option::as_ref)
+                    .filter(|stack| !stack.is_empty())
+                    .map(encode_stack_value)
+                    .collect(),
+            ),
+        };
+        value.to_string()
+    }
+}
+
+fn decode_stack_value(value: &Value) -> Option<LootStack> {
+    let item = value.get("id")?.as_str()?;
+    let item = crate::registry::Identifier::parse(item).ok()?.to_string();
+    let count = value.get("count").and_then(Value::as_i64).unwrap_or(1) as i32;
+    let mut stack = LootStack::new(item, count);
+    if let Some(Value::Object(components)) = value.get("components") {
+        stack.components = components
+            .iter()
+            .filter_map(|(id, value)| {
+                let id = crate::registry::Identifier::parse(id).ok()?.to_string();
+                Some((id.clone(), decode_component_value(&id, value)))
+            })
+            .collect();
+    }
+    Some(stack)
+}
+
+fn encode_stack_value(stack: &LootStack) -> Value {
+    let mut value = Map::new();
+    value.insert("id".to_string(), Value::String(stack.item.clone()));
+    if stack.count != 1 {
+        value.insert(
+            "count".to_string(),
+            Value::Number(Number::from(stack.count)),
+        );
+    }
+    if !stack.components.is_empty() {
+        let components = stack
+            .components
+            .iter()
+            .map(|(id, text)| {
+                let value = encode_component_value(id, text);
+                (id.clone(), value)
+            })
+            .collect();
+        value.insert("components".to_string(), Value::Object(components));
+    }
+    Value::Object(value)
+}
 
 /// `DataComponents.ENCHANTMENTS`.
 pub const ENCHANTMENTS_COMPONENT: &str = "minecraft:enchantments";
@@ -141,7 +265,13 @@ impl LootStack {
     /// `ItemStack.getMaxStackSize` (`MAX_STACK_SIZE`, defaulting to 1 like Java's
     /// `getOrDefault`); unknown items use the common default of 64.
     pub fn max_stack_size(&self) -> i32 {
-        item_loot_properties(&self.item).map_or(64, |properties| properties.max_stack_size)
+        self.components
+            .get("minecraft:max_stack_size")
+            .and_then(|value| value.parse::<i32>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or_else(|| {
+                item_loot_properties(&self.item).map_or(64, |properties| properties.max_stack_size)
+            })
     }
 }
 
@@ -168,4 +298,62 @@ pub fn set_enchantment(enchantments: &mut BTreeMap<String, i32>, enchantment: &s
             level.min(MAX_STORED_ENCHANTMENT_LEVEL),
         );
     }
+}
+
+/// Convert Java component JSON into the canonical forms used by typed item
+/// mutation helpers. Generic string/object components keep their existing form.
+fn decode_component_value(id: &str, value: &Value) -> String {
+    if matches!(id, ENCHANTMENTS_COMPONENT | STORED_ENCHANTMENTS_COMPONENT) {
+        if let Some(entries) = value.as_object() {
+            let enchantments = entries
+                .iter()
+                .filter_map(|(id, level)| {
+                    let id = crate::registry::Identifier::parse(id).ok()?.to_string();
+                    Some((id, i32::try_from(level.as_i64()?).ok()?))
+                })
+                .collect();
+            return format_enchantments(&enchantments);
+        }
+    } else if id == BLOCK_STATE_COMPONENT {
+        if let Some(entries) = value.as_object() {
+            return entries
+                .iter()
+                .filter_map(|(key, value)| Some(format!("{key}={}", value.as_str()?)))
+                .collect::<Vec<_>>()
+                .join(",");
+        }
+    }
+    super::world_view::canonical_component_value(id, value)
+}
+
+/// Inverse of the canonical forms edited by `ItemEnchantments` and
+/// `BlockItemStateProperties` helpers. Their Java codecs require maps, even
+/// though the Rust component carrier stores sorted compact text internally.
+fn encode_component_value(id: &str, text: &str) -> Value {
+    if matches!(id, ENCHANTMENTS_COMPONENT | STORED_ENCHANTMENTS_COMPONENT) {
+        // `set_components` may already carry the Java JSON form.
+        if let Ok(Value::Object(entries)) = serde_json::from_str(text) {
+            return Value::Object(entries);
+        }
+        return Value::Object(
+            parse_enchantments(text)
+                .into_iter()
+                .map(|(id, level)| (id, Value::Number(Number::from(level))))
+                .collect(),
+        );
+    }
+    if id == BLOCK_STATE_COMPONENT {
+        if let Ok(Value::Object(entries)) = serde_json::from_str(text) {
+            return Value::Object(entries);
+        }
+        let entries = text
+            .split(',')
+            .filter_map(|entry| {
+                let (key, value) = entry.split_once('=')?;
+                Some((key.to_string(), Value::String(value.to_string())))
+            })
+            .collect();
+        return Value::Object(entries);
+    }
+    serde_json::from_str(text).unwrap_or_else(|_| Value::String(text.to_string()))
 }

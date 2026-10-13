@@ -25,6 +25,8 @@ impl LootFunction {
             | Self::CopyNbt { .. }
             | Self::SetContents(_)
             | Self::ModifyContents(_)
+            | Self::SetContainerContents { .. }
+            | Self::ModifyContainerContents { .. }
             | Self::ExplorationMap { .. }
             | Self::FillPlayerHead
             | Self::CopyState { .. }
@@ -116,10 +118,14 @@ impl LootFunction {
     ) -> Option<LootStack> {
         match self {
             Self::SetItem(item) => stack.item.clone_from(item),
-            Self::SetEnchantments {
-                enchantments,
-                add,
-            } => return Some(item_functions::set_enchantments(stack, context, enchantments, *add)),
+            Self::SetEnchantments { enchantments, add } => {
+                return Some(item_functions::set_enchantments(
+                    stack,
+                    context,
+                    enchantments,
+                    *add,
+                ))
+            }
             Self::SetDamage { damage, add } => {
                 return Some(item_functions::set_damage(stack, context, damage, *add));
             }
@@ -130,7 +136,9 @@ impl LootFunction {
                 for edit in edits {
                     match &edit.value {
                         Some(value) => {
-                            stack.components.insert(edit.component.clone(), value.clone());
+                            stack
+                                .components
+                                .insert(edit.component.clone(), value.clone());
                         }
                         None => {
                             stack.components.remove(&edit.component);
@@ -198,20 +206,32 @@ impl LootFunction {
                     stack.components.insert(target.clone(), value.to_string());
                 }
             }
-            Self::SetContents(contents) => set_container_component(&mut stack, contents),
-            Self::ModifyContents(functions) => {
-                if let Some(container) = stack.components.get("minecraft:container").cloned() {
-                    let modified = container
-                        .split(',')
-                        .filter_map(parse_container_entry)
-                        .filter_map(|item| apply_function_sequence(functions, item, context))
-                        .map(|item| format!("{}:{}", item.item, item.count))
-                        .collect::<Vec<_>>()
-                        .join(",");
-                    stack
-                        .components
-                        .insert("minecraft:container".to_string(), modified);
+            Self::SetContents(contents) => set_contents_component(
+                &mut stack,
+                item_functions::ContentsComponent::Container,
+                contents.clone(),
+            ),
+            Self::ModifyContents(functions) => modify_contents_component(
+                &mut stack,
+                item_functions::ContentsComponent::Container,
+                |item| apply_function_sequence(functions, item, context),
+            ),
+            Self::SetContainerContents { component, entries } => {
+                if !stack.is_empty() {
+                    let contents = entries
+                        .iter()
+                        .flat_map(|entry| entry.create_contents(context))
+                        .collect();
+                    set_contents_component(&mut stack, *component, contents);
                 }
+            }
+            Self::ModifyContainerContents {
+                component,
+                modifier,
+            } => {
+                modify_contents_component(&mut stack, *component, |item| {
+                    apply_function_sequence(std::slice::from_ref(modifier.as_ref()), item, context)
+                });
             }
             Self::ExplorationMap {
                 destination,
@@ -307,9 +327,10 @@ impl LootFunction {
                 );
             }
             Self::SetCustomModelData(model_data) => {
-                stack
-                    .components
-                    .insert("minecraft:custom_model_data".to_string(), model_data.clone());
+                stack.components.insert(
+                    "minecraft:custom_model_data".to_string(),
+                    model_data.clone(),
+                );
             }
             Self::SetLootTable(table) => {
                 stack
@@ -329,7 +350,9 @@ impl LootFunction {
     ) -> Option<LootStack> {
         Some(match self {
             Self::SetInstrument(options) => item_functions::set_instrument(stack, context, options),
-            Self::SetStewEffects(effects) => item_functions::set_stew_effect(stack, context, effects),
+            Self::SetStewEffects(effects) => {
+                item_functions::set_stew_effect(stack, context, effects)
+            }
             _ => unreachable!("non-random component function routed to random handler"),
         })
     }
@@ -371,14 +394,58 @@ fn copy_entity_name_component(stack: &mut LootStack, context: &LootContext, sour
     }
 }
 
-fn set_container_component(stack: &mut LootStack, contents: &[LootStack]) {
-    stack.components.insert(
-        "minecraft:container".to_string(),
-        contents
+fn set_contents_component(
+    stack: &mut LootStack,
+    component: item_functions::ContentsComponent,
+    contents: Vec<LootStack>,
+) {
+    if stack.is_empty() {
+        return;
+    }
+    let slots = contents.into_iter().map(Some).collect::<Vec<_>>();
+    // `ItemContainerContents.fromItems` constructs only through the last
+    // nonempty slot; its constructor rejects lengths above 256. Keep this a
+    // construction failure rather than silently truncating or retaining old data.
+    if component == item_functions::ContentsComponent::Container {
+        let size = slots
             .iter()
-            .map(|item| format!("{}:{}", item.item, item.count))
-            .collect::<Vec<_>>()
-            .join(","),
+            .rposition(|slot| slot.as_ref().is_some_and(|stack| !stack.is_empty()))
+            .map_or(0, |last| last + 1);
+        assert!(size <= 256, "Got {size} items, but maximum is 256");
+    }
+    stack.components.insert(
+        component.id().to_string(),
+        stack_components::ContentsSlots::encode(&slots, component),
+    );
+}
+
+fn modify_contents_component(
+    stack: &mut LootStack,
+    component: item_functions::ContentsComponent,
+    mut modify: impl FnMut(LootStack) -> Option<LootStack>,
+) {
+    if stack.is_empty() {
+        return;
+    }
+    let Some(current) = stack.components.get(component.id()).cloned() else {
+        return;
+    };
+    let mut slots = stack_components::ContentsSlots::decode(&current, component).0;
+    for slot in &mut slots {
+        let Some(item) = slot.take() else {
+            continue;
+        };
+        if item.is_empty() {
+            continue;
+        }
+        *slot = modify(item).and_then(|mut result| {
+            result.count = result.count.min(result.max_stack_size());
+            (!result.is_empty()).then_some(result)
+        });
+    }
+    stack.components.insert(
+        component.id().to_string(),
+        stack_components::ContentsSlots::encode(&slots, component),
     );
 }
 
@@ -464,14 +531,6 @@ fn apply_function_sequence(
         next = function.apply(next?, context);
     }
     next
-}
-
-fn parse_container_entry(value: &str) -> Option<LootStack> {
-    let (item, count) = value.rsplit_once(':')?;
-    count
-        .parse::<i32>()
-        .ok()
-        .map(|count| LootStack::new(item.to_string(), count))
 }
 
 fn choose_random_text(values: &[String], context: &mut LootContext) -> Option<String> {

@@ -4,6 +4,7 @@ use crate::registry::Identifier;
 
 fn table_with_pool(pool: LootPool) -> LootTable {
     LootTable {
+        identity: LootTableIdentity::new(),
         param_set: LootParamSet::AllParams,
         random_sequence: None,
         pools: vec![pool],
@@ -198,6 +199,7 @@ fn assert_loot_context_applies_params_and_dynamic_values() {
 #[test]
 fn loot_table_evaluates_pool_list_and_table_functions_in_java_order() {
     let table = LootTable {
+        identity: LootTableIdentity::new(),
         param_set: LootParamSet::Chest,
         random_sequence: None,
         pools: vec![
@@ -1056,3 +1058,6 @@ fn advancement_reward_loot_grants_xp_and_tables_with_player_context() {
 mod advanced_tests;
 mod java_parity;
 mod function_tests;
+mod recursion_tests;
+
+mod contents_tests;

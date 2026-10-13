@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::Arc;
 
 use crate::block_entity::{PotItemStack, VaultBlockEntity, VaultInsertResult};
 use crate::villager_system::{VillagerProfession, WanderingTraderOffers};
@@ -27,17 +28,60 @@ impl LootStack {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct LootTable {
+    /// Stable identity used by `LootContext`'s recursion guard. Clones represent
+    /// the same decoded or manually built table, while independently constructed
+    /// tables remain distinct even when they share a random sequence.
+    pub identity: LootTableIdentity,
     pub param_set: LootParamSet,
     pub random_sequence: Option<String>,
     pub pools: Vec<LootPool>,
     pub functions: Vec<LootFunction>,
 }
 
+/// Equality compares modeled loot data; recursion identity is independent.
+impl PartialEq for LootTable {
+    fn eq(&self, other: &Self) -> bool {
+        self.param_set == other.param_set
+            && self.random_sequence == other.random_sequence
+            && self.pools == other.pools
+            && self.functions == other.functions
+    }
+}
+
+/// Clone-preserving identity for a loot table, matching Java's identity-based
+/// `LootContext.VisitedEntry<LootTable>` checks.
+#[derive(Clone)]
+pub struct LootTableIdentity(Arc<()>);
+
+impl LootTableIdentity {
+    /// Creates an identity for a newly constructed loot table.
+    pub fn new() -> Self {
+        Self(Arc::new(()))
+    }
+
+    fn key(&self) -> usize {
+        Arc::as_ptr(&self.0) as usize
+    }
+}
+
+impl Default for LootTableIdentity {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Debug for LootTableIdentity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("LootTableIdentity")
+    }
+}
+
 impl LootTable {
     pub fn empty() -> Self {
         Self {
+            identity: LootTableIdentity::new(),
             param_set: LootParamSet::Empty,
             random_sequence: None,
             pools: Vec::new(),
@@ -47,12 +91,7 @@ impl LootTable {
 
     pub fn evaluate(&self, context: &mut LootContext) -> Vec<LootStack> {
         let top_level = context.is_top_level();
-        let visit_key = self
-            .random_sequence
-            .as_ref()
-            .map(|sequence| format!("table:{sequence}"))
-            .unwrap_or_else(|| format!("table:{:p}", self));
-        if !context.enter(visit_key) {
+        if !context.enter(self.identity.key()) {
             context
                 .warnings
                 .push("Detected infinite loop in loot tables".to_string());
@@ -853,6 +892,7 @@ pub use json_codec::{
 };
 mod enchanted;
 mod enchantment_registry;
+mod contents_entry;
 mod item_functions;
 mod modeling;
 mod predicates;
@@ -861,7 +901,9 @@ mod stack_components;
 mod world_view;
 pub use enchanted::{EnchantmentBound, HolderSet, LevelBasedValue, ToolPredicate};
 pub use enchantment_registry::EnchantmentRegistry;
-pub use item_functions::{ComponentEdit, ComponentSource, NameTarget, StewEffect};
+pub use item_functions::{
+    ComponentEdit, ComponentSource, ContentsComponent, NameTarget, StewEffect,
+};
 pub use predicates::{
     BlockPredicate, DamageSourcePredicate, DoubleBounds, EntityFlagsPredicate, EntityPredicate,
     IntBounds, LocationPredicate, TypeSpecificPredicate,

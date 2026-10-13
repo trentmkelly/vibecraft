@@ -59,7 +59,7 @@ pub struct LootContext {
     pub tags: HashMap<String, Vec<String>>,
     pub dynamic_drops: HashMap<String, Vec<LootStack>>,
     pub warnings: Vec<String>,
-    visited: Vec<String>,
+    visited: Vec<usize>,
     /// Java `Builder.withOptionalRandomSeed`: a non-zero seed pins the random source
     /// and takes precedence over the table's `random_sequence`.
     explicit_random: bool,
@@ -163,7 +163,7 @@ impl LootContext {
         }
     }
 
-    pub(super) fn enter(&mut self, key: String) -> bool {
+    pub(super) fn enter(&mut self, key: usize) -> bool {
         if self.visited.contains(&key) {
             return false;
         }
