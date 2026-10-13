@@ -471,15 +471,15 @@ fn assert_stronghold_random_direction_and_door_rolls() {
     );
     assert_eq!(
         super::super::stronghold_horizontal_direction_from_random_roll(1).unwrap(),
-        super::super::HorizontalDirection::South
+        super::super::HorizontalDirection::East
     );
     assert_eq!(
         super::super::stronghold_horizontal_direction_from_random_roll(2).unwrap(),
-        super::super::HorizontalDirection::West
+        super::super::HorizontalDirection::South
     );
     assert_eq!(
         super::super::stronghold_horizontal_direction_from_random_roll(3).unwrap(),
-        super::super::HorizontalDirection::East
+        super::super::HorizontalDirection::West
     );
     assert_eq!(
         super::super::stronghold_random_small_door(0).unwrap(),
@@ -505,7 +505,7 @@ fn assert_stronghold_random_direction_and_door_rolls() {
 
 fn assert_stronghold_start_piece_and_portal_room() {
     let start = stronghold_test_start_piece();
-    assert_eq!(start.orientation, super::super::HorizontalDirection::South);
+    assert_eq!(start.orientation, super::super::HorizontalDirection::East);
     assert_eq!(
         start.entry_door,
         super::super::StrongholdSmallDoorTypeModel::Opening
