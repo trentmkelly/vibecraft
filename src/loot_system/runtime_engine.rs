@@ -1139,7 +1139,9 @@ pub enum LootFunction {
     Discard,
     ApplyExplosionDecay,
     Filtered {
-        condition: LootCondition,
+        // Conditions can contain recursive entity predicates; keep conditional
+        // functions from inflating every other function variant's allocation.
+        condition: Box<LootCondition>,
         function: Box<LootFunction>,
     },
     Sequence(Vec<LootFunction>),

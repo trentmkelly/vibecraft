@@ -239,7 +239,7 @@ fn inline_lists_number_providers_and_entry_extras_follow_the_java_codecs() {
     assert_eq!(
         functions,
         &vec![LootFunction::Filtered {
-            condition: LootCondition::AllOf(vec![LootCondition::SurvivesExplosion]),
+            condition: Box::new(LootCondition::AllOf(vec![LootCondition::SurvivesExplosion])),
             function: Box::new(LootFunction::ApplyExplosionDecay),
         }]
     );

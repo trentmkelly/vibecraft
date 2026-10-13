@@ -187,7 +187,7 @@ pub(super) enum Kind {
     Any,
     /// `LootItemFunctions.ROOT_CODEC`.
     Function,
-    /// `ListOperation.codec`: the `mode` discriminator of a list operation.
+    /// `ListOperation.codec`: its `mode` discriminator.
     ListMode,
 }
 

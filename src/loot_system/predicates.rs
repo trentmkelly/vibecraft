@@ -29,6 +29,8 @@ pub struct EntityPredicate {
     pub flags: Option<EntityFlagsPredicate>,
     /// `vehicle`: an entity predicate the entity's vehicle must satisfy.
     pub vehicle: Option<Box<EntityPredicate>>,
+    /// `passenger`: at least one immediate passenger must satisfy the predicate.
+    pub passenger: Option<Box<EntityPredicate>>,
 }
 
 /// `EntityFlagsPredicate`: each present flag must equal the entity's state.
@@ -118,6 +120,17 @@ impl EntityPredicate {
         }
         if let Some(vehicle) = &self.vehicle {
             if !vehicle.matches(entity.vehicle.as_deref(), context) {
+                return false;
+            }
+        }
+        if let Some(passenger) = &self.passenger {
+            // Java checks the entity's immediate passengers and accepts the first match.
+            // Descendants are considered only when the nested predicate asks for them.
+            if !entity
+                .passengers
+                .iter()
+                .any(|candidate| passenger.matches(Some(candidate), context))
+            {
                 return false;
             }
         }
@@ -304,5 +317,65 @@ impl LootContext {
             Some(LootParamValue::Origin(x, y, z)) => Some((*x, *y, *z)),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::loot_system::LootEntityTarget;
+
+    #[test]
+    fn passenger_predicate_checks_any_immediate_passenger_and_nested_passengers() {
+        let mut context = LootContext::new(super::super::LootParamSet::AllParams, 0);
+        let mut entity = LootEntity::new("minecraft:boat");
+        let mut minecart = LootEntity::new("minecraft:minecart");
+        minecart.passengers.push(LootEntity::new("minecraft:zombie"));
+        entity.passengers = vec![
+            LootEntity::new("minecraft:cat"),
+            minecart,
+            LootEntity::new("minecraft:zombie"),
+        ];
+        context.insert_entity(LootEntityTarget::This, entity.clone());
+
+        let passenger = EntityPredicate {
+            passenger: Some(Box::new(EntityPredicate {
+                entity_type: Some(HolderSet::Ids(vec!["minecraft:minecart".into()])),
+                passenger: Some(Box::new(EntityPredicate {
+                    entity_type: Some(HolderSet::Ids(vec!["minecraft:zombie".into()])),
+                    ..EntityPredicate::default()
+                })),
+                ..EntityPredicate::default()
+            })),
+            ..EntityPredicate::default()
+        };
+        assert!(passenger.matches(Some(&entity), &context));
+
+        let direct_zombie_passenger = EntityPredicate {
+            passenger: Some(Box::new(EntityPredicate {
+                entity_type: Some(HolderSet::Ids(vec!["minecraft:zombie".into()])),
+                ..EntityPredicate::default()
+            })),
+            ..EntityPredicate::default()
+        };
+        assert!(direct_zombie_passenger.matches(Some(&entity), &context));
+
+        let mut descendant_only = LootEntity::new("minecraft:boat");
+        // The nested `passenger` relation is separate from the `vehicle` relation; make
+        // a minecart with a zombie passenger to prove descendants are not flattened.
+        let mut minecart = LootEntity::new("minecraft:minecart");
+        minecart.passengers.push(LootEntity::new("minecraft:zombie"));
+        descendant_only.passengers = vec![minecart];
+        assert!(!direct_zombie_passenger.matches(Some(&descendant_only), &context));
+
+        let missing_type = EntityPredicate {
+            passenger: Some(Box::new(EntityPredicate {
+                entity_type: Some(HolderSet::Ids(vec!["minecraft:creeper".into()])),
+                ..EntityPredicate::default()
+            })),
+            ..EntityPredicate::default()
+        };
+        assert!(!missing_type.matches(Some(&entity), &context));
+        assert!(!passenger.matches(Some(&LootEntity::new("minecraft:boat")), &context));
     }
 }

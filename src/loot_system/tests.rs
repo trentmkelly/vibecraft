@@ -746,6 +746,61 @@ fn container_fill_shuffles_once_and_reports_overfill() {
 }
 
 #[test]
+fn container_fill_splits_stacks_and_preserves_java_random_draw_order() {
+    let table = table_with_pool(LootPool::single(LootEntry::Item {
+        item: "minecraft:bread".to_string(),
+        weight: 1,
+        quality: 0,
+        conditions: Vec::new(),
+        functions: vec![LootFunction::SetCount(NumberProvider::Constant(2.0))],
+    }));
+    let mut context = LootContext::new(LootParamSet::Chest, 5);
+    let slots = table.fill_container(&mut context, 2);
+    assert_eq!(slots, vec![Some(LootStack::new("minecraft:bread", 1)); 2]);
+    assert!(context.warnings.is_empty());
+
+    // Only the slot and final item shuffles draw randomness. Mth.nextInt
+    // returns singleton selection/split ranges without advancing the generator.
+    let expected_random = LootRandom::from_seed(5);
+    expected_random.next_i32(2);
+    expected_random.next_i32(2);
+    assert_eq!(context.random.next_f32(), expected_random.next_f32());
+}
+
+#[test]
+fn decoded_passenger_condition_gates_loot_table_output() {
+    let table = decode_loot_table(r#"{
+        "pools": [{
+            "rolls": 1,
+            "conditions": [{"condition": "minecraft:entity_properties", "entity": "this",
+                "predicate": {"passenger": {"type": "minecraft:zombie"}}}],
+            "entries": [{"type": "minecraft:item", "name": "minecraft:bread"}]
+        }]
+    }"#).expect("Java passenger predicate codec");
+    assert!(table.is_fully_modeled());
+    let mut context = LootContext::new(LootParamSet::AllParams, 4);
+    let mut boat = LootEntity::new("minecraft:boat");
+    context.insert_entity(LootEntityTarget::This, boat.clone());
+    assert!(table.evaluate(&mut context).is_empty());
+    boat.passengers.push(LootEntity::new("minecraft:zombie"));
+    context.insert_entity(LootEntityTarget::This, boat);
+    assert_eq!(table.evaluate(&mut context), vec![LootStack::new("minecraft:bread", 1)]);
+}
+
+#[test]
+fn container_stack_distribution_preserves_components_counts_and_slot_budget() {
+    let mut stack = LootStack::new("minecraft:bread", 17);
+    stack.components.insert("minecraft:custom_name".into(), "Lunch".into());
+    for slots in [0, 1, 2, 5, 20] {
+        let mut items = vec![stack.clone(), LootStack::new("minecraft:air", 3)];
+        shuffle_and_split_items(&mut items, slots, &LootRandom::from_seed(19));
+        assert_eq!(items.iter().map(|item| item.count).sum::<i32>(), 17);
+        assert!(items.iter().all(|item| item.count > 0 && item.components == stack.components));
+        assert!(items.len() <= slots.max(1));
+    }
+}
+
+#[test]
 fn validation_reports_invalid_pool_and_entry_shapes() {
     let table = table_with_pool(LootPool {
         entries: vec![LootEntry::Tag {

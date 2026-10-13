@@ -16,8 +16,8 @@ use super::item_functions::{
     decode_set_instrument, decode_set_name, decode_set_stew_effect,
 };
 use super::fields::{
-    as_float, as_int, as_list, as_object, bool_or, identifier, int_field, int_range, list,
-    required, type_name, validate_fields, Field, Kind, Object,
+    as_bool, as_float, as_int, as_list, as_object, as_str, bool_or, identifier, int_field,
+    int_range, list, required, type_name, validate_fields, Field, Kind, Object,
 };
 use super::numbers::decode_number;
 use crate::loot_system::{LootBonusFormula, LootCondition, LootFunction};
@@ -53,7 +53,7 @@ fn decode_typed_function(value: &Value) -> Result<LootFunction, String> {
     Ok(match conditions.len() {
         0 => function,
         _ => LootFunction::Filtered {
-            condition: LootCondition::AllOf(conditions),
+            condition: Box::new(LootCondition::AllOf(conditions)),
             function: Box::new(function),
         },
     })
@@ -135,7 +135,9 @@ fn decode_function_body(
     }
 }
 
-use Kind::{Any, Bool, Function, Id, IdSet, Int, List, ListMode, Long, Number, Obj, Str, Target};
+use Kind::{
+    Any, Bool, Function, Id, IdSet, Int, List, ListMode, Long, Number, Obj, Str, Target,
+};
 
 /// The record fields (besides `conditions`) of each function type the runtime does
 /// not model, or `None` for an unregistered type.
@@ -214,6 +216,31 @@ fn validate_unmodeled_function(kind: &str, object: &Object) -> Result<(), String
         function_schema(kind).ok_or_else(|| format!("Unknown function type 'minecraft:{kind}'"))?;
     validate_fields(object, schema)?;
     match kind {
+        "set_lore" => {
+            let lore = as_list(required(object, "lore")?, "lore")?;
+            if lore.len() > 256 {
+                return Err(format!("lore has {} entries; maximum is 256", lore.len()));
+            }
+            validate_list_operation_fields(object, Some(256))
+        }
+        "set_written_book_pages" => {
+            validate_list_operation_fields(object, None)
+        }
+        "set_writable_book_pages" => {
+            let pages = as_list(required(object, "pages")?, "pages")?;
+            if pages.len() > 100 {
+                return Err(format!("pages has {} entries; maximum is 100", pages.len()));
+            }
+            validate_list_operation_fields(object, Some(100))
+        }
+        "set_custom_model_data" => {
+            for field in ["floats", "flags", "strings", "colors"] {
+                if let Some(operation) = object.get(field) {
+                    validate_custom_model_data_operation(operation, field)?;
+                }
+            }
+            Ok(())
+        }
         "set_contents" => as_list(required(object, "entries")?, "entries")?
             .iter()
             .try_for_each(|entry| super::decode_entry(entry).map(drop)),
@@ -222,6 +249,76 @@ fn validate_unmodeled_function(kind: &str, object: &Object) -> Result<(), String
             .try_for_each(validate_attribute_modifier),
         _ => Ok(()),
     }
+}
+
+/// Validates one `ListOperation.StandAlone` field used by custom model data.
+fn validate_custom_model_data_operation(value: &Value, field: &str) -> Result<(), String> {
+    let operation = as_object(value, field)?;
+    let values = as_list(required(operation, "values")?, "values")?;
+    match field {
+        "floats" => values.iter().try_for_each(|value| decode_number(value).map(drop))?,
+        "flags" => values.iter().try_for_each(|value| as_bool(value, "flags").map(drop))?,
+        "strings" => values.iter().try_for_each(|value| as_str(value, "strings").map(drop))?,
+        "colors" => values
+            .iter()
+            .try_for_each(validate_color_provider)?,
+        _ => unreachable!("only known custom model data fields are passed"),
+    }
+    validate_list_operation_fields(operation, None)
+}
+
+/// Java accepts a number provider or `ExtraCodecs.RGB_COLOR_CODEC` here. The
+/// latter is an integer or a three-float vector.
+fn validate_color_provider(value: &Value) -> Result<(), String> {
+    if decode_number(value).is_ok() {
+        return Ok(());
+    }
+    match value {
+        Value::Array(values) if values.len() == 3 => values
+            .iter()
+            .map(|value| as_float(value, "color"))
+            .collect::<Result<Vec<_>, _>>()
+            .map(drop),
+        _ => Err(format!("invalid color provider: {value}")),
+    }
+}
+
+/// Validates fields flattened from `ListOperation.codec` into the enclosing
+/// function record. Its discriminator is a sibling string; only insert and
+/// replace-section operations carry numeric fields.
+fn validate_list_operation_fields(object: &Object, max_size: Option<i32>) -> Result<(), String> {
+    let mode = super::fields::as_str(required(object, "mode")?, "mode")?;
+    match mode {
+        "insert" => validate_non_negative_int_field(object, "offset"),
+        "replace_section" => {
+            validate_non_negative_int_field(object, "offset")?;
+            if let Some(size) = object.get("size") {
+                let size = as_int(size, "size")?;
+                if size < 0 {
+                    return Err(format!("size must be non-negative: {size}"));
+                }
+                if let Some(maximum) = max_size {
+                    if size > maximum {
+                        return Err(format!("mode size {size} exceeds maximum {maximum}"));
+                    }
+                }
+            }
+            Ok(())
+        }
+        "replace_all" | "append" => Ok(()),
+        other => Err(format!("Unknown list operation mode '{other}'")),
+    }
+}
+
+/// `ExtraCodecs.NON_NEGATIVE_INT.optionalFieldOf(key, 0)`.
+fn validate_non_negative_int_field(object: &Object, key: &str) -> Result<(), String> {
+    if let Some(value) = object.get(key) {
+        let number = as_int(value, key)?;
+        if number < 0 {
+            return Err(format!("{key} must be non-negative: {number}"));
+        }
+    }
+    Ok(())
 }
 
 /// `ApplyBonusCount.FORMULA_CODEC`: `formula` picks the parameter record.
@@ -268,4 +365,87 @@ fn validate_attribute_modifier(modifier: &Value) -> Result<(), String> {
             ("slot", Any, true),
         ],
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::decode_function;
+
+    #[test]
+    fn set_lore_uses_java_list_operation_constraints() {
+        let valid = json!({
+            "function": "minecraft:set_lore",
+            "lore": [],
+            "mode": "replace_section",
+            "offset": 0,
+            "size": 256
+        });
+        assert!(decode_function(&valid).is_ok());
+
+        let negative_offset = json!({
+            "function": "minecraft:set_lore",
+            "lore": [],
+            "mode": "insert",
+            "offset": -1
+        });
+        assert!(decode_function(&negative_offset).is_err());
+
+        let oversized_section = json!({
+            "function": "minecraft:set_lore",
+            "lore": [],
+            "mode": "replace_section",
+            "size": 257
+        });
+        assert!(decode_function(&oversized_section).is_err());
+
+        let oversized_lore = json!({
+            "function": "minecraft:set_lore",
+            "lore": vec!["line"; 257],
+            "mode": "append"
+        });
+        assert!(decode_function(&oversized_lore).is_err());
+
+        let nested_mode = json!({
+            "function": "minecraft:set_lore",
+            "lore": [],
+            "mode": { "mode": "append" }
+        });
+        assert!(decode_function(&nested_mode).is_err());
+
+        let invalid_custom_model_data_operation = json!({
+            "function": "minecraft:set_custom_model_data",
+            "floats": { "values": [], "mode": "insert", "offset": -1 }
+        });
+        assert!(decode_function(&invalid_custom_model_data_operation).is_err());
+
+        let invalid_custom_model_data_value = json!({
+            "function": "minecraft:set_custom_model_data",
+            "flags": { "values": ["true"], "mode": "append" }
+        });
+        assert!(decode_function(&invalid_custom_model_data_value).is_err());
+
+        let valid_custom_model_data_colors = json!({
+            "function": "minecraft:set_custom_model_data",
+            "colors": { "values": [[0.1, 0.2, 0.3], 16711680], "mode": "append" }
+        });
+        assert!(decode_function(&valid_custom_model_data_colors).is_ok());
+
+        let writable_pages_at_limit = json!({
+            "function": "minecraft:set_writable_book_pages",
+            "pages": vec!["page"; 100],
+            "mode": "replace_section",
+            "size": 100
+        });
+        assert!(decode_function(&writable_pages_at_limit).is_ok());
+
+        let writable_pages_over_limit = json!({
+            "function": "minecraft:set_writable_book_pages",
+            "pages": vec!["page"; 101],
+            "mode": "replace_section",
+            "size": 101
+        });
+        assert!(decode_function(&writable_pages_over_limit).is_err());
+    }
 }

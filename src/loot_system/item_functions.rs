@@ -178,7 +178,11 @@ pub(super) fn set_enchantments(
     stack.update_enchantments(|held| {
         for (id, provider) in enchantments {
             let level = if add {
-                held.get(id).copied().unwrap_or(0) + provider.int(context)
+                // Java `int` addition wraps before `Mth.clamp` is applied.
+                held.get(id)
+                    .copied()
+                    .unwrap_or(0)
+                    .wrapping_add(provider.int(context))
             } else {
                 provider.int(context)
             };
@@ -453,4 +457,46 @@ fn clone_pairs(map: &BTreeMap<String, String>) -> Vec<(String, String)> {
     map.iter()
         .map(|(component, value)| (component.clone(), value.clone()))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::loot_system::{LootFunction, LootParamSet};
+
+    #[test]
+    fn set_enchantments_add_wraps_before_clamping_the_component_level() {
+        let mut context = LootContext::new(LootParamSet::AllParams, 7);
+        let mut stack = LootStack::new("minecraft:diamond_sword", 1);
+        stack.enchant("minecraft:sharpness", 255);
+        let wrapped = LootFunction::SetEnchantments {
+            enchantments: vec![(
+                "minecraft:sharpness".to_string(),
+                NumberProvider::Constant(i32::MAX as f32),
+            )],
+            add: true,
+        }
+        .apply(stack, &mut context)
+        .expect("set_enchantments keeps the stack");
+        // Java stores the resulting ItemEnchantments component even when its
+        // mutable builder removes the last enchantment at level zero.
+        assert_eq!(wrapped.components["minecraft:enchantments"], "");
+        assert!(wrapped.item_enchantments("minecraft:enchantments").is_empty());
+
+        let mut stack = LootStack::new("minecraft:diamond_sword", 1);
+        stack.enchant("minecraft:sharpness", 255);
+        let clamped = LootFunction::SetEnchantments {
+            enchantments: vec![(
+                "minecraft:sharpness".to_string(),
+                NumberProvider::Constant(1_000.0),
+            )],
+            add: true,
+        }
+        .apply(stack, &mut context)
+        .expect("set_enchantments keeps the stack");
+        assert_eq!(
+            clamped.components["minecraft:enchantments"],
+            "minecraft:sharpness:255"
+        );
+    }
 }

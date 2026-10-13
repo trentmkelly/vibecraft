@@ -84,6 +84,9 @@ pub struct LootEntity {
     pub flags: EntityFlags,
     /// The entity's vehicle (`Entity.getVehicle`).
     pub vehicle: Option<Box<LootEntity>>,
+    /// Immediate passengers (`Entity.getPassengers`), in riding order. Nested
+    /// passengers remain attached to their own vehicle snapshot.
+    pub passengers: Vec<LootEntity>,
     /// `Sheep.isSheared`; `Some` exactly for sheep.
     pub sheared: Option<bool>,
     /// `Slime.getSize`; `Some` exactly for slimes and magma cubes.

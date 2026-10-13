@@ -92,7 +92,7 @@ impl LootTable {
         let mut items = self.evaluate(context);
         let mut available: Vec<usize> = (0..slots).collect();
         shuffle(&mut available, &context.random);
-        shuffle(&mut items, &context.random);
+        shuffle_and_split_items(&mut items, slots, &context.random);
 
         let mut filled = vec![None; slots];
         for item in items.into_iter().filter(|stack| !stack.is_empty()) {
@@ -117,6 +117,50 @@ impl LootTable {
             pool.validate(format!("pools[{pool_index}]"), &mut errors);
         }
         errors
+    }
+}
+
+/// Java `LootTable.shuffleAndSplitItems`: distribute generated stacks across
+/// available slots before the final shuffle, preserving the exact random draw
+/// order (including the two independent decisions to requeue split halves).
+fn shuffle_and_split_items(items: &mut Vec<LootStack>, available_slots: usize, random: &LootRandom) {
+    let mut splittable = Vec::new();
+    items.retain(|stack| !stack.is_empty());
+    let mut singles = Vec::new();
+    for stack in items.drain(..) {
+        if stack.count > 1 {
+            splittable.push(stack);
+        } else {
+            singles.push(stack);
+        }
+    }
+    while available_slots > singles.len() + splittable.len() && !splittable.is_empty() {
+        let index = inclusive_random_int(random, 0, splittable.len() as i32 - 1) as usize;
+        let mut stack = splittable.remove(index);
+        let remove = inclusive_random_int(random, 1, stack.count / 2);
+        let mut copy = stack.clone();
+        copy.count = remove;
+        stack.count -= remove;
+        for half in [stack, copy] {
+            if half.count > 1 && random.next_bool() {
+                splittable.push(half);
+            } else {
+                singles.push(half);
+            }
+        }
+    }
+    singles.extend(splittable);
+    shuffle(&mut singles, random);
+    *items = singles;
+}
+
+/// `Mth.nextInt`: singleton (or inverted) ranges return the minimum without
+/// advancing the generator, unlike `RandomSource.nextInt(1)`.
+fn inclusive_random_int(random: &LootRandom, min: i32, max: i32) -> i32 {
+    if min >= max {
+        min
+    } else {
+        min + random.next_i32(max - min + 1)
     }
 }
 

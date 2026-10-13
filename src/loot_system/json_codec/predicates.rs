@@ -125,6 +125,10 @@ fn lower_entity_predicate(encoded: &Value) -> Result<Option<EntityPredicate>, St
                 Some(vehicle) => predicate.vehicle = Some(Box::new(vehicle)),
                 None => return Ok(None),
             },
+            "passenger" => match lower_entity_predicate(value)? {
+                Some(passenger) => predicate.passenger = Some(Box::new(passenger)),
+                None => return Ok(None),
+            },
             _ => return Ok(None),
         }
     }
@@ -288,4 +292,37 @@ fn lower_block_predicate(value: &Value) -> Result<Option<BlockPredicate>, String
         }
     }
     Ok(Some(predicate))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lower_entity_predicate_preserves_nested_passenger_predicates() {
+        let predicate = lower_entity_predicate(&serde_json::json!({
+            "passenger": {
+                "type": "minecraft:minecart",
+                "passenger": { "type": "minecraft:zombie" }
+            }
+        }))
+        .expect("valid predicate")
+        .expect("all fields are modeled");
+        let passenger = predicate.passenger.expect("passenger predicate");
+        assert_eq!(
+            passenger.entity_type,
+            Some(crate::loot_system::HolderSet::Ids(vec![
+                "minecraft:minecart".into()
+            ]))
+        );
+        assert_eq!(
+            passenger
+                .passenger
+                .as_deref()
+                .and_then(|nested| nested.entity_type.as_ref()),
+            Some(&crate::loot_system::HolderSet::Ids(vec![
+                "minecraft:zombie".into()
+            ]))
+        );
+    }
 }
