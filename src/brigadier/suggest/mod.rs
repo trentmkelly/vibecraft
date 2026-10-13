@@ -6,10 +6,11 @@
 //! written to `ClientboundCommandSuggestionsPacket` are directly comparable.
 //!
 //! Argument handling status (see [`argument`]): the Brigadier primitives are
-//! ported exactly; Minecraft argument types are consumed with a token heuristic
-//! and only `bool`, `gamemode` and `entity_anchor` list suggestions, since the
-//! others need live game data (players, registries, scoreboards). Named sound
-//! and summonable-entity providers use the pinned built-in registries; static
+//! ported exactly, alongside stateless Minecraft ranges, colors, swizzles and
+//! times. Other Minecraft argument types use a token heuristic; bool, gamemode,
+//! entity anchors, colors, times and coordinates provide static suggestions.
+//! Many remaining arguments need live players, registries and scoreboards.
+//! Named sound and summonable-entity providers use pinned built-in registries; static
 //! per-command providers are recovered from the parsed command path.
 
 pub mod argument;

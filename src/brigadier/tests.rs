@@ -314,3 +314,230 @@ fn suggestions_match_official_dispatcher_recordings() {
         mismatches.join("\n")
     );
 }
+
+/// A small graph whose parser must succeed before Brigadier can reach `next`.
+/// The supplementary character in the leading literal makes the replacement
+/// range assert Java's UTF-16 indexing instead of Rust's UTF-8 byte offsets.
+fn parser_completion_graph(parser: &str, properties: Value) -> CommandGraph {
+    let mut graph = CommandGraph::new();
+    let head = graph.push(super::CommandGraphNode {
+        kind: NodeKind::Literal {
+            name: "😀".into()
+        },
+        executable: false,
+        command_key: None,
+        fork: false,
+        permission_level: 0,
+        redirect: None,
+        children: Vec::new(),
+    });
+    let argument = graph.push(super::CommandGraphNode {
+        kind: NodeKind::Argument {
+            name: "value".into(),
+            parser: parser.into(),
+            properties,
+            suggestions: None,
+            type_key: 1,
+        },
+        executable: false,
+        command_key: None,
+        fork: false,
+        permission_level: 0,
+        redirect: None,
+        children: Vec::new(),
+    });
+    let next = graph.push(super::CommandGraphNode {
+        kind: NodeKind::Literal {
+            name: "next".into(),
+        },
+        executable: true,
+        command_key: Some(1),
+        fork: false,
+        permission_level: 0,
+        redirect: None,
+        children: Vec::new(),
+    });
+    graph.add_child(ROOT, head);
+    graph.add_child(head, argument);
+    graph.add_child(argument, next);
+    graph
+}
+
+#[test]
+fn stateless_minecraft_parsers_gate_following_literal_completion() {
+    // These cases follow RangeArgument -> MinMaxBounds.Bounds.fromReader,
+    // ColorArgument.parse, SwizzleArgument.parse, and TimeArgument.parse in
+    // the official 26.1.2 decompilation.
+    let cases: [(&str, Value, &[&str], &[&str]); 5] = [
+        (
+            "minecraft:int_range",
+            Value::Null,
+            &["1..2", "..5", "5.."],
+            &["2..1", "..", "1.2", "2147483648", "1x"],
+        ),
+        (
+            "minecraft:float_range",
+            Value::Null,
+            &["1.2..2.5", "..2.5", "2.5..", "-0.0..0.0", "0.0..0.0"],
+            &["2.5..1.2", "..", "1.2.3", "0.0..-0.0", "+0.0", "1.2x"],
+        ),
+        (
+            "minecraft:color",
+            Value::Null,
+            &["dark_blue", "DARK_BLUE", "d-a-r-k_b-l-u-e", "reset"],
+            &["not_a_color", "bold"],
+        ),
+        (
+            "minecraft:swizzle",
+            Value::Null,
+            &["xyz", "xz", "y"],
+            &["xx", "X", "xY"],
+        ),
+        (
+            "minecraft:time",
+            serde_json::json!({"min": 0}),
+            &["3s", "-0.5"],
+            &["3w", "-0.51"],
+        ),
+    ];
+
+    for (parser, properties, valid_cases, invalid_cases) in cases {
+        let graph = parser_completion_graph(parser, properties);
+        for valid in valid_cases {
+            let valid_input = format!("😀 {valid} n");
+            let valid_suggestions = command_suggestions(&graph, 0, &valid_input);
+            assert_eq!(
+                valid_suggestions.texts,
+                ["next"],
+                "{parser} valid {valid:?}"
+            );
+            assert_eq!(
+                (valid_suggestions.start, valid_suggestions.end),
+                (
+                    valid_input.encode_utf16().count() - 1,
+                    valid_input.encode_utf16().count()
+                ),
+                "{parser} replacement range for {valid:?}"
+            );
+        }
+
+        for invalid in invalid_cases {
+            let invalid_input = format!("😀 {invalid} n");
+            let invalid_suggestions = command_suggestions(&graph, 0, &invalid_input);
+            assert!(
+                !invalid_suggestions.texts.iter().any(|text| text == "next"),
+                "{parser} invalid {invalid:?} must not traverse to the following literal"
+            );
+        }
+    }
+
+    // Math.round(float) saturates at Integer.MAX_VALUE for large values, which
+    // remains valid when the TimeArgument minimum is that same boundary.
+    let large_time =
+        parser_completion_graph("minecraft:time", serde_json::json!({"min": i32::MAX}));
+    assert_eq!(
+        command_suggestions(&large_time, 0, "😀 999999999999999999999999999999999999d n").texts,
+        ["next"]
+    );
+
+    // At a one-tick minimum, 0.04s rounds up to one tick while 0.02s rounds
+    // down to zero, matching Java Math.round(float).
+    let one_tick_minimum = parser_completion_graph("minecraft:time", serde_json::json!({"min": 1}));
+    assert_eq!(
+        command_suggestions(&one_tick_minimum, 0, "😀 0.04s n").texts,
+        ["next"]
+    );
+    assert!(command_suggestions(&one_tick_minimum, 0, "😀 0.02s n")
+        .texts
+        .is_empty());
+}
+
+#[test]
+fn vanilla_color_argument_suggests_chat_formatting_colors_and_reset() {
+    // TeamCommand registers this argument with ColorArgument.color(); that
+    // class delegates to ChatFormatting.getNames(true, false). SharedSuggestionProvider
+    // also matches the word after an underscore, so `re` includes `dark_red`.
+    assert_eq!(
+        suggest(4, "/team modify sample color re").2,
+        ["dark_red", "red", "reset"]
+    );
+}
+
+#[test]
+fn stateless_minecraft_parsers_preserve_java_reader_cursor_semantics() {
+    use super::suggest::argument::{parse, StringReader};
+
+    let parse_at_zero = |parser: &str, text: &str, properties: Value| {
+        let input: Vec<u16> = text.encode_utf16().collect();
+        let mut reader = StringReader::new(&input, 0);
+        let success = parse(parser, &properties, &mut reader);
+        (success, reader.cursor())
+    };
+
+    // Bounds.fromReader resets for malformed numbers; the Ints/Doubles
+    // wrappers reset again when areSwapped() rejects a reversed range.
+    // Successful parse stops before Brigadier's separating space.
+    assert_eq!(
+        parse_at_zero("minecraft:int_range", "1..2 tail", Value::Null),
+        (true, 4)
+    );
+    assert_eq!(
+        parse_at_zero("minecraft:int_range", "2..1", Value::Null),
+        (false, 0)
+    );
+    assert_eq!(
+        parse_at_zero("minecraft:int_range", "..", Value::Null),
+        (false, 0)
+    );
+    assert_eq!(
+        parse_at_zero("minecraft:int_range", "2147483648", Value::Null),
+        (false, 0)
+    );
+    assert_eq!(
+        parse_at_zero("minecraft:float_range", "2.5..1.2", Value::Null),
+        (false, 0)
+    );
+    assert_eq!(
+        parse_at_zero("minecraft:float_range", "0.0..-0.0", Value::Null),
+        (false, 0)
+    );
+    assert_eq!(
+        parse_at_zero("minecraft:float_range", "+0.0", Value::Null),
+        (false, 0)
+    );
+    assert_eq!(
+        parse_at_zero("minecraft:float_range", "1.2.3", Value::Null),
+        (false, 0)
+    );
+
+    // ColorArgument and SwizzleArgument throw after consuming the bad token
+    // or offending axis; the command dispatcher restores the argument start.
+    assert_eq!(
+        parse_at_zero("minecraft:color", "not_a_color!", Value::Null),
+        (false, "not_a_color".encode_utf16().count())
+    );
+    assert_eq!(
+        parse_at_zero("minecraft:swizzle", "xq", Value::Null),
+        (false, 2)
+    );
+
+    // TimeArgument also retains its consumed cursor when the unit is invalid
+    // or the computed tick count violates the argument's configured minimum.
+    assert_eq!(
+        parse_at_zero("minecraft:time", "3w", serde_json::json!({"min": 0})),
+        (false, 2)
+    );
+    assert_eq!(
+        parse_at_zero("minecraft:time", "3s", serde_json::json!({"min": 100})),
+        (false, 2)
+    );
+
+    let malformed: Vec<u16> = "x".encode_utf16().collect();
+    let mut reader = StringReader::new(&malformed, 0);
+    assert_eq!(reader.read_float(), None);
+    assert_eq!(
+        reader.cursor(),
+        0,
+        "StringReader.readFloat resets on syntax error"
+    );
+}

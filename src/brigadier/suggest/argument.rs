@@ -1,8 +1,9 @@
 //! Argument parsing and suggestions for server-side completion.
 //!
 //! Brigadier's own argument types (`bool`, numbers, strings) are ports of
-//! `StringReader`/`*ArgumentType.parse`. Minecraft argument types are consumed
-//! by [`consume_minecraft_argument`], a structural approximation that only
+//! `StringReader`/`*ArgumentType.parse`. Stateless Minecraft ranges, colors,
+//! axis swizzles and times use their Java argument grammar and cursor behavior.
+//! Remaining Minecraft types use [`consume_minecraft_argument`], which only
 //! decides how many characters an argument occupies (balanced quotes, brackets
 //! and braces; fixed token counts for coordinates).
 //!
@@ -15,6 +16,7 @@
 use serde_json::Value;
 
 pub(super) mod coordinates;
+mod stateless;
 
 use super::SuggestionsBuilder;
 
@@ -223,6 +225,11 @@ pub(crate) fn parse(parser: &str, properties: &Value, reader: &mut StringReader<
                 true
             }
         },
+        "minecraft:int_range" => stateless::parse_range(reader, false),
+        "minecraft:float_range" => stateless::parse_range(reader, true),
+        "minecraft:color" => stateless::parse_color(reader),
+        "minecraft:swizzle" => stateless::parse_swizzle(reader),
+        "minecraft:time" => stateless::parse_time(properties, reader),
         other => consume_minecraft_argument(other, reader),
     }
 }
@@ -340,6 +347,7 @@ pub(crate) fn list_suggestions(
         }
         "minecraft:entity_anchor" => suggest_matching(["feet", "eyes"], builder),
         "minecraft:time" => suggest_time_units(builder),
+        "minecraft:color" => suggest_matching(stateless::COLORS, builder),
         "minecraft:vec3" => coordinates::suggest(builder, coordinates::Kind::Vec3),
         "minecraft:block_pos" => coordinates::suggest(builder, coordinates::Kind::BlockPos),
         "minecraft:vec2" => coordinates::suggest(builder, coordinates::Kind::Vec2),
