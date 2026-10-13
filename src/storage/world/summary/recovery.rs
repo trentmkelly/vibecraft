@@ -1,6 +1,7 @@
 //! Exceptional world-list entries carry no fabricated game settings or versions.
 use super::*;
 use crate::chat_component::{Component, Style};
+use crate::storage::validation::PathAllowList;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum WorldSummary {
@@ -93,16 +94,31 @@ impl WorldSummary {
 
 impl LevelDirectory {
     pub fn load_summary(&self) -> std::io::Result<WorldSummary> {
+        self.load_summary_with_allow_list(&PathAllowList::deny_all())
+    }
+
+    /// Reads a summary with the source's configured raw symlink-target policy.
+    pub fn load_summary_with_allow_list(
+        &self,
+        allow_list: &PathAllowList,
+    ) -> std::io::Result<WorldSummary> {
         let locked = self.layout().is_session_locked()?;
         let path = self.data_file();
         if path.exists() {
-            // The current directory validator rejects every symlink. Allow-list
-            // support is a separate storage task; never follow a forbidden link.
+            // Java passes readSymbolicLink's unmodified result to PathAllowList.
             if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_symlink()) {
-                return Ok(WorldSummary::Symlink {
-                    directory_name: self.directory_name(),
-                    icon_file: self.icon_file(),
-                });
+                match fs::read_link(&path) {
+                    Ok(target) if !allow_list.matches(&target) => {
+                        return Ok(WorldSummary::Symlink {
+                            directory_name: self.directory_name(),
+                            icon_file: self.icon_file(),
+                        });
+                    }
+                    Ok(_) => {}
+                    // Java catches the read failure and returns a corrupted
+                    // summary without following the link to its target.
+                    Err(_) => return Ok(self.corrupted_summary(&path)),
+                }
             }
             if let Ok(root) = read_lightweight_data(&path) {
                 // getCompoundOrEmpty("Data") does not accept legacy flat roots.
@@ -115,15 +131,19 @@ impl LevelDirectory {
                 }
             }
         }
+        Ok(self.corrupted_summary(&path))
+    }
+
+    fn corrupted_summary(&self, path: &Path) -> WorldSummary {
         // Recovery uses only file timestamps from the fallback, never its NBT.
-        let last_played = modification_time(&path)
+        let last_played = modification_time(path)
             .or_else(|| modification_time(&self.old_data_file()))
             .unwrap_or(-1);
-        Ok(WorldSummary::Corrupted {
+        WorldSummary::Corrupted {
             directory_name: self.directory_name(),
             icon_file: self.icon_file(),
             last_played,
-        })
+        }
     }
 }
 

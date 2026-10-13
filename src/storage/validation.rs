@@ -4,6 +4,9 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+mod path_allow_list;
+pub use path_allow_list::PathAllowList;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForbiddenSymlinkInfo {
     pub link: PathBuf,
@@ -140,3 +143,6 @@ impl<F: Fn(&Path) -> bool> DirectoryValidator<F> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod policy_tests;

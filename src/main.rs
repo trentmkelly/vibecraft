@@ -77,6 +77,23 @@ fn main() {
     }
 }
 
+/// Apply LevelStorageSource's shared policy without narrowing the CLI's existing
+/// world-path syntax; Java resolves the configured world against the universe.
+fn acquire_validated_world_session(
+    universe: &Path,
+    world_dir: &Path,
+) -> Result<storage::world::SessionLock, String> {
+    let allow_list = storage::world::LevelStorageSource::parse_validator(
+        &universe.join(storage::world::ALLOWED_SYMLINKS_CONFIG_NAME),
+    );
+    storage::validation::DirectoryValidator::new(|target| allow_list.matches(target))
+        .require_valid_directory(world_dir, true)
+        .map_err(|err| format!("Failed to validate world '{}': {err}", world_dir.display()))?;
+    storage::world::SessionLock::acquire(world_dir).map_err(|err| {
+        format!("Failed to acquire session lock on '{}': {err}", world_dir.display())
+    })
+}
+
 fn run(options: CliOptions) -> Result<(), String> {
     let logger = initialize_logger(&options)?;
     logger.info("Starting VibeCraft target server for Minecraft Java Edition 26.1.2")?;
@@ -97,18 +114,12 @@ fn run(options: CliOptions) -> Result<(), String> {
     let watchdog = runtime::Watchdog::from_max_tick_time_millis(startup.properties.max_tick_time);
     let runtime = runtime_selection(&options, &startup.properties);
     log_runtime_selection(&logger, &options, &runtime, &watchdog)?;
+    // Java Main validates symlink targets and holds the session lock before
+    // reading or upgrading world data. Keep that order for every startup path.
+    let world_dir = runtime.universe.join(&runtime.world_name);
+    let _session_lock = acquire_validated_world_session(&runtime.universe, &world_dir)?;
     run_configured_world_upgrade(&logger, &options, &runtime)?;
     check_world_version_compatibility(&logger, &runtime)?;
-
-    // Acquire exclusive session lock to prevent concurrent world access.
-    // Matches Java LevelStorageSource.LevelStorageAccess constructor.
-    let world_dir = runtime.universe.join(&runtime.world_name);
-    let _session_lock = storage::world::SessionLock::acquire(&world_dir).map_err(|err| {
-        format!(
-            "Failed to acquire session lock on '{}': {err}",
-            world_dir.display()
-        )
-    })?;
 
     let (console_input, _console_handle) = console::spawn_console_input_thread()
         .map_err(|err| format!("Failed to start server console input thread: {err}"))?;
@@ -640,6 +651,24 @@ mod tests {
             singleplayer_uuid: None,
             removed_features: Default::default(),
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn startup_world_session_applies_allow_list_before_locking() {
+        use std::os::unix::fs::symlink;
+        let dir = temp_workdir("startup-symlink-policy");
+        let world = dir.join("world");
+        fs::create_dir_all(&world).unwrap();
+        symlink("../allowed-target", world.join("linked-data")).unwrap();
+        assert!(super::acquire_validated_world_session(&dir, &world).is_err());
+        assert!(!world.join("session.lock").exists());
+        fs::write(dir.join("allowed_symlinks.txt"), "[prefix]../allowed-target\n").unwrap();
+        let lock = super::acquire_validated_world_session(&dir, &world).unwrap();
+        assert!(lock.is_valid());
+        assert!(super::acquire_validated_world_session(&dir, &world).is_err());
+        drop(lock);
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

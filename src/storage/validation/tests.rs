@@ -182,3 +182,36 @@ fn source_contract_covers_raw_targets_and_no_follow_root_attributes() {
         );
     }
 }
+
+#[cfg(vibecraft_has_decompiled_sources)]
+#[test]
+fn path_allow_list_and_level_storage_source_keep_java_policy_contracts() {
+    const ALLOW_LIST: &str =
+        vibecraft_java_source!("/net/minecraft/world/level/validation/PathAllowList.java");
+    for fragment in [
+        "definition.isBlank() || definition.startsWith(\"#\")",
+        "case \"glob\", \"regex\"",
+        "case \"prefix\"",
+        "path.toString().startsWith(pattern)",
+        "return path -> false;",
+    ] {
+        assert!(
+            ALLOW_LIST.contains(fragment),
+            "missing Java allow-list contract: {fragment}"
+        );
+    }
+
+    const STORAGE: &str =
+        vibecraft_java_source!("/net/minecraft/world/level/storage/LevelStorageSource.java");
+    for fragment in [
+        "public static final String ALLOWED_SYMLINKS_CONFIG_NAME = \"allowed_symlinks.txt\"",
+        "PathAllowList.readPlain(reader)",
+        "disallowing all symbolic links",
+        "return new DirectoryValidator(NO_SYMLINKS_ALLOWED)",
+    ] {
+        assert!(
+            STORAGE.contains(fragment),
+            "missing Java storage symlink policy contract: {fragment}"
+        );
+    }
+}

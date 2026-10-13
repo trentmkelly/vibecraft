@@ -1,17 +1,20 @@
 #![allow(dead_code)]
 
 use std::fs::{self, File, OpenOptions};
-use std::io::Write;
+use std::io::{BufReader, Write};
 use std::path::{Component, Path, PathBuf};
 
 use crate::storage::nbt::{read_named_tag, write_gzip_named_tag, write_named_tag, Tag};
 use crate::storage::region::{ChunkPos, RegionFile};
+use crate::storage::validation::PathAllowList;
 
 use super::datafix::TARGET_DATA_VERSION;
 use super::datafix_upgrade::{check_level_data_version, saved_data_fix_type, upgrade_level_dat};
 
 /// Java `DirectoryLock.LOCK_FILE`.
 pub const SESSION_LOCK_FILE: &str = "session.lock";
+/// Java `LevelStorageSource.ALLOWED_SYMLINKS_CONFIG_NAME`.
+pub const ALLOWED_SYMLINKS_CONFIG_NAME: &str = "allowed_symlinks.txt";
 const SESSION_LOCK_MARKER: &[u8] = "\u{2603}".as_bytes();
 const CURRENT_VERSION_NAME: &str = "26.1.2";
 const CURRENT_VERSION_SERIES: &str = "main";
@@ -195,10 +198,18 @@ impl LevelCandidates {
     }
 
     pub fn summaries(&self) -> Vec<std::io::Result<summary::WorldSummary>> {
+        self.summaries_with_allow_list(&PathAllowList::deny_all())
+    }
+
+    /// Loads summaries using the same raw-target allow list as world access.
+    pub fn summaries_with_allow_list(
+        &self,
+        allow_list: &PathAllowList,
+    ) -> Vec<std::io::Result<summary::WorldSummary>> {
         let mut summaries: Vec<_> = self
             .levels
             .iter()
-            .map(LevelDirectory::load_summary)
+            .map(|level| level.load_summary_with_allow_list(allow_list))
             .collect();
         // Keep errors visible to callers; successful summaries use Java's order.
         summaries.sort_by(|left, right| match (left, right) {
@@ -230,6 +241,7 @@ pub struct LevelSummary {
 pub struct LevelStorageSource {
     base_dir: PathBuf,
     backup_dir: PathBuf,
+    world_dir_allow_list: PathAllowList,
 }
 
 impl LevelStorageSource {
@@ -240,22 +252,48 @@ impl LevelStorageSource {
             .parent()
             .map(|parent| parent.join("backups"))
             .unwrap_or_else(|| PathBuf::from("backups"));
-        Ok(Self {
-            base_dir,
-            backup_dir,
-        })
+        let world_dir_allow_list =
+            Self::parse_validator(&base_dir.join(ALLOWED_SYMLINKS_CONFIG_NAME));
+        Self::new_with_allow_list(base_dir, backup_dir, world_dir_allow_list)
     }
 
+    /// Constructs a source with symlinks denied, like Java's explicit-validator
+    /// constructor when no allow-list is provided. Use `create_default` to read
+    /// the base directory's `allowed_symlinks.txt` file.
     pub fn new(
         base_dir: impl Into<PathBuf>,
         backup_dir: impl Into<PathBuf>,
+    ) -> std::io::Result<Self> {
+        Self::new_with_allow_list(base_dir, backup_dir, PathAllowList::deny_all())
+    }
+
+    /// Constructs a source with an explicitly supplied Java-compatible policy.
+    pub fn new_with_allow_list(
+        base_dir: impl Into<PathBuf>,
+        backup_dir: impl Into<PathBuf>,
+        world_dir_allow_list: PathAllowList,
     ) -> std::io::Result<Self> {
         let base_dir = base_dir.into();
         fs::create_dir_all(&base_dir)?;
         Ok(Self {
             base_dir,
             backup_dir: backup_dir.into(),
+            world_dir_allow_list,
         })
+    }
+
+    /// Reads Java's plain allow-list format. Missing or invalid config denies
+    /// every symlink, matching `LevelStorageSource.parseValidator`.
+    pub fn parse_validator(config_path: &Path) -> PathAllowList {
+        let Ok(file) = File::open(config_path) else {
+            return PathAllowList::deny_all();
+        };
+        PathAllowList::read_plain(BufReader::new(file))
+            .unwrap_or_else(|_| PathAllowList::deny_all())
+    }
+
+    pub fn world_dir_allow_list(&self) -> &PathAllowList {
+        &self.world_dir_allow_list
     }
 
     pub fn name(&self) -> &'static str {
@@ -310,7 +348,9 @@ impl LevelStorageSource {
     pub fn load_level_summaries(
         &self,
     ) -> std::io::Result<Vec<std::io::Result<summary::WorldSummary>>> {
-        Ok(self.find_level_candidates()?.summaries())
+        Ok(self
+            .find_level_candidates()?
+            .summaries_with_allow_list(&self.world_dir_allow_list))
     }
 
     pub fn validate_and_create_access(
@@ -318,8 +358,10 @@ impl LevelStorageSource {
         level_id: &str,
     ) -> std::io::Result<LevelStorageAccess> {
         let path = self.level_path(level_id)?;
-        crate::storage::validation::DirectoryValidator::deny_all()
-            .require_valid_directory(&path, true)?;
+        crate::storage::validation::DirectoryValidator::new(|target| {
+            self.world_dir_allow_list.matches(target)
+        })
+        .require_valid_directory(&path, true)?;
         self.create_access(level_id)
     }
 
