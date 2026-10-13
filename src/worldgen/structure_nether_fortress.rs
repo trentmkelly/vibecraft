@@ -195,21 +195,14 @@ pub fn nether_fortress_bridge_crossing_box(
     direction: HorizontalDirection,
     existing_pieces: &[StructurePieceModel],
 ) -> Option<StructureBoundingBoxModel> {
-    let bounding_box = structure_orient_box(
-        BlockPos {
-            x: foot_x,
-            y: foot_y,
-            z: foot_z,
-        },
-        BlockPos { x: -8, y: -3, z: 0 },
-        19,
-        10,
-        19,
+    nether_fortress_piece_box(
+        NetherFortressPieceKindModel::BridgeCrossing,
+        foot_x,
+        foot_y,
+        foot_z,
         direction,
-    );
-    (nether_fortress_is_ok_box(bounding_box)
-        && structure_piece_find_collision_piece(existing_pieces, bounding_box).is_none())
-    .then_some(bounding_box)
+        existing_pieces,
+    )
 }
 
 pub fn nether_fortress_bridge_straight_box(
@@ -219,16 +212,68 @@ pub fn nether_fortress_bridge_straight_box(
     direction: HorizontalDirection,
     existing_pieces: &[StructurePieceModel],
 ) -> Option<StructureBoundingBoxModel> {
+    nether_fortress_piece_box(
+        NetherFortressPieceKindModel::BridgeStraight,
+        foot_x,
+        foot_y,
+        foot_z,
+        direction,
+        existing_pieces,
+    )
+}
+
+/// Builds a Nether Fortress piece's oriented box, applying the shared vanilla
+/// minimum-height and collision checks. Constructor randomness belongs to the
+/// caller and is consumed only after this factory succeeds, as in
+/// `NetherFortressPieces.findAndCreateBridgePieceFactory`.
+pub fn nether_fortress_piece_box(
+    kind: NetherFortressPieceKindModel,
+    foot_x: i32,
+    foot_y: i32,
+    foot_z: i32,
+    direction: HorizontalDirection,
+    existing_pieces: &[StructurePieceModel],
+) -> Option<StructureBoundingBoxModel> {
+    let (offset, width, height, depth) = match kind {
+        NetherFortressPieceKindModel::BridgeCrossing => {
+            (BlockPos { x: -8, y: -3, z: 0 }, 19, 10, 19)
+        }
+        NetherFortressPieceKindModel::BridgeEndFiller => {
+            (BlockPos { x: -1, y: -3, z: 0 }, 5, 10, 8)
+        }
+        NetherFortressPieceKindModel::BridgeStraight => {
+            (BlockPos { x: -1, y: -3, z: 0 }, 5, 10, 19)
+        }
+        NetherFortressPieceKindModel::CastleCorridorStairs => {
+            (BlockPos { x: -1, y: -7, z: 0 }, 5, 14, 10)
+        }
+        NetherFortressPieceKindModel::CastleCorridorTBalcony => {
+            (BlockPos { x: -3, y: 0, z: 0 }, 9, 7, 9)
+        }
+        NetherFortressPieceKindModel::CastleEntrance
+        | NetherFortressPieceKindModel::CastleStalkRoom => {
+            (BlockPos { x: -5, y: -3, z: 0 }, 13, 14, 13)
+        }
+        NetherFortressPieceKindModel::CastleSmallCorridorCrossing
+        | NetherFortressPieceKindModel::CastleSmallCorridorLeftTurn
+        | NetherFortressPieceKindModel::CastleSmallCorridor
+        | NetherFortressPieceKindModel::CastleSmallCorridorRightTurn => {
+            (BlockPos { x: -1, y: 0, z: 0 }, 5, 7, 5)
+        }
+        NetherFortressPieceKindModel::MonsterThrone => (BlockPos { x: -2, y: 0, z: 0 }, 7, 8, 9),
+        NetherFortressPieceKindModel::RoomCrossing => (BlockPos { x: -2, y: 0, z: 0 }, 7, 9, 7),
+        NetherFortressPieceKindModel::StairsRoom => (BlockPos { x: -2, y: 0, z: 0 }, 7, 11, 7),
+    };
     let bounding_box = structure_orient_box(
         BlockPos {
             x: foot_x,
             y: foot_y,
             z: foot_z,
         },
-        BlockPos { x: -1, y: -3, z: 0 },
-        5,
-        10,
-        19,
+        offset,
+        width,
+        height,
+        depth,
         direction,
     );
     (nether_fortress_is_ok_box(bounding_box)
@@ -331,3 +376,7 @@ pub fn nether_fortress_child_anchor(
             && (foot.z - input.start_box.min_z).abs() <= 112,
     }
 }
+
+#[cfg(test)]
+#[path = "structure_nether_fortress_tests.rs"]
+mod tests;
