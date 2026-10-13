@@ -12,9 +12,10 @@ use super::fixer::{DataFixer, DataFixerBuilder};
 mod flattening;
 mod late_flattening;
 mod legacy;
+mod village;
 
 /// The highest data version for which every Java fix is registered here.
-pub const COMPLETE_THROUGH: i32 = 1624;
+pub const COMPLETE_THROUGH: i32 = 1905;
 
 /// `DataFixers.createRenamer(from, to)`: replaces exactly `from` with `to`.
 pub fn create_renamer(from: &'static str, to: &'static str) -> impl Fn(&str) -> String {
@@ -43,6 +44,7 @@ pub fn build() -> DataFixer {
     legacy::add_fixers(&mut builder);
     flattening::add_fixers(&mut builder);
     late_flattening::add_fixers(&mut builder);
+    village::add_fixers(&mut builder);
     builder.build(COMPLETE_THROUGH)
 }
 

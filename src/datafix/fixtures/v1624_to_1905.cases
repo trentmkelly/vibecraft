@@ -1,0 +1,31 @@
+# Generated with Minecraft 26.1.2 DataFixers.getDataFixer().update using NbtOps.INSTANCE.
+ITEM_STACK	1624	1800	{id:"cactus_green",Count:2b,Keep:7}	{Count:2b,Keep:7,id:"minecraft:green_dye"}
+ITEM_STACK	1624	1800	{id:"rose_red",Count:1b}	{Count:1b,id:"minecraft:red_dye"}
+ITEM_STACK	1624	1800	{id:"dandelion_yellow",Count:1b}	{Count:1b,id:"minecraft:yellow_dye"}
+ITEM_STACK	1624	1800	{id:"mod:cactus_green",Count:1b}	{Count:1b,id:"mod:cactus_green"}
+PLAYER	1624	1905	{Inventory:[{id:"cactus_green",Count:2b},{id:"sign",Count:1b},{id:"stone_slab",Count:3b}],Keep:7}	{Inventory:[{Count:2b,id:"minecraft:green_dye"},{Count:1b,id:"minecraft:oak_sign"},{Count:3b,id:"minecraft:smooth_stone_slab"}],Keep:7}
+ENTITY	1800	1905	{id:"pillager",Inventory:[{id:"sign",Count:1b}],Keep:7}	{Inventory:[{Count:1b,id:"minecraft:oak_sign"}],Keep:7,id:"minecraft:pillager"}
+ENTITY	1799	1905	{id:"minecraft:pillager",Inventory:[{id:"sign",Count:1b}],Keep:7}	{Inventory:[{Count:1b,id:"sign"}],Keep:7,id:"minecraft:pillager"}
+ENTITY	1801	1905	{id:"illager_beast",Keep:7}	{Keep:7,id:"minecraft:illager_beast"}
+ENTITY	1800	1905	{id:"panda",Keep:7}	{Keep:7,id:"minecraft:panda"}
+BLOCK_STATE	1624	1802	{Name:"minecraft:stone_slab",Properties:{type:"top",custom:"kept"}}	{Name:"minecraft:smooth_stone_slab",Properties:{custom:"kept",type:"top"}}
+BLOCK_STATE	1624	1802	{Name:"minecraft:sign",Properties:{rotation:"8"}}	{Name:"minecraft:oak_sign",Properties:{rotation:"8"}}
+BLOCK_STATE	1624	1802	{Name:"minecraft:wall_sign",Properties:{facing:"north"}}	{Name:"minecraft:oak_wall_sign",Properties:{facing:"north"}}
+ITEM_STACK	1802	1803	{id:"minecraft:stone",tag:{display:{Lore:["first","",'{"text":"already JSON"}','quote " and slash \\'],Name:"unchanged"},Keep:7}}	{id:"minecraft:stone",tag:{Keep:7,display:{Lore:['{"text":"first"}','{"text":""}','{"text":"{\\"text\\":\\"already JSON\\"}"}','{"text":"quote \\" and slash \\\\"}'],Name:"unchanged"}}}
+ITEM_STACK	1802	1803	{id:"minecraft:stone",tag:{display:{Lore:7}}}	{id:"minecraft:stone",tag:{display:{Lore:7}}}
+ITEM_STACK	1802	1803	{id:"minecraft:stone",tag:{display:7}}	{id:"minecraft:stone",tag:{display:7}}
+ITEM_STACK	1802	1803	{id:"minecraft:stone",tag:{display:{Lore:[1,2]}}}	{id:"minecraft:stone",tag:{display:{Lore:[1,2]}}}
+ITEM_STACK	1802	1803	{id:"minecraft:stone"}	{id:"minecraft:stone"}
+ENTITY	1803	1904	{id:"minecraft:ocelot",CatType:0,Owner:"Alex",OwnerUUID:"uuid",Keep:7}	{CatType:0,Keep:7,Owner:"Alex",OwnerUUID:"uuid",id:"minecraft:ocelot"}
+ENTITY	1803	1904	{id:"minecraft:ocelot",CatType:1b,OwnerUUID:"uuid",Owner:"Alex",Keep:7}	{CatType:1,Keep:7,Owner:"Alex",OwnerUUID:"uuid",id:"minecraft:cat"}
+ENTITY	1803	1904	{id:"minecraft:ocelot",CatType:2s,OwnerUUID:7,Keep:7}	{CatType:2,Keep:7,OwnerUUID:"",id:"minecraft:cat"}
+ENTITY	1803	1904	{id:"minecraft:ocelot",CatType:3,Keep:7}	{CatType:3,Keep:7,OwnerUUID:"",id:"minecraft:cat"}
+ENTITY	1803	1904	{id:"minecraft:ocelot",CatType:4,Owner:"Alex",Keep:7}	{CatType:4,Keep:7,Owner:"Alex",id:"minecraft:ocelot"}
+ENTITY	1803	1904	{id:"minecraft:ocelot",CatType:-1,Keep:7}	{CatType:-1,Keep:7,id:"minecraft:ocelot"}
+ENTITY	1803	1904	{id:"minecraft:ocelot",CatType:"2",Keep:7}	{CatType:"2",Keep:7,id:"minecraft:ocelot"}
+CHUNK	1624	1905	{Level:{Status:"postprocessed",Entities:[{id:"minecraft:ocelot",CatType:2b,OwnerUUID:5,Owner:"Alex",Custom:9}],Sections:[],Keep:"value"}}	{Level:{Entities:[{CatType:2,Custom:9,Owner:"Alex",OwnerUUID:"",id:"minecraft:cat"}],Keep:"value",Sections:[],Status:"fullchunk"}}
+CHUNK	1904	1905	{Level:{Status:"postprocessed",Keep:7}}	{Level:{Keep:7,Status:"fullchunk"}}
+CHUNK	1904	1905	{Level:{Status:"full",Keep:7}}	{Level:{Keep:7,Status:"full"}}
+CHUNK	1904	1905	{Level:{Status:7,Keep:7}}	{Level:{Keep:7,Status:7}}
+CHUNK	1904	1905	{Level:{Keep:7}}	{Level:{Keep:7}}
+CHUNK	1904	1905	{Level:7,Keep:9}	{Keep:9,Level:7}

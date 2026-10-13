@@ -16,6 +16,7 @@ mod fixtures;
 mod framework;
 mod java_logic;
 mod support;
+mod village;
 
 fn parse(snbt: &str) -> Tag {
     parse_fully(snbt).unwrap_or_else(|err| panic!("bad SNBT {snbt}: {err:?}"))
