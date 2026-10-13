@@ -552,10 +552,9 @@ fn raw_data_component_patch_from_item_stack(
         write_bool(&mut payload, *resolved)?;
         added.push((55, payload));
     }
-    Ok(RawDataComponentPatch {
-        added,
-        removed: Vec::new(),
-    })
+    let mut patch = RawDataComponentPatch { added, removed: Vec::new() };
+    super::item_component_sync::append_equipment_components(stack, &mut patch)?;
+    Ok(patch)
 }
 
 pub fn slot_corrections_to_set_slot_packets(

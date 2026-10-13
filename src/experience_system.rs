@@ -127,11 +127,25 @@ impl ExperienceOrb {
         player: &mut PlayerExperience,
         repair_targets: &mut [RepairableItem],
     ) -> bool {
+        let mut repair = |amount| repair_player_items(repair_targets, amount);
+        self.player_touch_with_repair(player, &mut repair)
+    }
+
+    /// Handles pickup while leaving item selection and repair to the caller.
+    ///
+    /// The callback receives the orb's XP value and returns the portion left
+    /// after repair. This lets the live server use its actual equipment stacks
+    /// and Java-compatible random selection without duplicating pickup rules.
+    pub fn player_touch_with_repair(
+        &mut self,
+        player: &mut PlayerExperience,
+        repair: &mut impl FnMut(i32) -> i32,
+    ) -> bool {
         if self.removed || player.take_xp_delay != 0 {
             return false;
         }
         player.take_xp_delay = 2;
-        let remaining = repair_player_items(repair_targets, self.value);
+        let remaining = repair(self.value);
         if remaining > 0 {
             player.give_points(remaining);
         }
@@ -150,19 +164,50 @@ pub struct RepairableItem {
 }
 
 pub fn repair_player_items(items: &mut [RepairableItem], amount: i32) -> i32 {
-    let Some(item) = items.iter_mut().find(|item| item.damage > 0) else {
-        return amount;
-    };
-    let repair_per_xp = item.repair_per_xp.max(1);
-    let possible_repair = amount * repair_per_xp;
-    let repaired = possible_repair.min(item.damage);
-    item.damage -= repaired;
-    let spent_xp = (repaired + repair_per_xp - 1) / repair_per_xp;
-    let remaining = amount.saturating_sub(spent_xp);
-    if remaining > 0 {
-        repair_player_items(items, remaining)
-    } else {
-        0
+    repair_player_items_with_selector(items, amount, |items| {
+        items.iter().position(|item| item.damage > 0)
+    })
+}
+
+/// Repairs one randomly selected eligible item at a time, matching
+/// `ExperienceOrb.repairPlayerItems`. The selector receives the current item
+/// set and returns an index; callers can use this to inject the server RNG and
+/// model duplicate enchantment entries when needed.
+pub fn repair_player_items_with_selector(
+    items: &mut [RepairableItem],
+    amount: i32,
+    mut select: impl FnMut(&[RepairableItem]) -> Option<usize>,
+) -> i32 {
+    let mut remaining = amount;
+    loop {
+        let Some(index) = select(items) else {
+            return remaining;
+        };
+        let Some(item) = items.get_mut(index).filter(|item| item.damage > 0) else {
+            return remaining;
+        };
+
+        // EnchantmentHelper starts with a float and converts it back to an int
+        // after applying the repair effect. Keep the float rounding and Java's
+        // saturating float-to-int cast behavior before its nonnegative clamp.
+        let to_repair = ((remaining as f32) * (item.repair_per_xp as f32)) as i32;
+        let to_repair = to_repair.max(0);
+        let repaired = to_repair.min(item.damage);
+        item.damage -= repaired;
+
+        if repaired <= 0 {
+            // Java returns zero here, even if a selected effect repaired no
+            // durability (for example, a zero-valued repair effect).
+            return 0;
+        }
+
+        // Java evaluates repaired * remaining as a signed 32-bit integer and
+        // uses truncating integer division for this proportional consumption.
+        // Preserve the numerator's overflow.
+        remaining = remaining.wrapping_sub(repaired.wrapping_mul(remaining) / to_repair);
+        if remaining <= 0 {
+            return 0;
+        }
     }
 }
 
@@ -448,6 +493,90 @@ mod tests {
         let mut blocked = ExperienceOrb::new(2, 3);
         assert!(!blocked.player_touch(&mut player, &mut []));
         assert!(!blocked.removed);
+    }
+
+    #[test]
+    fn repair_consumption_uses_java_proportional_integer_rounding() {
+        let mut items = [RepairableItem {
+            damage: 1,
+            repair_per_xp: 2,
+        }];
+
+        // One point of repair out of two possible leaves the XP point intact:
+        // Java computes 1 - (1 * 1 / 2), with integer division.
+        assert_eq!(repair_player_items(&mut items, 1), 1);
+        assert_eq!(items[0].damage, 0);
+    }
+
+    #[test]
+    fn repair_amount_preserves_java_float_rounding_for_large_xp_values() {
+        let mut items = [RepairableItem {
+            damage: 16_777_217,
+            repair_per_xp: 1,
+        }];
+        let mut selected = false;
+
+        // Java's MutableFloat rounds 16_777_217 to the nearest f32 value,
+        // 16_777_216, before converting the repair amount back to an int.
+        assert_eq!(
+            repair_player_items_with_selector(&mut items, 16_777_217, |_| {
+                if selected {
+                    None
+                } else {
+                    selected = true;
+                    Some(0)
+                }
+            }),
+            16_777_216
+        );
+        assert_eq!(items[0].damage, 1);
+    }
+
+    #[test]
+    fn repair_selection_is_injectable_and_zero_repair_consumes_the_amount() {
+        let mut items = [
+            RepairableItem {
+                damage: 3,
+                repair_per_xp: 1,
+            },
+            RepairableItem {
+                damage: 1,
+                repair_per_xp: 1,
+            },
+        ];
+        assert_eq!(
+            repair_player_items_with_selector(&mut items, 1, |items| {
+                items
+                    .iter()
+                    .position(|item| item.damage > 0 && item.damage == 1)
+            }),
+            0
+        );
+        assert_eq!(items[0].damage, 3);
+        assert_eq!(items[1].damage, 0);
+
+        let mut no_repair = [RepairableItem {
+            damage: 5,
+            repair_per_xp: 0,
+        }];
+        assert_eq!(repair_player_items(&mut no_repair, 4), 0);
+        assert_eq!(no_repair[0].damage, 5);
+    }
+
+    #[test]
+    fn pickup_repair_callback_controls_the_xp_award() {
+        let mut player = PlayerExperience::default();
+        let mut orb = ExperienceOrb::new(1, 5);
+        let mut callback_amount = 0;
+        let mut repair = |amount| {
+            callback_amount = amount;
+            amount - 3
+        };
+
+        assert!(orb.player_touch_with_repair(&mut player, &mut repair));
+        assert_eq!(callback_amount, 5);
+        assert_eq!(player.total, 2);
+        assert!(orb.removed);
     }
 
     #[test]

@@ -6,7 +6,8 @@
 
 use super::*;
 use crate::experience_system::PlayerExperience;
-use crate::xp_orb_entity::{tick_orbs, XpOrbEntity, XpOrbPlayer};
+use crate::xp_orb_entity::mending::{repair_equipment, RepairEquipmentSlot};
+use crate::xp_orb_entity::{tick_orbs, XpOrbEntity, XpOrbPlayer, XpOrbRandom};
 
 /// `BuiltInRegistries.ENTITY_TYPE` id of `minecraft:experience_orb` (registration order in
 /// `EntityType.java`; `minecraft:item` is 71).
@@ -33,7 +34,12 @@ pub(crate) fn write_xp_orb_spawn_packets<W: Write>(
     let entity_id = orb.entity_id();
     let uuid_hi = (entity_id as u64).wrapping_mul(0x6C62_272E_07BB_0142);
     let uuid_lo = (entity_id as u64).wrapping_mul(0x62B8_2175_6295_C58D);
-    write_framed_packet_with_compression(writer, compression, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, |_| Ok(()))?;
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+        |_| Ok(()),
+    )?;
     write_framed_packet_with_compression(
         writer,
         compression,
@@ -63,7 +69,12 @@ pub(crate) fn write_xp_orb_spawn_packets<W: Write>(
             p.write_all(&[0xFFu8]) // end of metadata
         },
     )?;
-    write_framed_packet_with_compression(writer, compression, CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID, |_| Ok(()))
+    write_framed_packet_with_compression(
+        writer,
+        compression,
+        CLIENTBOUND_BUNDLE_DELIMITER_PACKET_ID,
+        |_| Ok(()),
+    )
 }
 
 fn write_remove_entities<W: Write>(
@@ -130,7 +141,7 @@ fn publish_removed(bus: &WorldPacketBus, ids: &[i32]) -> io::Result<()> {
 }
 
 /// `Player.aiStep` → `ExperienceOrb.playerTouch` for every orb in the pickup box. Returns
-/// whether any experience was gained.
+/// whether an orb was picked up (including an orb spent entirely on repairs).
 fn collect_orbs_in_reach(
     writer: &mut impl Write,
     compression: CompressionState,
@@ -143,6 +154,9 @@ fn collect_orbs_in_reach(
         return Ok(false);
     }
     let mut gained = false;
+    let mut picked_up = false;
+    let mut random = XpOrbRandom::new(player_death::live_random_seed());
+    let times_changed_before = state.inventory_menu.player_inventory().times_changed();
     let mut removed = Vec::new();
     for orb in &mut store.xp_orbs {
         if !item_entity::in_pickup_range(state.x, state.y, state.z, orb.x, orb.y, orb.z) {
@@ -154,9 +168,14 @@ fn collect_orbs_in_reach(
             total: state.xp_total,
             take_xp_delay: state.combat.take_xp_delay,
         };
-        let value = orb.value();
-        // Mending (`repairPlayerItems`) needs item durability; nothing is repairable yet.
-        if !orb.orb.player_touch(&mut experience, &mut []) {
+        let mut remaining = 0;
+        if !orb
+            .orb
+            .player_touch_with_repair(&mut experience, &mut |amount| {
+                remaining = repair_player_equipment(state, amount, &mut random);
+                remaining
+            })
+        {
             continue;
         }
         debug_assert_eq!(experience.take_xp_delay, TAKE_XP_DELAY_TICKS);
@@ -165,8 +184,9 @@ fn collect_orbs_in_reach(
         state.xp_progress = experience.progress;
         state.xp_total = experience.total;
         // Player.giveExperiencePoints → increaseScore(remaining).
-        state.score = state.score.saturating_add(value);
-        gained = true;
+        state.score = state.score.wrapping_add(remaining);
+        gained |= remaining > 0;
+        picked_up = true;
         write_take_xp_orb(writer, compression, orb.entity_id())?;
         if orb.orb.removed {
             removed.push(orb.entity_id());
@@ -176,10 +196,45 @@ fn collect_orbs_in_reach(
     if !removed.is_empty() {
         publish_removed(bus, &removed)?;
     }
+    write_pickup_inventory_sync(writer, compression, state, times_changed_before)?;
     if gained {
         write_set_experience(writer, compression, state)?;
     }
-    Ok(gained)
+    Ok(picked_up)
+}
+
+/// Presents equipment in `EquipmentSlot.VALUES` order, with mainhand resolved from
+/// `Inventory.selected`. Only changed stacks are written back so menu synchronization
+/// observes a repair without reporting an inventory change for a plain XP pickup.
+fn repair_player_equipment(
+    state: &mut PlaySessionState,
+    amount: i32,
+    random: &mut XpOrbRandom,
+) -> i32 {
+    let inventory = state.inventory_menu.player_inventory_mut();
+    let slots = [
+        (RepairEquipmentSlot::Mainhand, inventory.selected_slot()),
+        (RepairEquipmentSlot::Offhand, 40),
+        (RepairEquipmentSlot::Feet, 36),
+        (RepairEquipmentSlot::Legs, 37),
+        (RepairEquipmentSlot::Chest, 38),
+        (RepairEquipmentSlot::Head, 39),
+        (RepairEquipmentSlot::Body, 41),
+        (RepairEquipmentSlot::Saddle, 42),
+    ];
+    let mut equipment: Vec<_> = slots
+        .iter()
+        .map(|(slot, index)| (*slot, inventory.get(*index).clone()))
+        .collect();
+    let remaining = repair_equipment(&mut equipment, amount, &mut |bound| {
+        random.next_int(bound as i32) as usize
+    });
+    for ((_, index), (_, stack)) in slots.into_iter().zip(equipment) {
+        if inventory.get(index) != &stack {
+            inventory.set(index, stack);
+        }
+    }
+    remaining
 }
 
 /// `Player.take(entity, 1)` → `ClientboundTakeItemEntityPacket`.

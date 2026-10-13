@@ -13,6 +13,8 @@
 use crate::experience_system::{experience_value, ExperienceOrb};
 use crate::item_entity::WorldItemEntities;
 
+pub mod mending;
+
 /// `ExperienceOrb.MAX_FOLLOW_DIST` — radius searched for a player to follow.
 pub const XP_ORB_MAX_FOLLOW_DIST: f64 = 8.0;
 /// `ExperienceOrb.ORB_GROUPS_PER_AREA` — modulus used to keep orbs of one award apart.

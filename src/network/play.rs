@@ -423,6 +423,7 @@ mod chunk_d2;
 use chunk_d2::*;
 
 mod chunk_e;
+mod item_component_sync;
 pub use chunk_e::*;
 
 mod chunk_set_default_spawn_position;

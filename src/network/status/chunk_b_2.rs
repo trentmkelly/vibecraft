@@ -178,17 +178,6 @@ fn write_remove_item_entity_packet<W: Write>(
     )
 }
 
-fn raw_item_stack_for_inventory_sync(stack: &ItemStack) -> RawItemStack {
-    if stack.is_empty() {
-        return RawItemStack::empty();
-    }
-    item_protocol_id(stack.item_id()).map_or_else(RawItemStack::empty, |pid| RawItemStack {
-        count: stack.count(),
-        item_id: Some(pid),
-        components: RawDataComponentPatch::empty(),
-    })
-}
-
 pub(super) fn write_pickup_inventory_sync<W: Write>(
     writer: &mut W,
     compression: CompressionState,
@@ -220,11 +209,11 @@ pub(super) fn write_inventory_content_sync<W: Write>(
             write_var_i32(payload, new_state_id)?;
             write_var_i32(payload, slots.len() as i32)?;
             for stack in &slots {
-                raw_item_stack_for_inventory_sync(stack).write_optional_trusted(payload)?;
+                raw_item_stack_from_item_stack(stack)?.write_optional_trusted(payload)?;
             }
             // The carried item must reflect server state so a ground pickup cannot
             // wipe an item already held on the cursor by an earlier ContainerClick.
-            raw_item_stack_for_inventory_sync(&state.carried_item).write_optional_trusted(payload)
+            raw_item_stack_from_item_stack(&state.carried_item)?.write_optional_trusted(payload)
         },
     )
 }
